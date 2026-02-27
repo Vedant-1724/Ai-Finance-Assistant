@@ -1,67 +1,39 @@
 spring:
-
-  # ── Database ───────────────────────────────────────────────────────────────
   datasource:
     url: jdbc:postgresql://localhost:5432/financedb
     username: postgres
-    password: vedant        # ← change this to your password
+    password: vedant
     driver-class-name: org.postgresql.Driver
 
-  # ── JPA / Hibernate ────────────────────────────────────────────────────────
   jpa:
     hibernate:
-      ddl-auto: validate                     # Flyway manages schema; Hibernate validates only
-    open-in-view: false                      # Disables open-in-view warning
-    show-sql: false
+      ddl-auto: validate
+    show-sql: true
     properties:
       hibernate:
-        # PostgreSQL dialect is auto-detected — no need to specify it
-        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  # ── Flyway ─────────────────────────────────────────────────────────────────
   flyway:
-    enabled: true
-    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
 
-  # ── Cache ──────────────────────────────────────────────────────────────────
   cache:
-    type: simple                             # In-memory cache — no Redis required
-    # Change to "redis" after installing Redis
+    type: simple          # ← CHANGED from redis (Redis bean is commented out in CacheConfig)
 
-  # ── Redis (optional — only used when cache.type=redis) ─────────────────────
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      timeout: 500ms
-
-  # ── RabbitMQ (optional — app works without it) ────────────────────────────
   rabbitmq:
     host: localhost
     port: 5672
     username: guest
     password: guest
-    # Prevents Spring Boot from crashing at startup if RabbitMQ is not running
-    listener:
-      simple:
-        auto-startup: false                  # Don't start listeners automatically
 
-  # ── Auto-configuration exclusions ─────────────────────────────────────────
-  autoconfigure:
-    exclude:
-      # Exclude RabbitMQ auto-config entirely if you haven't installed RabbitMQ yet.
-      # COMMENT THIS OUT once RabbitMQ is installed and running.
-      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
-
-# ── Server ───────────────────────────────────────────────────────────────────
 server:
   port: 8080
 
-# ── Logging ──────────────────────────────────────────────────────────────────
-logging:
-  level:
-    com.financeassistant: INFO
-    org.springframework.security: WARN      # Suppresses security verbose logs
-    org.springframework.cache: WARN
-    org.hibernate.SQL: WARN
-    org.flywaydb: INFO
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always

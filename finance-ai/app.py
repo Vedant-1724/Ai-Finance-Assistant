@@ -19,7 +19,7 @@ def health():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  CHAT  (unchanged)
+#  CHAT  — Powered by Gemini Pro
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/chat', methods=['POST', 'OPTIONS'])
 def chat():
@@ -31,69 +31,167 @@ def chat():
         return jsonify({'error': 'Missing question field'}), 400
 
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert AI finance and accounting assistant. "
-                        "Help users understand their financial data, income, expenses, "
-                        "forecasts, and accounting principles. Be concise and professional."
-                    )
-                },
-                {"role": "user", "content": body['question']}
-            ],
-            max_tokens=500
+        import google.generativeai as genai
+
+        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-pro',
+            system_instruction=(
+                "You are an expert AI finance and accounting assistant for small and "
+                "medium businesses. Help users understand their financial data including "
+                "income, expenses, cash flow, forecasts, invoices, and accounting "
+                "principles. Always be concise, professional, and actionable. "
+                "When discussing numbers, use Indian Rupee (₹) format where relevant."
+            )
         )
-        answer = response.choices[0].message.content
+
+        response = model.generate_content(body['question'])
+        answer   = response.text
         return jsonify({'answer': answer})
 
     except Exception as e:
+        logging.warning(f'Gemini unavailable: {e}. Using fallback.')
+
+        # ── Keyword-based fallback (runs when Gemini API is unreachable) ─────
         question = body['question'].lower()
-        logging.warning(f'OpenAI unavailable: {e}. Using fallback.')
 
         if any(w in question for w in ['transaction', 'count', 'how many']):
-            answer = "Your transactions are stored in the database. Visit the Dashboard tab to see your full transaction list with income and expense totals."
+            answer = (
+                "Your transactions are stored in the database. Visit the Dashboard tab "
+                "to see your full transaction list with income and expense totals."
+            )
         elif any(w in question for w in ['income', 'revenue', 'earn']):
-            answer = "Your income is calculated from all positive transactions. Check the Dashboard for your current total income figure."
+            answer = (
+                "Your income is calculated from all positive transactions. "
+                "Check the Dashboard for your current total income figure and "
+                "the P&L report for a period-wise breakdown."
+            )
         elif any(w in question for w in ['expense', 'spent', 'cost', 'spend']):
-            answer = "Your expenses are all negative transactions. The Dashboard shows your total expenses and breakdown by transaction."
+            answer = (
+                "Your expenses are all negative transactions. The Dashboard shows "
+                "your total expenses, and the Expense Breakdown chart shows spending "
+                "by category."
+            )
         elif any(w in question for w in ['profit', 'net', 'balance']):
-            answer = "Net profit = Total Income minus Total Expenses. Check the Net Cash Flow card on your Dashboard for the current figure."
+            answer = (
+                "Net profit = Total Income minus Total Expenses. Check the Net Cash "
+                "Flow card on your Dashboard for the current figure, or the P&L "
+                "Report section for monthly, quarterly, and yearly breakdowns."
+            )
         elif any(w in question for w in ['forecast', 'predict', 'future', 'next month']):
-            answer = "Cash flow forecasting requires at least 14 days of transaction data and uses the Prophet ML model. Add more transactions and use the /forecast API endpoint."
+            answer = (
+                "Cash flow forecasting uses the Prophet ML model and requires at "
+                "least 14 days of transaction data. The 6-Month Forecast chart on "
+                "your Dashboard shows projected income and expenses based on your "
+                "historical patterns."
+            )
         elif any(w in question for w in ['invoice', 'bill']):
-            answer = "Invoice processing uses OCR to extract data from uploaded invoice images. This feature uses the Python AI service on port 5000."
-        elif any(w in question for w in ['anomaly', 'fraud', 'unusual']):
-            answer = "Anomaly detection uses Isolation Forest ML algorithm to flag unusual transactions. It learns from your historical data patterns."
+            answer = (
+                "Invoice processing uses OCR to extract vendor, date, invoice number, "
+                "and total amount from uploaded invoice images. Go to the Invoices tab, "
+                "upload a PNG or JPG of your invoice, review the extracted data, and "
+                "save it directly as a transaction."
+            )
+        elif any(w in question for w in ['anomaly', 'fraud', 'unusual', 'suspicious']):
+            answer = (
+                "Anomaly detection uses the Isolation Forest ML algorithm to flag "
+                "unusual transactions automatically. It analyses amount, day of week, "
+                "and category patterns. Flagged transactions are saved and will appear "
+                "in the anomaly alerts panel."
+            )
         elif any(w in question for w in ['hello', 'hi', 'hey', 'help']):
-            answer = "Hello! I am your Finance Assistant. I can help with questions about income, expenses, profit, forecasting, invoices, and anomaly detection. What would you like to know?"
-        elif any(w in question for w in ['tax', 'gst', 'vat']):
-            answer = "Tax calculations depend on your jurisdiction. I can help analyze your transaction data to estimate tax obligations. Please consult a tax professional for official advice."
-        elif any(w in question for w in ['bank', 'account', 'plaid']):
-            answer = "Bank account integration uses Plaid API. Once connected, transactions sync automatically. Currently you can add transactions manually via the API."
+            answer = (
+                "Hello! I am your AI Finance Assistant powered by Gemini Pro. "
+                "I can help with questions about income, expenses, profit, cash flow "
+                "forecasting, invoice scanning, anomaly detection, and general "
+                "accounting. What would you like to know?"
+            )
+        elif any(w in question for w in ['tax', 'gst', 'vat', 'tds']):
+            answer = (
+                "Tax calculations depend on your business type and jurisdiction. "
+                "I can help analyse your transaction data to estimate GST, TDS, or "
+                "income tax obligations based on your income and expense categories. "
+                "Always consult a chartered accountant for official filings."
+            )
+        elif any(w in question for w in ['bank', 'account', 'plaid', 'sync']):
+            answer = (
+                "Bank account integration is on the roadmap using the Plaid API. "
+                "Once connected, transactions will sync automatically. Currently you "
+                "can add transactions manually via the Dashboard or by uploading "
+                "invoice images in the Invoices tab."
+            )
         elif any(w in question for w in ['cash', 'flow']):
-            answer = "Cash flow is the movement of money in and out of your business. Positive cash flow means more money coming in than going out. Check your Dashboard for current figures."
-        elif any(w in question for w in ['save', 'saving', 'reduce']):
-            answer = "To reduce expenses: 1) Review all recurring subscriptions, 2) Negotiate vendor contracts, 3) Automate manual processes, 4) Track and categorize all spending carefully."
-        elif any(w in question for w in ['invest', 'investment', 'grow']):
-            answer = "Investment decisions should be based on your net cash flow and business goals. Ensure you have 3-6 months of operating expenses as reserve before investing surplus funds."
-        elif any(w in question for w in ['categor', 'classify', 'train']):
-            answer = "The category classifier uses TF-IDF + Random Forest ML trained on labeled transactions. Call POST /train to train it, then POST /categorize to classify any transaction description."
+            answer = (
+                "Cash flow is the movement of money in and out of your business. "
+                "Positive cash flow means more money is coming in than going out. "
+                "Check the Cash Flow Over Time chart on your Dashboard for a daily "
+                "view of income versus expenses."
+            )
+        elif any(w in question for w in ['save', 'saving', 'reduce', 'cut']):
+            answer = (
+                "To reduce expenses: "
+                "1) Review and cancel unused recurring subscriptions, "
+                "2) Negotiate better rates with vendors, "
+                "3) Automate manual processes to save labour costs, "
+                "4) Track all spending by category using the Expense Breakdown chart, "
+                "5) Set monthly budgets for each category and monitor variances."
+            )
+        elif any(w in question for w in ['invest', 'investment', 'grow', 'surplus']):
+            answer = (
+                "Investment decisions should be based on your net cash flow position. "
+                "Ensure you have at least 3 to 6 months of operating expenses as a "
+                "cash reserve before investing surplus funds. Review your Net Cash "
+                "Flow trend over the past quarter before committing capital."
+            )
+        elif any(w in question for w in ['categor', 'classify', 'train', 'label']):
+            answer = (
+                "The category classifier uses TF-IDF + LinearSVC ML trained on your "
+                "labeled transaction data. It achieves around 85% accuracy on financial "
+                "transaction descriptions. The model auto-categorises new transactions "
+                "when you add them. You can retrain it via the POST /train endpoint "
+                "whenever you add new labeled data to transactions_labeled.csv."
+            )
+        elif any(w in question for w in ['report', 'pnl', 'profit and loss', 'statement']):
+            answer = (
+                "Profit & Loss reports are available for the current month, quarter, "
+                "and year on your Dashboard. Each report shows total income, total "
+                "expenses, net profit, and a full category breakdown. Reports are "
+                "cached for performance and refresh automatically when you add new "
+                "transactions."
+            )
+        elif any(w in question for w in ['budget', 'limit', 'overspend', 'over budget']):
+            answer = (
+                "Budget tracking is on the roadmap. The plan is to allow you to set "
+                "monthly spend limits per category and receive alerts when you approach "
+                "or exceed them. For now, use the P&L category breakdown to manually "
+                "review spending against your expected limits."
+            )
         else:
-            answer = "I received your question. To get full AI-powered answers, add OpenAI API credits at platform.openai.com/settings/billing. The service is running correctly and your data is being tracked!"
+            answer = (
+                "I received your question. Make sure your GEMINI_API_KEY is correctly "
+                "set in the .env file to get full AI-powered contextual answers. "
+                "The finance service is running correctly and all your data is being "
+                "tracked. Try asking about income, expenses, forecasts, invoices, "
+                "or anomaly detection."
+            )
 
         return jsonify({'answer': answer})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  FORECAST  (unchanged)
+#  FORECAST  — Prophet 30-day cash flow projection
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/forecast', methods=['POST'])
 def forecast():
+    """
+    POST /forecast
+    Body: { "cash_flow": [ {"date": "2026-01-01", "amount": 5000.0}, ... ] }
+    Requires at least 14 entries.
+
+    Returns list of 30 forecast points:
+    [ {"ds": "2026-03-01", "yhat": 4800.0, "yhat_lower": 3200.0, "yhat_upper": 6400.0}, ... ]
+    """
     body = request.get_json(force=True, silent=True)
     if not body or 'cash_flow' not in body:
         return jsonify({'error': 'Request body must contain cash_flow list'}), 400
@@ -106,14 +204,14 @@ def forecast():
         import pandas as pd
         from prophet import Prophet
 
-        df = pd.DataFrame(data)
-        df = df.rename(columns={'date': 'ds', 'amount': 'y'})
-        df['ds'] = pd.to_datetime(df['ds'])
-        df['y']  = pd.to_numeric(df['y'])
+        df          = pd.DataFrame(data)
+        df          = df.rename(columns={'date': 'ds', 'amount': 'y'})
+        df['ds']    = pd.to_datetime(df['ds'])
+        df['y']     = pd.to_numeric(df['y'])
 
-        m = Prophet(yearly_seasonality=True, weekly_seasonality=True)
+        m           = Prophet(yearly_seasonality=True, weekly_seasonality=True)
         m.fit(df)
-        future     = m.make_future_dataframe(periods=30)
+        future      = m.make_future_dataframe(periods=30)
         forecast_df = m.predict(future)
 
         result = (
@@ -131,10 +229,15 @@ def forecast():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  CATEGORIZE  (unchanged signature — now uses reloadable model)
+#  CATEGORIZE  — Single prediction (no confidence scores)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/categorize', methods=['POST'])
 def categorize():
+    """
+    POST /categorize
+    Body: { "description": "Monthly office rent payment" }
+    Returns: { "category": "Office Rent" }
+    """
     body = request.get_json(force=True, silent=True)
     if not body or 'description' not in body:
         return jsonify({'error': 'Missing description field'}), 400
@@ -149,13 +252,22 @@ def categorize():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  CATEGORIZE WITH CONFIDENCE  (new — returns top-3 probabilities)
+#  CATEGORIZE WITH CONFIDENCE  — Top-3 predictions with confidence scores
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/categorize-detail', methods=['POST'])
 def categorize_detail():
     """
-    POST { "description": "Monthly rent payment" }
-    Returns predicted category + top-3 confidence scores.
+    POST /categorize-detail
+    Body: { "description": "Monthly rent payment" }
+    Returns: {
+      "category":   "Office Rent",
+      "confidence": 0.842,
+      "top3": [
+        { "category": "Office Rent",  "confidence": 0.842 },
+        { "category": "Utilities",    "confidence": 0.091 },
+        { "category": "Miscellaneous","confidence": 0.067 }
+      ]
+    }
     """
     body = request.get_json(force=True, silent=True)
     if not body or 'description' not in body:
@@ -171,7 +283,7 @@ def categorize_detail():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TRAIN  (NEW — trains model on transactions_labeled.csv)
+#  TRAIN  — Train category classifier on transactions_labeled.csv
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/train', methods=['POST'])
 def train():
@@ -183,14 +295,14 @@ def train():
     Returns:
     {
       "status":       "ok",
-      "accuracy":     0.96,
-      "accuracy_pct": "96.0%",
-      "sample_count": 350,
-      "train_count":  280,
-      "test_count":   70,
-      "categories":   [...],
+      "accuracy":     0.855,
+      "accuracy_pct": "85.5%",
+      "sample_count": 807,
+      "train_count":  645,
+      "test_count":   162,
+      "categories":   ["Consulting Income", "Office Rent", ...],
       "report":       "...sklearn classification report...",
-      "message":      "Model trained successfully on 350 samples..."
+      "message":      "Model trained successfully on 807 samples..."
     }
     """
     body     = request.get_json(force=True, silent=True) or {}
@@ -215,13 +327,14 @@ def train():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TRAIN STATUS  (NEW — check if model exists without triggering training)
+#  TRAIN STATUS  — Check model state without triggering training
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/train/status', methods=['GET'])
 def train_status():
     """
     GET /train/status
-    Returns whether a trained model exists and which categories it knows.
+    Returns whether a trained model exists on disk, whether it is loaded
+    in memory, and which categories it knows.
     """
     model_path = 'models/category_classifier.joblib'
     csv_path   = 'transactions_labeled.csv'
@@ -234,13 +347,12 @@ def train_status():
     if csv_exists:
         try:
             import pandas as pd
-            df = pd.read_csv(csv_path).dropna(subset=['description', 'category'])
+            df           = pd.read_csv(csv_path).dropna(subset=['description', 'category'])
             categories   = sorted(df['category'].unique().tolist())
             sample_count = len(df)
         except Exception:
             pass
 
-    # Check if current in-memory model is loaded
     try:
         from category_classifier import _pipeline
         model_loaded = _pipeline['model'] is not None
@@ -248,13 +360,13 @@ def train_status():
         model_loaded = False
 
     return jsonify({
-        'model_trained':   model_exists,
-        'model_loaded':    model_loaded,
-        'csv_available':   csv_exists,
-        'sample_count':    sample_count,
-        'categories':      categories,
-        'model_path':      model_path,
-        'csv_path':        csv_path,
+        'model_trained':  model_exists,
+        'model_loaded':   model_loaded,
+        'csv_available':  csv_exists,
+        'sample_count':   sample_count,
+        'categories':     categories,
+        'model_path':     model_path,
+        'csv_path':       csv_path,
         'message': (
             'Model ready. Call POST /categorize to classify transactions.'
             if model_loaded else
@@ -264,10 +376,20 @@ def train_status():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  ANOMALIES  (unchanged)
+#  ANOMALIES  — Direct Isolation Forest detection (sync, no RabbitMQ)
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/anomalies', methods=['POST'])
 def anomalies():
+    """
+    POST /anomalies
+    Body: {
+      "transactions": [
+        { "id": 1, "amount": 50000.0, "day_of_week": 2, "hour": 12, "category_id": 5 },
+        ...
+      ]
+    }
+    Returns: { "anomalies": [ ...flagged transaction objects... ] }
+    """
     body = request.get_json(force=True, silent=True)
     if not body or 'transactions' not in body:
         return jsonify({'error': 'Missing transactions field'}), 400
@@ -282,37 +404,41 @@ def anomalies():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  OCR  (NEW — invoice image upload → extracted fields)
+#  OCR  — Invoice image upload → extracted fields
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/ocr', methods=['POST'])
 def ocr():
     """
     POST /ocr  multipart/form-data
-    Field: file  (PNG, JPG, JPEG — PDF needs pdf2image)
+    Field: file  (PNG, JPG, JPEG — PDF requires pdf2image + poppler)
 
     Returns:
     {
-      "vendor":     "Acme Corp" | null,
-      "date":       "2026-02-25" | null,
-      "invoice_no": "INV-001" | null,
-      "total":      12500.0 | null,
+      "vendor":     "Acme Corp Pvt Ltd" | null,
+      "date":       "2026-02-25"        | null,
+      "invoice_no": "INV-2026-0042"     | null,
+      "total":      12500.0             | null,
       "currency":   "INR",
-      "raw_text":   "...",
-      "note":       "..." | null   ← present only when OCR not installed or PDF issue
+      "raw_text":   "full OCR text...",
+      "note":       "..."               | null
     }
     """
     if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded. Send as multipart/form-data with field name "file".'}), 400
+        return jsonify({
+            'error': 'No file uploaded. Send as multipart/form-data with field name "file".'
+        }), 400
 
     file = request.files['file']
 
-    if file.filename == '' or file.filename is None:
+    if not file.filename:
         return jsonify({'error': 'Empty filename. Please select a file.'}), 400
 
     allowed = {'.png', '.jpg', '.jpeg', '.pdf'}
-    ext = os.path.splitext(file.filename.lower())[1]
+    ext     = os.path.splitext(file.filename.lower())[1]
     if ext not in allowed:
-        return jsonify({'error': f'Unsupported file type: {ext}. Use PNG, JPG, or JPEG.'}), 400
+        return jsonify({
+            'error': f'Unsupported file type: {ext}. Use PNG, JPG, or JPEG.'
+        }), 400
 
     try:
         data = file.read()
@@ -321,7 +447,10 @@ def ocr():
 
         from ocr_invoice import parse_invoice_bytes
         result = parse_invoice_bytes(data, filename=file.filename)
-        logging.info('OCR complete for %s — vendor=%s total=%s', file.filename, result.get('vendor'), result.get('total'))
+        logging.info(
+            'OCR complete for %s — vendor=%s total=%s',
+            file.filename, result.get('vendor'), result.get('total')
+        )
         return jsonify(result)
 
     except Exception as e:

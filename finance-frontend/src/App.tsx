@@ -46,7 +46,8 @@ function App() {
 
       <main>
         {activeTab === 'dashboard' && (
-          <Dashboard companyId={companyId} token="test-token" />
+          // Removed token prop — Dashboard no longer declares it
+          <Dashboard companyId={companyId} />
         )}
         {activeTab === 'invoices' && (
           <InvoiceUpload companyId={companyId} />

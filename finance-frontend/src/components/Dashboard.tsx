@@ -2,20 +2,21 @@ import { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import AddTransactionModal from './AddTransactionModal'
 import ChartsSection from './ChartsSection'
+import AnomalyPanel from './AnomalyPanel'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Transaction {
-  id: number
-  date: string
-  amount: number
-  description: string
+  id:           number
+  date:         string
+  amount:       number
+  description:  string
   categoryName: string
 }
 
 interface CategoryBreakdown {
   categoryName: string
-  amount: number
-  type: 'INCOME' | 'EXPENSE'
+  amount:       number
+  type:         'INCOME' | 'EXPENSE'
 }
 
 interface PnLReport {
@@ -28,9 +29,17 @@ interface PnLReport {
   breakdown:    CategoryBreakdown[]
 }
 
+// Defined locally — avoids any cross-file type import (verbatimModuleSyntax safe)
+interface AnomalyAlert {
+  id:            number
+  companyId:     number
+  transactionId: number | null
+  amount:        number
+  detectedAt:    string
+}
+
 interface DashboardProps {
   companyId: number
-  token:     string
 }
 
 type Period = 'month' | 'quarter' | 'year'
@@ -38,16 +47,18 @@ type Period = 'month' | 'quarter' | 'year'
 // ── Component ─────────────────────────────────────────────────────────────────
 function Dashboard({ companyId }: DashboardProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [txnLoading, setTxnLoading]     = useState(true)
-  const [txnError, setTxnError]         = useState<string | null>(null)
+  const [txnLoading,   setTxnLoading]   = useState(true)
+  const [txnError,     setTxnError]     = useState<string | null>(null)
 
-  const [pnl, setPnl]                   = useState<PnLReport | null>(null)
-  const [pnlLoading, setPnlLoading]     = useState(true)
-  const [pnlError, setPnlError]         = useState<string | null>(null)
+  const [pnl,          setPnl]          = useState<PnLReport | null>(null)
+  const [pnlLoading,   setPnlLoading]   = useState(true)
+  const [pnlError,     setPnlError]     = useState<string | null>(null)
   const [activePeriod, setActivePeriod] = useState<Period>('month')
 
-  const [showModal, setShowModal]       = useState(false)
-  const [successMsg, setSuccessMsg]     = useState<string | null>(null)
+  const [showModal,  setShowModal]  = useState(false)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([])
 
   // ── Fetch transactions ─────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
@@ -81,12 +92,30 @@ function Dashboard({ companyId }: DashboardProps) {
     }
   }, [companyId])
 
-  useEffect(() => { fetchTransactions() }, [fetchTransactions])
-  useEffect(() => { fetchPnL(activePeriod) }, [fetchPnL, activePeriod])
+  // ── Fetch anomalies (polls every 30s — RabbitMQ pipeline is async) ─────────
+  const fetchAnomalies = useCallback(async () => {
+    try {
+      const res = await axios.get<AnomalyAlert[]>(
+        `http://localhost:8080/api/v1/${companyId}/anomalies`
+      )
+      setAnomalies(res.data)
+    } catch {
+      setAnomalies([])
+    }
+  }, [companyId])
+
+  useEffect(() => { void fetchTransactions() }, [fetchTransactions])
+  useEffect(() => { void fetchPnL(activePeriod) }, [fetchPnL, activePeriod])
+  useEffect(() => {
+    void fetchAnomalies()
+    const interval = setInterval(() => { void fetchAnomalies() }, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchAnomalies])
 
   const handleTransactionAdded = () => {
-    fetchTransactions()
-    fetchPnL(activePeriod)
+    void fetchTransactions()
+    void fetchPnL(activePeriod)
+    setTimeout(() => { void fetchAnomalies() }, 5000)
     setSuccessMsg('Transaction added successfully!')
     setTimeout(() => setSuccessMsg(null), 3500)
   }
@@ -104,12 +133,18 @@ function Dashboard({ companyId }: DashboardProps) {
   return (
     <div className="dashboard">
 
-      {/* ── Success Toast ── */}
       {successMsg && (
         <div className="success-toast">
           <span>✅</span> {successMsg}
         </div>
       )}
+
+      {/* Anomaly panel — self-hides when anomalies array is empty */}
+      <AnomalyPanel
+        companyId={companyId}
+        anomalies={anomalies}
+        onDismiss={(id) => setAnomalies(prev => prev.filter(a => a.id !== id))}
+      />
 
       {/* ── Metric Cards ── */}
       {txnError ? (
@@ -175,7 +210,6 @@ function Dashboard({ companyId }: DashboardProps) {
             <div className="pnl-date-range">
               {pnl.startDate} → {pnl.endDate}
             </div>
-
             <div className="pnl-cards">
               <div className="pnl-card income-card">
                 <span className="pnl-label">Income</span>
@@ -240,8 +274,12 @@ function Dashboard({ companyId }: DashboardProps) {
             <span className="txn-count">{transactions.length}</span>
           </h3>
           <div className="header-actions">
-            <button className="btn-refresh" onClick={fetchTransactions}>↻ Refresh</button>
-            <button className="btn-add-txn" onClick={() => setShowModal(true)}>＋ Add Transaction</button>
+            <button className="btn-refresh" onClick={() => { void fetchTransactions() }}>
+              ↻ Refresh
+            </button>
+            <button className="btn-add-txn" onClick={() => setShowModal(true)}>
+              ＋ Add Transaction
+            </button>
           </div>
         </div>
 
@@ -284,7 +322,6 @@ function Dashboard({ companyId }: DashboardProps) {
         )}
       </div>
 
-      {/* ── Modal ── */}
       {showModal && (
         <AddTransactionModal
           companyId={companyId}

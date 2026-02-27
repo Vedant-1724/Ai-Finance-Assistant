@@ -1011,3 +1011,137 @@ tbody tr:hover td { background: var(--bg-elevated); }
   .inv-state-card  { padding: 40px 20px; }
   .inv-header      { flex-direction: column; gap: 10px; }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANOMALY ALERTS PANEL
+   Paste this block at the bottom of your App.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Section container ─────────────────────────────────────────────────────── */
+.anomaly-section {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.08), rgba(234, 88, 12, 0.06));
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header row ────────────────────────────────────────────────────────────── */
+.anomaly-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.anomaly-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f87171;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anomaly-badge {
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 2px 8px;
+  min-width: 20px;
+  text-align: center;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+
+.anomaly-subtitle {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 2px;
+}
+
+/* ── List of anomaly cards ─────────────────────────────────────────────────── */
+.anomaly-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Individual anomaly card ───────────────────────────────────────────────── */
+.anomaly-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(220, 38, 38, 0.07);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: background 0.2s;
+}
+
+.anomaly-card:hover {
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.anomaly-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.anomaly-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.anomaly-amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f87171;
+}
+
+.anomaly-type {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.anomaly-meta {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* ── Dismiss button ────────────────────────────────────────────────────────── */
+.anomaly-dismiss {
+  flex-shrink: 0;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #f87171;
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.anomaly-dismiss:hover {
+  background: rgba(220, 38, 38, 0.3);
+  transform: scale(1.1);
+}
