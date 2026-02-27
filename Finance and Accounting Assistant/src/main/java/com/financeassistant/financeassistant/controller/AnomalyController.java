@@ -10,12 +10,15 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * GAP 4 FIX: AnomalyRepository was saving anomalies to DB correctly via
- * AnomalyResultListener + RabbitMQ, but there was no HTTP endpoint for
- * the frontend to read them. This class closes that gap.
+ * NEW FILE — did not exist in finance-backend.
  *
- * Place at:
- *   src/main/java/com/financeassistant/financeassistant/controller/AnomalyController.java
+ * Exposes HTTP endpoints so the React Dashboard can display anomaly alerts.
+ * AnomalyResultListener saves anomalies to the DB via RabbitMQ;
+ * this controller lets the frontend READ them.
+ *
+ * Endpoints:
+ *   GET    /api/v1/{companyId}/anomalies            → list all anomalies
+ *   DELETE /api/v1/{companyId}/anomalies/{anomalyId} → dismiss one
  */
 @Slf4j
 @RestController
@@ -25,10 +28,6 @@ public class AnomalyController {
 
     private final AnomalyRepository anomalyRepository;
 
-    /**
-     * GET /api/v1/{companyId}/anomalies
-     * Returns all anomaly records newest-first. Called by AnomalyPanel.tsx.
-     */
     @GetMapping
     public ResponseEntity<List<Anomaly>> getAnomalies(@PathVariable Long companyId) {
         log.info("GET /anomalies companyId={}", companyId);
@@ -37,10 +36,6 @@ public class AnomalyController {
         return ResponseEntity.ok(anomalies);
     }
 
-    /**
-     * DELETE /api/v1/{companyId}/anomalies/{anomalyId}
-     * Dismiss/acknowledge an anomaly from the UI. Returns 204 or 404.
-     */
     @DeleteMapping("/{anomalyId}")
     public ResponseEntity<Void> dismissAnomaly(
             @PathVariable Long companyId,

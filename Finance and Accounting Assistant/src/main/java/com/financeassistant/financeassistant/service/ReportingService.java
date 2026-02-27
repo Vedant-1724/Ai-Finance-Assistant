@@ -15,6 +15,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * FIXES vs old finance-backend version:
+ * 1. getPnL() → getPnLReport() — matches ReportingController and TransactionService.
+ * 2. Old cache key used '#month' (non-existent param). Fixed to '#period'.
+ * 3. Old cache name was 'pnl-report'. Changed to 'pnl' (matches CacheConfig).
+ * 4. invalidateReports() → evictPnLCache() — matches what TransactionService calls.
+ * 5. Added full date range resolution (month / quarter / year / YYYY-MM).
+ * 6. Added category breakdown building from Object[] rows returned by repo.
+ * 7. expense stored as negative in DB — call .abs() before returning to UI.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -22,18 +32,16 @@ public class ReportingService {
 
     private final TransactionRepository transactionRepository;
 
-    // ── Main P&L Report (Redis-cached) ────────────────────────────────────────
+    // ── Main P&L Report (in-memory / Redis cached) ────────────────────────────
     @Cacheable(value = "pnl", key = "#companyId + '_' + #period")
     public PnLReport getPnLReport(Long companyId, String period) {
         log.info("Computing P&L report for company={} period={}", companyId, period);
 
         DateRange range = resolveDateRange(period);
 
-        BigDecimal income  = transactionRepository.sumIncome(companyId, range.start, range.end);
-        BigDecimal expense = transactionRepository.sumExpense(companyId, range.start, range.end);
-
-        // expense is stored as negative in DB — make it positive for display
-        BigDecimal positiveExpense = expense.abs();
+        BigDecimal income          = transactionRepository.sumIncome(companyId, range.start, range.end);
+        BigDecimal expenseRaw      = transactionRepository.sumExpense(companyId, range.start, range.end);
+        BigDecimal positiveExpense = expenseRaw.abs();   // stored negative → display positive
         BigDecimal netProfit       = income.subtract(positiveExpense);
 
         List<CategoryBreakdown> breakdown = buildBreakdown(
@@ -51,39 +59,39 @@ public class ReportingService {
                 .build();
     }
 
-    // ── Evict cache for a company (called after new transaction saved) ─────────
+    // ── Evict entire 'pnl' cache for this company after a new transaction ─────
     @CacheEvict(value = "pnl", allEntries = true)
     public void evictPnLCache(Long companyId) {
-        log.info("Evicted P&L cache for company={}", companyId);
+        log.debug("Evicted pnl cache for company={}", companyId);
     }
 
-    // ── Period → date range resolver ──────────────────────────────────────────
+    // ── Date range resolution ─────────────────────────────────────────────────
     private DateRange resolveDateRange(String period) {
         LocalDate today = LocalDate.now();
 
-        return switch (period.toLowerCase()) {
+        return switch (period) {
             case "month" -> new DateRange(
                     today.withDayOfMonth(1),
                     today.withDayOfMonth(today.lengthOfMonth())
             );
             case "quarter" -> {
-                int currentQuarter = (today.getMonthValue() - 1) / 3;
-                int startMonth     = currentQuarter * 3 + 1;
-                LocalDate start    = LocalDate.of(today.getYear(), startMonth, 1);
-                LocalDate end      = start.plusMonths(3).minusDays(1);
+                int month = today.getMonthValue();
+                int quarterStartMonth = ((month - 1) / 3) * 3 + 1;
+                LocalDate start = today.withMonth(quarterStartMonth).withDayOfMonth(1);
+                LocalDate end   = start.plusMonths(3).minusDays(1);
                 yield new DateRange(start, end);
             }
             case "year" -> new DateRange(
-                    LocalDate.of(today.getYear(), 1, 1),
-                    LocalDate.of(today.getYear(), 12, 31)
+                    today.withDayOfYear(1),
+                    today.withDayOfYear(today.lengthOfYear())
             );
             default -> {
-                // Accept specific "YYYY-MM" format, e.g. "2026-02"
+                // Format: "2026-02" — specific month
                 try {
                     LocalDate parsed = LocalDate.parse(period + "-01",
                             DateTimeFormatter.ofPattern("yyyy-MM-dd"));
                     yield new DateRange(
-                            parsed.withDayOfMonth(1),
+                            parsed,
                             parsed.withDayOfMonth(parsed.lengthOfMonth())
                     );
                 } catch (Exception e) {
@@ -97,23 +105,19 @@ public class ReportingService {
         };
     }
 
-    // ── Build category breakdown list from raw query results ──────────────────
+    // ── Convert Object[] rows from sumByCategory into CategoryBreakdown list ──
     private List<CategoryBreakdown> buildBreakdown(List<Object[]> rows) {
-        List<CategoryBreakdown> list = new ArrayList<>();
-        for (Object[] row : rows) {
-            String     name   = row[0] != null ? row[0].toString() : "Uncategorized";
-            BigDecimal amount = row[1] != null ? new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
-            String     type   = amount.compareTo(BigDecimal.ZERO) >= 0 ? "INCOME" : "EXPENSE";
+        List<CategoryBreakdown> result = new ArrayList<>();
+        if (rows == null) return result;
 
-            list.add(CategoryBreakdown.builder()
-                    .categoryName(name)
-                    .amount(amount.abs())   // always positive for display
-                    .type(type)
-                    .build());
+        for (Object[] row : rows) {
+            String name     = row[0] != null ? row[0].toString() : "Uncategorized";
+            BigDecimal amt  = row[1] != null ? new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
+            result.add(new CategoryBreakdown(name, amt));
         }
-        return list;
+        return result;
     }
 
-    // ── Inner helper record ────────────────────────────────────────────────────
+    // ── Simple record to hold date range ─────────────────────────────────────
     private record DateRange(LocalDate start, LocalDate end) {}
 }

@@ -90,28 +90,24 @@ function ChartTooltip({ active, payload, label }: SharedTooltipProps) {
   if (!active || !payload?.length) return null
   return (
     <div className="chart-tooltip">
-      {label && <p className="chart-tooltip-label">{label}</p>}
-      {payload.map((entry, i) => (
-        <p key={i} className="chart-tooltip-row" style={{ color: entry.color }}>
-          <span className="chart-tooltip-name">{entry.name}</span>
-          <span className="chart-tooltip-val">{inr(entry.value)}</span>
-        </p>
+      {label && <div className="chart-tooltip-label">{label}</div>}
+      {payload.map((p, i) => (
+        <div key={i} className="chart-tooltip-row">
+          <span className="chart-tooltip-name" style={{ color: p.color }}>{p.name}</span>
+          <span className="chart-tooltip-val">{inr(p.value)}</span>
+        </div>
       ))}
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Pie tooltip  (module-level — uses recharts' built-in `percent` field so
-//  it needs NO closure over `total` and is never created during render)
+//  Pie tooltip  (module-level)
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Recharts internally attaches a `percent` field (0-1) to each pie payload item.
 interface PiePayloadItem {
-  name:    unknown
-  value:   unknown
-  percent: unknown
-  fill?:   string
+  name:  string
+  value: number
+  payload: { name: string; value: number }
 }
 
 interface PieTooltipProps {
@@ -121,106 +117,86 @@ interface PieTooltipProps {
 
 function PieTooltip({ active, payload }: PieTooltipProps) {
   if (!active || !payload?.length) return null
-
-  const item    = payload[0]
-  const name    = typeof item.name    === 'string' ? item.name    : ''
-  const value   = typeof item.value   === 'number' ? item.value   : 0
-  const percent = typeof item.percent === 'number' ? item.percent : 0
-
+  const item = payload[0]
   return (
     <div className="chart-tooltip">
-      <p className="chart-tooltip-label">{name}</p>
-      <p className="chart-tooltip-row" style={{ color: C_EXPENSE }}>
+      <div className="chart-tooltip-label">{item.name}</div>
+      <div className="chart-tooltip-row">
         <span className="chart-tooltip-name">Amount</span>
-        <span className="chart-tooltip-val">{inr(value)}</span>
-      </p>
-      <p className="chart-tooltip-row" style={{ color: '#8b9ec7' }}>
-        <span className="chart-tooltip-name">Share</span>
-        <span className="chart-tooltip-val">{(percent * 100).toFixed(1)}%</span>
-      </p>
+        <span className="chart-tooltip-val">{inr(item.value)}</span>
+      </div>
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Pie label  (module-level — all props optional to match recharts' label API)
+//  Pie label  (module-level)
 // ─────────────────────────────────────────────────────────────────────────────
 interface PieLabelProps {
-  cx?:          number
-  cy?:          number
-  midAngle?:    number
-  outerRadius?: number
-  percent?:     number
-  name?:        string
+  cx:         number
+  cy:         number
+  midAngle:   number
+  outerRadius: number
+  name:       string
+  percent:    number
 }
 
-function PieLabel({
-  cx          = 0,
-  cy          = 0,
-  midAngle    = 0,
-  outerRadius = 0,
-  percent     = 0,
-  name        = '',
-}: PieLabelProps) {
+function PieLabel({ cx, cy, midAngle, outerRadius, name, percent }: PieLabelProps) {
   if (percent < 0.05) return null
   const RADIAN = Math.PI / 180
-  const radius = outerRadius + 28
-  const x = cx + radius * Math.cos(-midAngle * RADIAN)
-  const y = cy + radius * Math.sin(-midAngle * RADIAN)
+  const r  = outerRadius + 22
+  const x  = cx + r * Math.cos(-midAngle * RADIAN)
+  const y  = cy + r * Math.sin(-midAngle * RADIAN)
   return (
     <text
-      x={x}
-      y={y}
+      x={x} y={y}
       fill="#8b9ec7"
       textAnchor={x > cx ? 'start' : 'end'}
       dominantBaseline="central"
       fontSize={11}
     >
-      {`${name} (${(percent * 100).toFixed(0)}%)`}
+      {name} ({(percent * 100).toFixed(0)}%)
     </text>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Empty state  (module-level)
+//  Empty state placeholder
 // ─────────────────────────────────────────────────────────────────────────────
 function ChartEmpty({ message }: { message: string }) {
   return (
     <div className="chart-empty">
-      <span className="chart-empty-icon">📊</span>
-      <p>{message}</p>
+      <div className="chart-empty-icon">📭</div>
+      <span>{message}</span>
     </div>
   )
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  CHART 1 — Cash Flow Over Time  (Area)
+//  CHART 1 — Cash Flow  (Area)
 // ═════════════════════════════════════════════════════════════════════════════
 function CashFlowChart({ transactions }: { transactions: Transaction[] }) {
   const data = useMemo(() => {
     const byDate = new Map<string, { income: number; expense: number }>()
     for (const txn of transactions) {
-      const curr = byDate.get(txn.date) ?? { income: 0, expense: 0 }
+      const date = txn.date ?? ''
+      const curr = byDate.get(date) ?? { income: 0, expense: 0 }
       if (txn.amount > 0) curr.income  += txn.amount
       else                curr.expense += Math.abs(txn.amount)
-      byDate.set(txn.date, curr)
+      byDate.set(date, curr)
     }
     return Array.from(byDate.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, vals]) => ({
-        date:    date.slice(5),
-        income:  Math.round(vals.income),
-        expense: Math.round(vals.expense),
-      }))
+      .map(([date, v]) => ({ date, ...v }))
   }, [transactions])
 
   return (
     <div className="chart-card">
       <div className="chart-card-header">
-        <h4 className="chart-title">📈 Cash Flow Over Time</h4>
-        <p className="chart-subtitle">Daily income vs expenses</p>
+        <h4 className="chart-title">📈 Cash Flow</h4>
+        <p className="chart-subtitle">Income vs Expenses over time</p>
       </div>
-      {data.length < 2 ? (
+      {data.length === 0 ? (
         <ChartEmpty message="Add transactions on different dates to see this chart" />
       ) : (
         <ResponsiveContainer width="100%" height={240}>
@@ -283,8 +259,10 @@ function CashFlowChart({ transactions }: { transactions: Transaction[] }) {
 function ExpensePieChart({ breakdown }: { breakdown: CategoryBreakdown[] }) {
   const pieData = useMemo(() =>
     breakdown
-      .filter(b => b.type === 'EXPENSE')
-      .map(b => ({ name: b.categoryName, value: Math.round(Number(b.amount)) }))
+      // FIX: guard null/undefined type before comparing
+      .filter(b => b.type != null && b.type === 'EXPENSE')
+      // FIX: guard null categoryName and amount
+      .map(b => ({ name: b.categoryName ?? 'Unknown', value: Math.round(Number(b.amount ?? 0)) }))
       .filter(b => b.value > 0),
     [breakdown]
   )
@@ -340,67 +318,69 @@ function ForecastChart({ transactions }: { transactions: Transaction[] }) {
 
     const byMonth = new Map<string, { income: number; expense: number }>()
     for (const txn of transactions) {
-      const month = txn.date.slice(0, 7)
+      // FIX: guard null date
+      const month = (txn.date ?? '').slice(0, 7)
+      if (!month) continue
       const curr  = byMonth.get(month) ?? { income: 0, expense: 0 }
       if (txn.amount > 0) curr.income  += txn.amount
       else                curr.expense += Math.abs(txn.amount)
       byMonth.set(month, curr)
     }
 
-    const sorted = Array.from(byMonth.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
+    const sorted = Array.from(byMonth.entries()).sort(([a], [b]) => a.localeCompare(b))
+    if (sorted.length < 2) return []
 
-    if (sorted.length === 0) return []
+    // Simple linear regression for forecast
+    const incomeValues  = sorted.map(([, v]) => v.income)
+    const expenseValues = sorted.map(([, v]) => v.expense)
+    const n = sorted.length
 
-    const avgIncome  = sorted.reduce((s, [, v]) => s + v.income,  0) / sorted.length
-    const avgExpense = sorted.reduce((s, [, v]) => s + v.expense, 0) / sorted.length
+    const linReg = (vals: number[]) => {
+      const sumX  = vals.reduce((s, _, i) => s + i, 0)
+      const sumY  = vals.reduce((s, v) => s + v, 0)
+      const sumXY = vals.reduce((s, v, i) => s + i * v, 0)
+      const sumX2 = vals.reduce((s, _, i) => s + i * i, 0)
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+      const intercept = (sumY - slope * sumX) / n
+      return (x: number) => Math.max(0, slope * x + intercept)
+    }
 
-    const result: ForecastPoint[] = sorted.map(([month, vals]) => ({
+    const incomeReg  = linReg(incomeValues)
+    const expenseReg = linReg(expenseValues)
+
+    const result: ForecastPoint[] = sorted.map(([month, v], i) => ({
       month,
-      actualIncome:    Math.round(vals.income),
-      actualExpense:   Math.round(vals.expense),
-      forecastIncome:  null,
-      forecastExpense: null,
+      actualIncome:    v.income,
+      actualExpense:   v.expense,
+      forecastIncome:  i === n - 1 ? incomeReg(n)  : null,
+      forecastExpense: i === n - 1 ? expenseReg(n) : null,
     }))
 
-    // Bridge the last actual point into the forecast line
-    const last = result[result.length - 1]
-    if (last) {
-      last.forecastIncome  = Math.round(avgIncome)
-      last.forecastExpense = Math.round(avgExpense)
-    }
-
-    // Append 6 future months
-    const lastEntry = sorted[sorted.length - 1]
-    if (!lastEntry) return result
-
-    const yr = parseInt(lastEntry[0].slice(0, 4), 10)
-    const mo = parseInt(lastEntry[0].slice(5, 7), 10)
-
-    for (let i = 1; i <= 6; i++) {
-      const d   = new Date(yr, mo - 1 + i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    // Add 2 forecast months
+    const lastMonth = sorted[n - 1][0]
+    const [yr, mo]  = lastMonth.split('-').map(Number)
+    for (let i = 1; i <= 2; i++) {
+      const date = new Date(yr, mo - 1 + i, 1)
+      const label = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
       result.push({
-        month:           key,
+        month:           label,
         actualIncome:    null,
         actualExpense:   null,
-        forecastIncome:  Math.round(avgIncome),
-        forecastExpense: Math.round(avgExpense),
+        forecastIncome:  incomeReg(n + i - 1),
+        forecastExpense: expenseReg(n + i - 1),
       })
     }
+
     return result
   }, [transactions])
 
   return (
-    <div className="chart-card chart-card-full">
+    <div className="chart-card">
       <div className="chart-card-header">
-        <h4 className="chart-title">🔮 6-Month Forecast</h4>
-        <p className="chart-subtitle">
-          <span className="forecast-legend-actual">━━</span>&nbsp;Actual&nbsp;&nbsp;
-          <span className="forecast-legend-forecast">╌╌</span>&nbsp;Projected (avg-based)
-        </p>
+        <h4 className="chart-title">🔮 Cash Flow Forecast</h4>
+        <p className="chart-subtitle">Actual + 2-month linear projection</p>
       </div>
-      {data.length < 2 ? (
+      {data.length === 0 ? (
         <ChartEmpty message="Add transactions across multiple months to generate a forecast" />
       ) : (
         <ResponsiveContainer width="100%" height={260}>

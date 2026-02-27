@@ -9,14 +9,21 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-@Data               // generates all getters and setters
+/**
+ * FIX: Added Lombok @Data, @NoArgsConstructor, @AllArgsConstructor.
+ * Added 'source' field (MANUAL/PLAID/CSV) and 'createdAt' with @PrePersist.
+ * These match the DB schema (V1 migration has source + created_at columns).
+ * Without Lombok annotations and the source field, Spring will fail to persist
+ * or will miss columns defined in the migration SQL.
+ */
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
 @Table(name = "transactions",
         indexes = {
-                @Index(name = "idx_txn_company",       columnList = "company_id"),
-                @Index(name = "idx_txn_date",           columnList = "company_id, date")
+                @Index(name = "idx_txn_company", columnList = "company_id"),
+                @Index(name = "idx_txn_date",    columnList = "company_id, date")
         })
 public class Transaction {
 
@@ -46,7 +53,7 @@ public class Transaction {
     private String description;
 
     @Column(nullable = false, length = 50)
-    private String source = "MANUAL";   // MANUAL, PLAID, CSV
+    private String source = "MANUAL";   // MANUAL | PLAID | CSV
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

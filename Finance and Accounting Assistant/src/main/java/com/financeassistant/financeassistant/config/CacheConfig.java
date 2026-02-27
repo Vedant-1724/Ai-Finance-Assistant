@@ -4,38 +4,38 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Cache configuration.
+ * NEW FILE — did not exist in finance-backend.
  *
- * Current state: Uses Spring's in-memory ConcurrentMapCache (cache.type=simple).
- * No Redis required. Cache lives in JVM memory and resets on app restart.
+ * Activates Spring's caching infrastructure (@Cacheable, @CacheEvict).
+ * Without @EnableCaching, the @Cacheable annotation on ReportingService
+ * does NOTHING — every call hits the database even with cache configured.
  *
- * To upgrade to Redis later:
- *   1. Install Redis: https://redis.io/download
- *   2. Change application.yml: cache.type: redis
- *   3. Uncomment the RedisCacheManager bean below
- *   4. Remove the RabbitAutoConfiguration exclusion from application.yml
+ * Current mode: in-memory (ConcurrentMapCache) — no Redis required.
+ * application.yml sets spring.cache.type=simple for this mode.
+ *
+ * To upgrade to Redis (when you reach that stage):
+ *   1. Install Redis and start it.
+ *   2. Change application.yml: spring.cache.type: redis
+ *   3. Uncomment the RedisCacheManager bean below.
  */
 @EnableCaching
 @Configuration
 public class CacheConfig {
-    // Spring Boot auto-configures an in-memory cache when cache.type=simple.
-    // No additional bean definition needed for development.
-    //
-    // ── Upgrade to Redis (Step 7 in roadmap) ──────────────────────────────
-    // Uncomment the block below after installing Redis and changing yml:
-    //
+    // Spring Boot auto-configures ConcurrentMapCache when cache.type=simple.
+    // No additional bean needed for development mode.
+
+    // ── Upgrade to Redis later ────────────────────────────────────────────────
     // @Bean
     // public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
     //     RedisCacheConfiguration config = RedisCacheConfiguration
     //             .defaultCacheConfig()
     //             .entryTtl(Duration.ofMinutes(5))
     //             .serializeKeysWith(SerializationPair.fromSerializer(new StringRedisSerializer()))
-    //             .serializeValuesWith(SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()))
+    //             .serializeValuesWith(SerializationPair.fromSerializer(
+    //                     new GenericJackson2JsonRedisSerializer()))
     //             .disableCachingNullValues();
-    //
     //     return RedisCacheManager.builder(factory)
     //             .cacheDefaults(config)
-    //             .withInitialCacheConfigurations(Map.of("pnl", config.entryTtl(Duration.ofMinutes(5))))
     //             .build();
     // }
 }

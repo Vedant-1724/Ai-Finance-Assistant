@@ -214,19 +214,19 @@ function Dashboard({ companyId }: DashboardProps) {
               <div className="pnl-card income-card">
                 <span className="pnl-label">Income</span>
                 <span className="pnl-value income-val">
-                  +₹{Number(pnl.totalIncome).toLocaleString('en-IN')}
+                  +₹{Number(pnl.totalIncome ?? 0).toLocaleString('en-IN')}
                 </span>
               </div>
               <div className="pnl-card expense-card">
                 <span className="pnl-label">Expenses</span>
                 <span className="pnl-value expense-val">
-                  −₹{Number(pnl.totalExpense).toLocaleString('en-IN')}
+                  −₹{Number(pnl.totalExpense ?? 0).toLocaleString('en-IN')}
                 </span>
               </div>
-              <div className={`pnl-card net-card ${Number(pnl.netProfit) >= 0 ? 'profit' : 'loss'}`}>
+              <div className={`pnl-card net-card ${Number(pnl.netProfit ?? 0) >= 0 ? 'profit' : 'loss'}`}>
                 <span className="pnl-label">Net Profit</span>
-                <span className={`pnl-value ${Number(pnl.netProfit) >= 0 ? 'profit-val' : 'loss-val'}`}>
-                  {Number(pnl.netProfit) >= 0 ? '+' : ''}₹{Number(pnl.netProfit).toLocaleString('en-IN')}
+                <span className={`pnl-value ${Number(pnl.netProfit ?? 0) >= 0 ? 'profit-val' : 'loss-val'}`}>
+                  {Number(pnl.netProfit ?? 0) >= 0 ? '+' : ''}₹{Number(pnl.netProfit ?? 0).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
@@ -245,14 +245,15 @@ function Dashboard({ companyId }: DashboardProps) {
                   <tbody>
                     {pnl.breakdown.map((row, i) => (
                       <tr key={i}>
-                        <td>{row.categoryName}</td>
+                        <td>{row.categoryName ?? '—'}</td>
                         <td>
-                          <span className={`type-badge ${row.type.toLowerCase()}`}>
+                          {/* FIX: use optional chaining to prevent crash when type is null */}
+                          <span className={`type-badge ${row.type?.toLowerCase() ?? 'unknown'}`}>
                             {row.type === 'INCOME' ? '📈 Income' : '📉 Expense'}
                           </span>
                         </td>
                         <td className={row.type === 'INCOME' ? 'positive' : 'negative'}>
-                          {row.type === 'INCOME' ? '+' : '−'}₹{Number(row.amount).toLocaleString('en-IN')}
+                          {row.type === 'INCOME' ? '+' : '−'}₹{Number(row.amount ?? 0).toLocaleString('en-IN')}
                         </td>
                       </tr>
                     ))}

@@ -1,16 +1,18 @@
 package com.financeassistant.financeassistant.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.Table;
-
+import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * NEW FILE — did not exist in finance-backend.
+ * Required by:
+ *   - AnomalyResultListener (saves anomaly records)
+ *   - AnomalyController    (returns anomaly records to frontend)
+ *   - AnomalyRepository    (Spring Data interface)
+ *
+ * The corresponding DB table is created by V2__add_anomalies_table.sql
+ */
 @Entity
 @Table(
         name = "anomalies",
@@ -56,11 +58,11 @@ public class Anomaly {
     public void setCompanyId(Long companyId)         { this.companyId = companyId; }
 
     public Long getTransactionId()                   { return transactionId; }
-    public void setTransactionId(Long transactionId) { this.transactionId = transactionId; }
+    public void setTransactionId(Long t)             { this.transactionId = t; }
 
     public BigDecimal getAmount()                    { return amount; }
     public void setAmount(BigDecimal amount)         { this.amount = amount; }
 
-    public LocalDateTime getDetectedAt()                   { return detectedAt; }
-    public void setDetectedAt(LocalDateTime detectedAt)    { this.detectedAt = detectedAt; }
+    public LocalDateTime getDetectedAt()             { return detectedAt; }
+    public void setDetectedAt(LocalDateTime d)       { this.detectedAt = d; }
 }

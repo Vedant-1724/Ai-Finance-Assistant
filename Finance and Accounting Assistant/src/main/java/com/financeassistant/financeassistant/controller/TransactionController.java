@@ -11,6 +11,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * FIXES vs old finance-backend version:
+ * 1. Removed @PreAuthorize — caused 403 errors before JWT is implemented.
+ * 2. Removed Pageable params — service no longer has findByCompany(Pageable).
+ * 3. Calls service.getTransactions() instead of service.findByCompany().
+ * 4. Calls service.createTransaction() instead of service.create().
+ * 5. Uses @RequiredArgsConstructor + final field injection (cleaner than @Autowired).
+ * 6. Removed the @ExceptionHandler — moved to GlobalExceptionHandler.
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/{companyId}/transactions")

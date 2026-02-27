@@ -13,6 +13,21 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * NEW FILE — did not exist in finance-backend.
+ *
+ * This is the "close the RabbitMQ loop" component (Feature #6 in your roadmap).
+ *
+ * Flow:
+ *   1. TransactionService saves a transaction and publishes to "ai.anomaly.queue"
+ *      via TransactionEventPublisher.
+ *   2. Python rabbitmq_consumer.py picks it up, runs IsolationForest, and
+ *      publishes results to "ai.anomaly.results".
+ *   3. THIS class listens on "ai.anomaly.results" and saves flagged anomalies
+ *      to the PostgreSQL 'anomalies' table.
+ *   4. AnomalyController exposes GET /api/v1/{companyId}/anomalies so the
+ *      React Dashboard.tsx can poll and display them.
+ */
 @Service
 public class AnomalyResultListener {
 

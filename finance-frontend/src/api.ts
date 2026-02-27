@@ -18,7 +18,9 @@ api.interceptors.response.use(
   error => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      // FIX: No redirect — login page not implemented yet (Feature #7: JWT Auth)
+      // Previously this redirected to '/login' which doesn't exist, causing blank page
+      console.warn('401 Unauthorized — JWT authentication not yet implemented.')
     }
     return Promise.reject(error)
   }

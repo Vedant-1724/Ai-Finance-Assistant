@@ -1,19 +1,17 @@
 package com.financeassistant.financeassistant.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.math.BigDecimal;
 
-@Data                   // generates getters + setters for ALL fields
-@NoArgsConstructor      // generates default constructor (required by Jackson for JSON)
-@AllArgsConstructor     // generates constructor with all fields
-public class TransactionDTO {
-
-    private Long       id;
-    private String     date;
-    private BigDecimal amount;
-    private String     description;
-    private String     categoryName;
-}
+/**
+ * FIX: Changed 'LocalDate date' → 'String date'
+ * because TransactionService.toDTO() calls t.getDate().toString()
+ * which returns a "YYYY-MM-DD" String, not a LocalDate.
+ * The old record (LocalDate date) would cause a type mismatch at compile time.
+ */
+public record TransactionDTO(
+        Long id,
+        String date,           // ← was LocalDate — now String "YYYY-MM-DD"
+        BigDecimal amount,
+        String description,
+        String categoryName
+) {}

@@ -10,18 +10,22 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * FIXES vs old finance-backend version:
+ * 1. Removed findByCompanyId(Long, Pageable) — replaced with findByCompanyIdOrderByDateDesc.
+ * 2. Old totalIncome/totalExpense queries relied on category.type — which NPEs
+ *    when category is null. Replaced with amount > 0 / amount < 0 logic and
+ *    added date-range parameters needed by ReportingService.
+ * 3. Added sumByCategory() for the breakdown section of PnL reports.
+ * 4. Added countByPeriod() — useful for dashboard stats.
+ */
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-    // ── Basic lookup ───────────────────────────────────────────────────────────
+    // ── Basic lookup — newest first ────────────────────────────────────────────
     List<Transaction> findByCompanyIdOrderByDateDesc(Long companyId);
 
-    // Kept for backward-compatibility (used in existing controller)
-    default List<Transaction> findByCompanyId(Long companyId) {
-        return findByCompanyIdOrderByDateDesc(companyId);
-    }
-
-    // ── P&L income aggregation ─────────────────────────────────────────────────
+    // ── P&L income aggregation (positive amounts = income) ────────────────────
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
             "WHERE t.company.id = :companyId " +
             "AND t.amount > 0 " +
@@ -33,7 +37,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("endDate")   LocalDate endDate
     );
 
-    // ── P&L expense aggregation (returns negative value) ──────────────────────
+    // ── P&L expense aggregation (negative amounts = expense) ─────────────────
+    // Returns a negative value; ReportingService calls .abs() before display.
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
             "WHERE t.company.id = :companyId " +
             "AND t.amount < 0 " +
@@ -45,7 +50,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("endDate")   LocalDate endDate
     );
 
-    // ── Category breakdown ─────────────────────────────────────────────────────
+    // ── Category breakdown ────────────────────────────────────────────────────
     // Returns Object[] rows: [categoryName (String or null), amountSum (BigDecimal)]
     @Query("SELECT COALESCE(c.name, 'Uncategorized'), COALESCE(SUM(t.amount), 0) " +
             "FROM Transaction t LEFT JOIN t.category c " +
@@ -60,7 +65,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("endDate")   LocalDate endDate
     );
 
-    // ── Transaction count for a period ─────────────────────────────────────────
+    // ── Transaction count for a period ────────────────────────────────────────
     @Query("SELECT COUNT(t) FROM Transaction t " +
             "WHERE t.company.id = :companyId " +
             "AND t.date >= :startDate " +
