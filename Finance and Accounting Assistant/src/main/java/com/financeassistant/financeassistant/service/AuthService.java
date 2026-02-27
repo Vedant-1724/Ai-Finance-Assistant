@@ -10,8 +10,7 @@ import com.financeassistant.financeassistant.repository.UserRepository;
 import com.financeassistant.financeassistant.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -21,19 +20,33 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Handles user registration and login.
- * Also implements UserDetailsService so Spring Security can load
- * users by email during JWT validation in JwtAuthFilter.
+ * Also implements UserDetailsService so Spring Security / JwtAuthFilter
+ * can load users by email during JWT validation.
+ *
+ * ── Why AuthenticationManager was removed ────────────────────────────────────
+ * Injecting AuthenticationManager here creates an unresolvable cycle:
+ *
+ *   AuthService  →  AuthenticationManager
+ *                       ↓
+ *              (Spring Security builds it by scanning
+ *               for the UserDetailsService bean)
+ *                       ↓
+ *                   AuthService   ← cycle!
+ *
+ * The fix: verify the password directly with PasswordEncoder.
+ * This is exactly what AuthenticationManager (DaoAuthenticationProvider)
+ * does internally — we just skip the middleman.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService implements UserDetailsService {
 
-    private final UserRepository        userRepository;
-    private final CompanyRepository     companyRepository;
-    private final PasswordEncoder       passwordEncoder;
-    private final JwtUtil               jwtUtil;
-    private final AuthenticationManager authenticationManager;
+    private final UserRepository    userRepository;
+    private final CompanyRepository companyRepository;
+    private final PasswordEncoder   passwordEncoder;
+    private final JwtUtil           jwtUtil;
 
     // ── UserDetailsService ────────────────────────────────────────────────────
 
@@ -51,14 +64,7 @@ public class AuthService implements UserDetailsService {
     // ── Register ──────────────────────────────────────────────────────────────
 
     /**
-     * Creates a new user account and a default company, then returns a JWT.
-     *
-     * Steps:
-     *   1. Validate email not already taken
-     *   2. Hash password with BCrypt
-     *   3. Save User
-     *   4. Create a Company with this user as owner
-     *   5. Generate and return JWT containing email + companyId
+     * Creates a new user + company, then returns a signed JWT.
      */
     @Transactional
     public AuthResponse register(RegisterRequest req) {
@@ -66,7 +72,6 @@ public class AuthService implements UserDetailsService {
             throw new IllegalArgumentException("Email already registered: " + req.getEmail());
         }
 
-        // Save user with BCrypt-hashed password
         User user = new User(
                 req.getEmail(),
                 passwordEncoder.encode(req.getPassword()),
@@ -75,16 +80,14 @@ public class AuthService implements UserDetailsService {
         User savedUser = userRepository.save(user);
         log.info("Registered new user: {}", savedUser.getEmail());
 
-        // Create a default company for this user
         Company company = new Company();
         company.setOwnerId(savedUser.getId());
         company.setName(req.getCompanyName());
         company.setCurrency("USD");
         Company savedCompany = companyRepository.save(company);
-        log.info("Created company '{}' (id={}) for user {}", 
+        log.info("Created company '{}' (id={}) for user {}",
                 savedCompany.getName(), savedCompany.getId(), savedUser.getEmail());
 
-        // Issue JWT
         String token = jwtUtil.generateToken(savedUser.getEmail(), savedCompany.getId());
         return new AuthResponse(token, savedCompany.getId(), savedUser.getEmail());
     }
@@ -92,32 +95,29 @@ public class AuthService implements UserDetailsService {
     // ── Login ─────────────────────────────────────────────────────────────────
 
     /**
-     * Authenticates email + password, then returns a JWT.
+     * Verifies email + password directly with BCrypt, then returns a signed JWT.
      *
-     * Steps:
-     *   1. AuthenticationManager verifies credentials (calls loadUserByUsername)
-     *   2. Load user's primary company to get companyId
-     *   3. Generate and return JWT containing email + companyId
-     *
-     * Throws AuthenticationException on bad credentials — Spring Security
-     * converts this to a 401 response automatically.
+     * We call passwordEncoder.matches() ourselves instead of delegating to
+     * AuthenticationManager — identical behaviour, zero circular dependency.
      */
     public AuthResponse login(LoginRequest req) {
-        // Let Spring Security verify credentials (throws on failure)
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword())
-        );
-
-        // Load user (already verified — this should not fail)
+        // 1. Load user — throws UsernameNotFoundException if not found
         User user = userRepository.findByEmail(req.getEmail())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found after auth"));
+                .orElseThrow(() ->
+                        new BadCredentialsException("Invalid email or password"));
 
-        // Find the user's primary company
+        // 2. Verify BCrypt hash — throws BadCredentialsException on mismatch
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            throw new BadCredentialsException("Invalid email or password");
+        }
+
+        // 3. Load the user's primary company
         Company company = companyRepository.findFirstByOwnerId(user.getId())
                 .orElseThrow(() ->
-                        new IllegalStateException("No company found for user: " + req.getEmail()));
+                        new IllegalStateException(
+                                "No company found for user: " + req.getEmail()));
 
-        log.info("User {} logged in, company={}", user.getEmail(), company.getId());
+        log.info("User {} logged in, companyId={}", user.getEmail(), company.getId());
 
         String token = jwtUtil.generateToken(user.getEmail(), company.getId());
         return new AuthResponse(token, company.getId(), user.getEmail());

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from 'react'
-import axios from 'axios'
+import axios from 'axios'                         // kept for OCR — calls Python on port 5000 (no JWT)
+import api from '../api'                          // ← JWT-aware instance for Spring Boot calls
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Interfaces
@@ -42,40 +43,31 @@ function buildDescription(vendor: string | null, invoiceNo: string | null): stri
 
 function normaliseDate(raw: string | null): string {
   if (!raw) return TODAY
-  // Already ISO  (2026-02-25)
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
-  // DD/MM/YYYY → YYYY-MM-DD
   const dmy = raw.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
   if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
-  // YYYY/MM/DD
   const ymd = raw.match(/^(\d{4})[/-](\d{2})[/-](\d{2})$/)
   if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`
   return TODAY
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Sub-components (all module-level — zero creation during render)
+//  Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 function DropZone({
-  onFile,
-  dragOver,
-  onDragOver,
-  onDragLeave,
-  onDrop,
+  onFile, dragOver, onDragOver, onDragLeave, onDrop,
 }: {
-  onFile:     (f: File) => void
-  dragOver:   boolean
-  onDragOver: (e: DragEvent<HTMLDivElement>) => void
+  onFile:      (f: File) => void
+  dragOver:    boolean
+  onDragOver:  (e: DragEvent<HTMLDivElement>) => void
   onDragLeave: () => void
-  onDrop:     (e: DragEvent<HTMLDivElement>) => void
+  onDrop:      (e: DragEvent<HTMLDivElement>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) onFile(file)
   }
-
   return (
     <div
       className={`inv-dropzone ${dragOver ? 'inv-dropzone--over' : ''}`}
@@ -124,16 +116,16 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 //  Main component
 // ─────────────────────────────────────────────────────────────────────────────
 function InvoiceUpload({ companyId }: InvoiceUploadProps) {
-  const [stage,     setStage]     = useState<Stage>('idle')
-  const [dragOver,  setDragOver]  = useState(false)
-  const [ocr,       setOcr]       = useState<OcrResult | null>(null)
-  const [fileName,  setFileName]  = useState('')
-  const [errorMsg,  setErrorMsg]  = useState('')
-  const [form,      setForm]      = useState<EditForm>({
+  const [stage,    setStage]    = useState<Stage>('idle')
+  const [dragOver, setDragOver] = useState(false)
+  const [ocr,      setOcr]      = useState<OcrResult | null>(null)
+  const [fileName, setFileName] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [form,     setForm]     = useState<EditForm>({
     description: '', date: TODAY, amount: '', type: 'expense',
   })
 
-  // ── Upload & OCR ───────────────────────────────────────────────────────────
+  // ── Upload & OCR — calls Python (port 5000), no JWT needed ────────────────
   const uploadFile = useCallback(async (file: File) => {
     if (!ACCEPTED.includes(file.type)) {
       setErrorMsg(`Unsupported file type "${file.type}". Please upload PNG or JPG.`)
@@ -145,7 +137,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       setStage('error')
       return
     }
-
     setFileName(file.name)
     setStage('uploading')
     setErrorMsg('')
@@ -154,23 +145,20 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       const formData = new FormData()
       formData.append('file', file)
 
+      // Raw axios — the OCR endpoint is the Python server on port 5000, no JWT
       const res = await axios.post<OcrResult>(
         'http://localhost:5000/ocr',
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
-
       const result = res.data
       setOcr(result)
-
-      // Pre-fill edit form with extracted values
       setForm({
         description: buildDescription(result.vendor, result.invoice_no),
         date:        normaliseDate(result.date),
         amount:      result.total != null ? String(result.total) : '',
         type:        'expense',
       })
-
       setStage('reviewing')
     } catch (e) {
       const msg = axios.isAxiosError(e)
@@ -181,35 +169,32 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
     }
   }, [])
 
-  // ── Drag-drop handlers ─────────────────────────────────────────────────────
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setDragOver(true)
-  }
+  // ── Drag-drop handlers ────────────────────────────────────────────────────
+  const handleDragOver  = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true) }
   const handleDragLeave = () => setDragOver(false)
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDrop      = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setDragOver(false)
     const file = e.dataTransfer.files[0]
-    if (file) uploadFile(file)
+    if (file) void uploadFile(file)
   }
 
-  // ── Save as transaction ────────────────────────────────────────────────────
+  // ── Save as transaction — calls Spring Boot via JWT-aware api instance ─────
   const saveTransaction = async () => {
     if (!form.description.trim()) return
-    const raw    = parseFloat(form.amount)
+    const raw = parseFloat(form.amount)
     if (isNaN(raw) || raw <= 0) {
       setErrorMsg('Please enter a valid positive amount.')
       return
     }
     const amount = form.type === 'expense' ? -raw : raw
-
     setStage('saving')
     try {
-      await axios.post(
-        `http://localhost:8080/api/v1/${companyId}/transactions`,
-        { date: form.date, description: form.description, amount }
-      )
+      await api.post(`/api/v1/${companyId}/transactions`, {
+        date:        form.date,
+        description: form.description,
+        amount,
+      })
       setStage('saved')
     } catch (e) {
       const msg = axios.isAxiosError(e)
@@ -231,11 +216,10 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
   const setField = <K extends keyof EditForm>(key: K, val: EditForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }))
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="inv-container">
 
-      {/* ── Header ── */}
       <div className="inv-header">
         <div className="inv-header-text">
           <h2 className="inv-title">🧾 Invoice Scanner</h2>
@@ -246,10 +230,9 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
         )}
       </div>
 
-      {/* ── IDLE: drop zone ── */}
       {stage === 'idle' && (
         <DropZone
-          onFile={uploadFile}
+          onFile={f => void uploadFile(f)}
           dragOver={dragOver}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -257,7 +240,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
         />
       )}
 
-      {/* ── UPLOADING ── */}
       {stage === 'uploading' && (
         <div className="inv-state-card">
           <div className="inv-spinner" />
@@ -266,23 +248,20 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
         </div>
       )}
 
-      {/* ── REVIEWING ── */}
       {stage === 'reviewing' && ocr && (
         <div className="inv-review">
-
-          {/* OCR extraction summary */}
           <div className="inv-extracted">
             <div className="inv-section-label">📷 Extracted from image</div>
             <div className="inv-fields">
               <FieldRow label="Vendor"     value={ocr.vendor     ?? '—'} />
               <FieldRow label="Invoice #"  value={ocr.invoice_no ?? '—'} />
               <FieldRow label="Date found" value={ocr.date       ?? '—'} />
-              <FieldRow label="Amount"     value={ocr.total != null ? `${ocr.currency} ${ocr.total.toLocaleString('en-IN')}` : '—'} />
+              <FieldRow label="Amount"
+                value={ocr.total != null ? `${ocr.currency} ${ocr.total.toLocaleString('en-IN')}` : '—'} />
             </div>
             {ocr.note && <NoteBar note={ocr.note} />}
           </div>
 
-          {/* Editable form */}
           <div className="inv-form-card">
             <div className="inv-section-label">✏️ Review & save as transaction</div>
 
@@ -338,7 +317,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
 
             <button
               className="inv-btn-save"
-              onClick={saveTransaction}
+              onClick={() => void saveTransaction()}
               disabled={!form.description.trim() || !form.amount}
             >
               💾 Save as Transaction
@@ -347,7 +326,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
         </div>
       )}
 
-      {/* ── SAVING ── */}
       {stage === 'saving' && (
         <div className="inv-state-card">
           <div className="inv-spinner" />
@@ -355,7 +333,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
         </div>
       )}
 
-      {/* ── SAVED ── */}
       {stage === 'saved' && (
         <div className="inv-state-card inv-state-card--success">
           <div className="inv-success-icon">✅</div>
@@ -370,7 +347,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
         </div>
       )}
 
-      {/* ── ERROR ── */}
       {stage === 'error' && (
         <div className="inv-state-card inv-state-card--error">
           <div className="inv-error-icon">❌</div>

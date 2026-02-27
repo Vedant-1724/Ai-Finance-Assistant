@@ -1,7 +1,5 @@
-import axios from 'axios'
+import api from '../api'                          // ← JWT-aware instance
 
-// Defined locally — no cross-file type export needed.
-// TypeScript structural typing makes this compatible with Dashboard's local definition.
 interface AnomalyAlert {
   id:            number
   companyId:     number
@@ -32,10 +30,10 @@ function AnomalyPanel({ companyId, anomalies, onDismiss }: AnomalyPanelProps) {
 
   const handleDismiss = async (id: number): Promise<void> => {
     try {
-      await axios.delete(`http://localhost:8080/api/v1/${companyId}/anomalies/${id}`)
+      await api.delete(`/api/v1/${companyId}/anomalies/${id}`)
       onDismiss(id)
     } catch {
-      // silent — alert reappears on next 30s poll if delete failed
+      // silent — alert reappears on next 30 s poll if delete failed
     }
   }
 
@@ -63,9 +61,7 @@ function AnomalyPanel({ companyId, anomalies, onDismiss }: AnomalyPanelProps) {
                 </span>
               </div>
               <div className="anomaly-meta">
-                {a.transactionId !== null && (
-                  <span>Txn #{a.transactionId} · </span>
-                )}
+                {a.transactionId !== null && <span>Txn #{a.transactionId} · </span>}
                 <span>Detected {formatDateTime(a.detectedAt)}</span>
               </div>
             </div>

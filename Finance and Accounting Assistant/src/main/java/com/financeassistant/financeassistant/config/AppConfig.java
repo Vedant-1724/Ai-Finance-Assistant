@@ -2,40 +2,31 @@ package com.financeassistant.financeassistant.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
- * Application-level beans that are intentionally separated from CorsConfig
- * to prevent a circular dependency:
+ * Application-level beans.
  *
- *   CorsConfig → JwtAuthFilter → AuthService → PasswordEncoder
+ * AuthenticationManager has been REMOVED from this class.
  *
- * By putting PasswordEncoder here, AuthService depends on AppConfig
- * (not on CorsConfig), breaking the cycle.
+ * It was the source of the second circular dependency:
+ *   AuthService → AuthenticationManager
+ *       → (Spring Security scans for UserDetailsService)
+ *       → AuthService   ← cycle!
+ *
+ * Since AuthService now verifies passwords directly with PasswordEncoder,
+ * AuthenticationManager is no longer needed anywhere in the codebase.
  */
 @Configuration
 public class AppConfig {
 
     /**
-     * BCrypt password encoder — cost factor 10 (Spring default).
-     * Used by AuthService.register() to hash passwords and
-     * AuthService.login() via AuthenticationManager.
+     * BCrypt password encoder with cost factor 10.
+     * Used by AuthService to hash new passwords and verify login passwords.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    /**
-     * Exposes the Spring Security AuthenticationManager as a bean
-     * so AuthService can call authenticate() for login.
-     */
-    @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
     }
 }

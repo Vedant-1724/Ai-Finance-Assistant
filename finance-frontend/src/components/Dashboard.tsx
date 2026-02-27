@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import axios from 'axios'
+import api from '../api'                          // ← JWT-aware instance
 import AddTransactionModal from './AddTransactionModal'
 import ChartsSection from './ChartsSection'
 import AnomalyPanel from './AnomalyPanel'
@@ -10,13 +10,13 @@ interface Transaction {
   date:         string
   amount:       number
   description:  string
-  categoryName: string
+  categoryName: string | null
 }
 
 interface CategoryBreakdown {
-  categoryName: string
+  categoryName: string | null
   amount:       number
-  type:         'INCOME' | 'EXPENSE'
+  type:         'INCOME' | 'EXPENSE' | null
 }
 
 interface PnLReport {
@@ -29,7 +29,6 @@ interface PnLReport {
   breakdown:    CategoryBreakdown[]
 }
 
-// Defined locally — avoids any cross-file type import (verbatimModuleSyntax safe)
 interface AnomalyAlert {
   id:            number
   companyId:     number
@@ -57,17 +56,14 @@ function Dashboard({ companyId }: DashboardProps) {
 
   const [showModal,  setShowModal]  = useState(false)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-
-  const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([])
+  const [anomalies,  setAnomalies]  = useState<AnomalyAlert[]>([])
 
   // ── Fetch transactions ─────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
     setTxnLoading(true)
     setTxnError(null)
     try {
-      const res = await axios.get<Transaction[]>(
-        `http://localhost:8080/api/v1/${companyId}/transactions`
-      )
+      const res = await api.get<Transaction[]>(`/api/v1/${companyId}/transactions`)
       setTransactions(res.data)
     } catch {
       setTxnError('Cannot connect to backend. Make sure Spring Boot is running on port 8080.')
@@ -81,8 +77,8 @@ function Dashboard({ companyId }: DashboardProps) {
     setPnlLoading(true)
     setPnlError(null)
     try {
-      const res = await axios.get<PnLReport>(
-        `http://localhost:8080/api/v1/${companyId}/reports/pnl?period=${period}`
+      const res = await api.get<PnLReport>(
+        `/api/v1/${companyId}/reports/pnl?period=${period}`
       )
       setPnl(res.data)
     } catch {
@@ -92,12 +88,10 @@ function Dashboard({ companyId }: DashboardProps) {
     }
   }, [companyId])
 
-  // ── Fetch anomalies (polls every 30s — RabbitMQ pipeline is async) ─────────
+  // ── Fetch anomalies (polls every 30 s) ────────────────────────────────────
   const fetchAnomalies = useCallback(async () => {
     try {
-      const res = await axios.get<AnomalyAlert[]>(
-        `http://localhost:8080/api/v1/${companyId}/anomalies`
-      )
+      const res = await api.get<AnomalyAlert[]>(`/api/v1/${companyId}/anomalies`)
       setAnomalies(res.data)
     } catch {
       setAnomalies([])
@@ -108,8 +102,8 @@ function Dashboard({ companyId }: DashboardProps) {
   useEffect(() => { void fetchPnL(activePeriod) }, [fetchPnL, activePeriod])
   useEffect(() => {
     void fetchAnomalies()
-    const interval = setInterval(() => { void fetchAnomalies() }, 30_000)
-    return () => clearInterval(interval)
+    const id = setInterval(() => { void fetchAnomalies() }, 30_000)
+    return () => clearInterval(id)
   }, [fetchAnomalies])
 
   const handleTransactionAdded = () => {
@@ -139,11 +133,10 @@ function Dashboard({ companyId }: DashboardProps) {
         </div>
       )}
 
-      {/* Anomaly panel — self-hides when anomalies array is empty */}
       <AnomalyPanel
         companyId={companyId}
         anomalies={anomalies}
-        onDismiss={(id) => setAnomalies(prev => prev.filter(a => a.id !== id))}
+        onDismiss={id => setAnomalies(prev => prev.filter(a => a.id !== id))}
       />
 
       {/* ── Metric Cards ── */}
@@ -247,7 +240,6 @@ function Dashboard({ companyId }: DashboardProps) {
                       <tr key={i}>
                         <td>{row.categoryName ?? '—'}</td>
                         <td>
-                          {/* FIX: use optional chaining to prevent crash when type is null */}
                           <span className={`type-badge ${row.type?.toLowerCase() ?? 'unknown'}`}>
                             {row.type === 'INCOME' ? '📈 Income' : '📉 Expense'}
                           </span>
