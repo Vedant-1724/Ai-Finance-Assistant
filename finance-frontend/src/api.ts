@@ -5,6 +5,7 @@ const api = axios.create({
   timeout: 15000,
 })
 
+// ── Request interceptor — attach JWT from localStorage ────────────────────────
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) {
@@ -13,14 +14,17 @@ api.interceptors.request.use(config => {
   return config
 })
 
+// ── Response interceptor — handle 401 by redirecting to login ─────────────────
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401) {
+      // Clear stored credentials
       localStorage.removeItem('token')
-      // FIX: No redirect — login page not implemented yet (Feature #7: JWT Auth)
-      // Previously this redirected to '/login' which doesn't exist, causing blank page
-      console.warn('401 Unauthorized — JWT authentication not yet implemented.')
+      localStorage.removeItem('email')
+      localStorage.removeItem('companyId')
+      // Redirect to login page (now that React Router has a /login route)
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

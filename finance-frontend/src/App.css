@@ -1145,3 +1145,47 @@ tbody tr:hover td { background: var(--bg-elevated); }
   background: rgba(220, 38, 38, 0.3);
   transform: scale(1.1);
 }
+
+/* ══════════════════════════════════════════════════════
+   AUTH — user menu in header (paste at bottom of App.css)
+══════════════════════════════════════════════════════ */
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.user-email {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 20px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-logout {
+  padding: 7px 16px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s;
+}
+
+.btn-logout:hover {
+  color: var(--expense);
+  border-color: var(--expense-border);
+  background: var(--expense-dim);
+}

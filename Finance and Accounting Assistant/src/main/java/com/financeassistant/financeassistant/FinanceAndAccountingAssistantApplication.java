@@ -2,17 +2,16 @@ package com.financeassistant.financeassistant;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.cache.annotation.EnableCaching;
 
-@SpringBootApplication(
-        exclude = {
-                // Prevents Spring Security from generating a random password
-                // and blocking all endpoints with HTTP Basic Auth.
-                // Remove this exclusion once you implement JWT authentication.
-                UserDetailsServiceAutoConfiguration.class
-        }
-)
+/**
+ * Main application class.
+ *
+ * The UserDetailsServiceAutoConfiguration exclusion has been REMOVED because
+ * we now have a real UserDetailsService (AuthService) that Spring Security
+ * will auto-configure. Keeping the exclusion would break JWT authentication.
+ */
+@SpringBootApplication
 @EnableCaching
 public class FinanceAndAccountingAssistantApplication {
 

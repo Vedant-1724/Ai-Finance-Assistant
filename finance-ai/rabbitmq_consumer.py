@@ -39,7 +39,7 @@ def fetch_transactions(company_id: int, txn_ids: list) -> list:
                 day_of_week = 0
 
             # category is a string name — convert to a stable int via hash
-            category_name = t.get("category") or ""
+            category_name = t.get("categoryName") or ""
             category_id   = abs(hash(category_name)) % 1000 if category_name else -1
 
             result.append({

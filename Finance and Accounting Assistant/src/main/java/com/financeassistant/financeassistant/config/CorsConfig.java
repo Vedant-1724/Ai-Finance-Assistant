@@ -1,5 +1,7 @@
 package com.financeassistant.financeassistant.config;
 
+import com.financeassistant.financeassistant.security.JwtAuthFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -8,68 +10,80 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Spring Security configuration.
+ *
+ * Public endpoints  → /api/v1/auth/** (login & register)
+ * Protected         → everything else under /api/v1/**
+ *
+ * PasswordEncoder and AuthenticationManager are in AppConfig to
+ * avoid the circular dependency:
+ *   CorsConfig → JwtAuthFilter → AuthService → PasswordEncoder → CorsConfig
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 public class CorsConfig {
 
-    /**
-     * Security filter chain.
-     *
-     * Current state: OPEN (all requests permitted) — safe for local development.
-     * Before production: replace .anyRequest().permitAll() with .anyRequest().authenticated()
-     * and wire in JwtFilter once JWT is implemented (Step 1 in roadmap).
-     */
+    // Injected via field — using @Autowired here avoids constructor injection
+    // which would create a bean cycle with JwtAuthFilter → AuthService → PasswordEncoder
+    @Autowired
+    private JwtAuthFilter jwtAuthFilter;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // Disable CSRF — not needed for stateless REST APIs
+                // ── Disable CSRF — not needed for stateless REST ──────────────
                 .csrf(AbstractHttpConfigurer::disable)
 
-                // Stateless — no HTTP sessions
+                // ── Stateless sessions — no HTTP session created ──────────────
                 .sessionManagement(s ->
                         s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // Disable HTTP Basic Auth entirely
+                // ── Disable HTTP Basic + form login ───────────────────────────
                 .httpBasic(AbstractHttpConfigurer::disable)
-
-                // Disable form login
                 .formLogin(AbstractHttpConfigurer::disable)
 
-                // Allow CORS (configured in corsConfigurationSource bean below)
+                // ── CORS — allow React dev server ─────────────────────────────
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-                // All endpoints open for now — lock down when JWT is ready
-                .authorizeHttpRequests(auth ->
-                        auth.anyRequest().permitAll()
-                );
+                // ── Endpoint authorisation ────────────────────────────────────
+                .authorizeHttpRequests(auth -> auth
+                        // Auth endpoints are public (login & register)
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        // Actuator health endpoint — useful for Docker/k8s probes
+                        .requestMatchers("/actuator/health").permitAll()
+                        // All other API requests require a valid JWT
+                        .anyRequest().authenticated()
+                )
+
+                // ── JWT filter runs before Spring's username/password filter ──
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     /**
-     * CORS configuration — allows requests from React dev server.
+     * CORS configuration — allows requests from the React Vite dev server.
+     * Add your production domain here when deploying.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        // Allow React dev server origins
         config.setAllowedOrigins(List.of(
                 "http://localhost:5173",
                 "http://localhost:3000"
         ));
-
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
-        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
