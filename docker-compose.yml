@@ -1,0 +1,130 @@
+services:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  INFRASTRUCTURE
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: finance-postgres
+    environment:
+      POSTGRES_DB:       financedb
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: vedant
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d financedb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: finance-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: finance-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Management UI  →  http://localhost:15672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  SPRING BOOT BACKEND
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: "./Finance and Accounting Assistant"
+      dockerfile: Dockerfile
+    container_name: finance-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # ── Database ──────────────────────────────────────────────────────────
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/financedb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: vedant
+      # ── Redis ─────────────────────────────────────────────────────────────
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_CACHE_TYPE:      redis
+      # ── RabbitMQ ──────────────────────────────────────────────────────────
+      SPRING_RABBITMQ_HOST:     rabbitmq
+      SPRING_RABBITMQ_PORT:     "5672"
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      # ── JWT (keep in sync with application.yaml) ──────────────────────────
+      JWT_SECRET:     bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==
+      JWT_EXPIRATION: "86400000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  PYTHON AI SERVICE
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  finance-ai:
+    build:
+      context: ./finance-ai
+      dockerfile: Dockerfile
+    container_name: finance-ai
+    ports:
+      - "5000:5000"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      # Persist trained ML models between container restarts
+      - ./finance-ai/models:/app/models
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  #  REACT FRONTEND  (Nginx, port 5173 on host → 80 inside container)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./finance-frontend
+      dockerfile: Dockerfile
+    container_name: finance-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  NAMED VOLUMES
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:

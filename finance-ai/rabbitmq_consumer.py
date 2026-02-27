@@ -8,7 +8,7 @@ from anomaly_detector import detect_anomalies
 
 logging.basicConfig(level=logging.INFO)
 
-SPRING_BOOT_BASE_URL = "http://localhost:8080"
+SPRING_BOOT_BASE_URL = "http://backend:8080"
 
 
 # ── Fetch real transaction data from Spring Boot ──────────────────────────────
@@ -115,7 +115,7 @@ def on_message(ch, method, properties, body):
 def start_consumer():
     try:
         connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host="localhost")
+            pika.ConnectionParameters(host="rabbitmq")
         )
         channel = connection.channel()
 
