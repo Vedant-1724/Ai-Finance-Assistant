@@ -8,21 +8,14 @@ import com.financeassistant.financeassistant.repository.TransactionRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * FIXES vs old finance-backend version:
- * 1. findByCompany(Pageable) → getTransactions() — matches controller call.
- * 2. create() → createTransaction() — matches controller call.
- * 3. Added TransactionEventPublisher injection + publishNewTransaction() call.
- * 4. Added ReportingService injection + evictPnLCache() call after save.
- * 5. toDTO() now passes t.getDate().toString() (String) not t.getDate() (LocalDate)
- *    because TransactionDTO now has 'String date' field.
- */
 @Service
 public class TransactionService {
 
@@ -54,19 +47,32 @@ public class TransactionService {
         tx.setDescription(req.getDescription());
         Transaction saved = repo.save(tx);
 
-        // Publish event to RabbitMQ → Python picks it up for anomaly detection
         eventPublisher.publishNewTransaction(companyId, saved.getId());
-
-        // Evict P&L cache so the dashboard shows fresh data immediately
         reportingService.evictPnLCache(companyId);
 
         return toDTO(saved);
     }
 
+    @Transactional
+    public void deleteTransaction(Long companyId, Long transactionId) {
+        Transaction tx = repo.findById(transactionId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Transaction not found"));
+
+        // Security: ensure transaction belongs to this company
+        if (!tx.getCompany().getId().equals(companyId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Access denied");
+        }
+
+        repo.deleteById(transactionId);
+        reportingService.evictPnLCache(companyId);
+    }
+
     private TransactionDTO toDTO(Transaction t) {
         return new TransactionDTO(
                 t.getId(),
-                t.getDate().toString(),   // LocalDate → "YYYY-MM-DD" String
+                t.getDate().toString(),
                 t.getAmount(),
                 t.getDescription(),
                 t.getCategory() != null ? t.getCategory().getName() : null
