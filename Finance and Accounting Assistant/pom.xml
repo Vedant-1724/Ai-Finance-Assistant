@@ -11,9 +11,6 @@
     <groupId>com.financeassistant</groupId>
     <artifactId>finance-assistant</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <!-- FIX: was <n>Finance and Accounting Assistant</n> — invalid XML tag in Maven POM.
-         Maven silently ignores unknown tags, so the build doesn't break, but it's wrong.
-         The correct element is <name>. -->
     <name>Finance and Accounting Assistant</name>
     <description>AI-Driven Finance and Accounting Assistant</description>
     <url/>
@@ -61,6 +58,13 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- ── Email ─────────────────────────────────────────────────────── -->
+        <!-- NEW: Required by EmailAlertService to send anomaly alert emails -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- ── Database ──────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -83,7 +87,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- ── JWT ───────────────────────────────────────────────────────── -->
+        <!-- ── JWT (JJWT 0.12.x) ────────────────────────────────────────── -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

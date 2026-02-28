@@ -77,6 +77,13 @@ services:
       SPRING_RABBITMQ_PASSWORD:   guest
       JWT_SECRET:                 bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==
       JWT_EXPIRATION:             "86400000"
+      # ── Email Alert Variables (NEW) ───────────────────────────────────────
+      # These are read from your .env file at docker compose up time.
+      # Copy .env.example → .env and fill in your Gmail App Password.
+      MAIL_HOST:     ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT:     ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,9 +107,6 @@ services:
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       BACKEND_URL:    http://backend:8080
-      # FIX: rabbitmq_consumer.py reads these three env vars.
-      # Without them the RabbitMQ consumer thread silently connects to
-      # "localhost" (which doesn't exist inside the container) and crashes.
       RABBITMQ_HOST:  rabbitmq
       RABBITMQ_USER:  guest
       RABBITMQ_PASS:  guest

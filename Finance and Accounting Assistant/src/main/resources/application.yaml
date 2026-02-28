@@ -8,7 +8,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: false           # set to true only in dev; too noisy in production
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -17,16 +17,9 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
 
-  # FIX: Docker Compose passes SPRING_CACHE_TYPE=redis but the original yaml
-  # had "type: simple" hardcoded. Using ${...} lets the env var override it.
-  # Locally it stays "simple" (no Redis needed); in Docker it becomes "redis".
   cache:
     type: ${SPRING_CACHE_TYPE:simple}
 
-  # FIX: Original yaml had NO data.redis block at all.
-  # Without this, SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT env vars
-  # passed by Docker Compose are ignored and Redis auto-config falls back
-  # to localhost:6379 — which doesn't exist inside the backend container.
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -37,6 +30,33 @@ spring:
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:guest}
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
+
+  # ── Email / SMTP Configuration ────────────────────────────────────────────
+  # Using Gmail SMTP (recommended for development).
+  # For production use SendGrid, AWS SES, or Mailgun instead.
+  #
+  # Gmail setup (one-time):
+  #   1. Go to your Google Account → Security → 2-Step Verification → ON
+  #   2. Search for "App passwords" → generate one for "Mail"
+  #   3. Use that 16-character password as MAIL_PASSWORD (NOT your Gmail password)
+  #   4. Set MAIL_USERNAME to your Gmail address
+  #
+  # All values come from environment variables so secrets are never in code.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 server:
   port: 8080
@@ -50,9 +70,11 @@ management:
     health:
       show-details: always
 
-# ── JWT Configuration ─────────────────────────────────────────────────────────
-# Secret must be a Base64-encoded string that decodes to ≥ 32 bytes (256 bits)
-# for HS256. Override via env var in production — never commit a real secret.
+# ── JWT ────────────────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==}
-  expiration: ${JWT_EXPIRATION:86400000}   # 24 hours in milliseconds
+  expiration: ${JWT_EXPIRATION:86400000}
+
+# ── App metadata ───────────────────────────────────────────────────────────────
+app:
+  name: AI Finance Assistant
