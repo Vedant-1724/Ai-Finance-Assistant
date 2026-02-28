@@ -1,6 +1,7 @@
 import pika
 import json
 import logging
+import os
 import requests
 from datetime import datetime
 
@@ -8,7 +9,7 @@ from anomaly_detector import detect_anomalies
 
 logging.basicConfig(level=logging.INFO)
 
-SPRING_BOOT_BASE_URL = "http://backend:8080"
+SPRING_BOOT_BASE_URL = os.environ.get('BACKEND_URL', 'http://localhost:8080')
 
 
 # ── Fetch real transaction data from Spring Boot ──────────────────────────────
@@ -18,134 +19,113 @@ def fetch_transactions(company_id: int, txn_ids: list) -> list:
     Falls back to an empty list on any error.
     """
     try:
-        url = f"{SPRING_BOOT_BASE_URL}/api/v1/{company_id}/transactions?page=0&size=200"
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
+        url = f"{SPRING_BOOT_BASE_URL}/api/v1/{company_id}/transactions"
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        all_txns = resp.json()
 
-        all_txns = response.json()
-
-        # Filter to only the IDs we received in the event
+        # Filter to only the IDs we care about
         txn_id_set = set(txn_ids)
-        filtered = [t for t in all_txns if t.get("id") in txn_id_set]
-
-        # Map to the feature format anomaly_detector expects
-        result = []
-        for t in filtered:
-            date_str = t.get("date", "")
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-                day_of_week = dt.weekday()   # 0=Monday … 6=Sunday
-            except Exception:
-                day_of_week = 0
-
-            # category is a string name — convert to a stable int via hash
-            category_name = t.get("categoryName") or ""
-            category_id   = abs(hash(category_name)) % 1000 if category_name else -1
-
-            result.append({
-                "id":           t.get("id"),
-                "amount":       float(t.get("amount", 0)),
-                "day_of_week":  day_of_week,
-                "hour":         12,          # no time stored — default midday
-                "category_id":  category_id,
-            })
-
-        logging.info(f"Fetched {len(result)} transaction(s) for company {company_id}")
-        return result
+        filtered = [t for t in all_txns if t.get('id') in txn_id_set]
+        logging.info("Fetched %d transaction(s) from Spring Boot for company %d",
+                     len(filtered), company_id)
+        return filtered
 
     except Exception as e:
-        logging.error(f"Failed to fetch transactions from Spring Boot: {e}")
+        logging.error("Failed to fetch transactions from Spring Boot: %s", e)
         return []
 
 
 # ── Publish anomaly results back to Spring Boot via RabbitMQ ──────────────────
 def publish_anomaly_results(channel, company_id: int, anomalies: list):
-    payload = json.dumps({
-        "companyId": company_id,
-        "anomalies": anomalies
-    })
+    """
+    Publishes detected anomalies to the 'ai.anomaly.results' queue so
+    Spring Boot's AnomalyResultListener can save them to the DB.
+    """
+    payload = {
+        'companyId': company_id,
+        'anomalies': anomalies,
+        'detectedAt': datetime.utcnow().isoformat(),
+    }
     channel.basic_publish(
-        exchange="finance.exchange",
-        routing_key="anomalies.detected",
-        body=payload,
+        exchange='finance.exchange',
+        routing_key='anomalies.detected',
+        body=json.dumps(payload),
         properties=pika.BasicProperties(
-            delivery_mode=2,                         # persistent
-            content_type="application/json"
+            delivery_mode=2,          # persistent message
+            content_type='application/json',
         )
     )
-    logging.info(f"Published {len(anomalies)} anomaly result(s) back to Spring Boot")
+    logging.info("Published %d anomaly/anomalies for company %d",
+                 len(anomalies), company_id)
 
 
-# ── Message handler ───────────────────────────────────────────────────────────
-def on_message(ch, method, properties, body):
+# ── RabbitMQ message handler ──────────────────────────────────────────────────
+def on_message(channel, method, properties, body):
     try:
-        event      = json.loads(body)
-        company_id = event["companyId"]
-        txn_ids    = event["txnIds"]
+        event = json.loads(body)
+        company_id = int(event.get('companyId', 0))
+        txn_ids    = event.get('txnIds', [])
 
-        logging.info(f"Processing {len(txn_ids)} transaction(s) for company {company_id}")
+        logging.info("Received transaction event: companyId=%d txnIds=%s",
+                     company_id, txn_ids)
 
-        # 1. Fetch real data
-        transactions = fetch_transactions(company_id, txn_ids)
-
-        if not transactions:
-            logging.warning("No transactions fetched — skipping anomaly detection")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
+        if not txn_ids:
+            channel.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        # 2. Run Isolation Forest
-        anomalies = detect_anomalies(transactions)
+        # Fetch real transaction data from Spring Boot
+        transactions = fetch_transactions(company_id, txn_ids)
 
-        if anomalies:
-            logging.warning(f"Found {len(anomalies)} anomaly/anomalies for company {company_id}")
+        if transactions:
+            # Run Isolation Forest anomaly detection
+            anomalies = detect_anomalies(transactions)
+            logging.info("Detected %d anomaly/anomalies for company %d",
+                         len(anomalies), company_id)
+
+            # Publish results back to Spring Boot
+            publish_anomaly_results(channel, company_id, anomalies)
         else:
-            logging.info(f"No anomalies for company {company_id}")
+            logging.warning("No transaction data returned for company %d — skipping detection",
+                            company_id)
 
-        # 3. Publish results back regardless (Spring Boot handles empty list gracefully)
-        publish_anomaly_results(ch, company_id, anomalies)
-
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        channel.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        logging.error(f"Failed to process message: {e}")
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        logging.error("Error processing message: %s", e)
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
 
-# ── Consumer startup ──────────────────────────────────────────────────────────
+# ── Entry point ───────────────────────────────────────────────────────────────
 def start_consumer():
-    try:
-        connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host="rabbitmq")
-        )
-        channel = connection.channel()
+    rabbitmq_host = os.environ.get('RABBITMQ_HOST', 'localhost')
+    rabbitmq_user = os.environ.get('RABBITMQ_USER', 'guest')
+    rabbitmq_pass = os.environ.get('RABBITMQ_PASS', 'guest')
 
-        # Declare topology (idempotent — safe to re-run)
-        channel.exchange_declare(exchange="finance.exchange", exchange_type="topic", durable=True)
-        channel.queue_declare(queue="ai.anomaly.queue",   durable=True)
-        channel.queue_declare(queue="ai.anomaly.results", durable=True)
-        channel.queue_bind(
-            exchange="finance.exchange",
-            queue="ai.anomaly.queue",
-            routing_key="transactions.new"
-        )
-        channel.queue_bind(
-            exchange="finance.exchange",
-            queue="ai.anomaly.results",
-            routing_key="anomalies.detected"
-        )
+    credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_pass)
+    parameters  = pika.ConnectionParameters(
+        host=rabbitmq_host,
+        port=5672,
+        credentials=credentials,
+        heartbeat=600,
+        blocked_connection_timeout=300,
+    )
 
-        channel.basic_qos(prefetch_count=1)
-        channel.basic_consume(
-            queue="ai.anomaly.queue",
-            on_message_callback=on_message
-        )
+    logging.info("Connecting to RabbitMQ at %s ...", rabbitmq_host)
+    connection = pika.BlockingConnection(parameters)
+    channel    = connection.channel()
 
-        logging.info("✅ Anomaly consumer started — waiting for messages...")
-        channel.start_consuming()
+    # Declare queue (idempotent — safe to re-declare)
+    channel.queue_declare(queue='ai.anomaly.queue', durable=True)
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(
+        queue='ai.anomaly.queue',
+        on_message_callback=on_message,
+    )
 
-    except Exception as e:
-        logging.error(f"RabbitMQ connection failed: {e}")
+    logging.info("RabbitMQ consumer started. Waiting for messages...")
+    channel.start_consuming()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     start_consumer()

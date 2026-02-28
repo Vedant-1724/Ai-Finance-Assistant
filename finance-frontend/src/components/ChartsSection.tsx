@@ -16,20 +16,23 @@ import {
 } from 'recharts'
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Interfaces
+//  Interfaces  — must match Dashboard.tsx exactly
 // ─────────────────────────────────────────────────────────────────────────────
+
+// FIX: categoryName is string | null  (DB JOIN can return null)
 interface Transaction {
   id:           number
   date:         string
   amount:       number
   description:  string
-  categoryName: string
+  categoryName: string | null
 }
 
+// FIX: both fields allow null to match Dashboard.tsx PnLReport breakdown
 interface CategoryBreakdown {
-  categoryName: string
+  categoryName: string | null
   amount:       number
-  type:         'INCOME' | 'EXPENSE'
+  type:         'INCOME' | 'EXPENSE' | null
 }
 
 interface ChartsSectionProps {
@@ -72,7 +75,7 @@ function inr(value: number): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Shared tooltip  (module-level — never recreated during render)
+//  Shared tooltip
 // ─────────────────────────────────────────────────────────────────────────────
 interface SharedPayloadItem {
   name:  string
@@ -102,11 +105,11 @@ function ChartTooltip({ active, payload, label }: SharedTooltipProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Pie tooltip  (module-level)
+//  Pie tooltip
 // ─────────────────────────────────────────────────────────────────────────────
 interface PiePayloadItem {
-  name:  string
-  value: number
+  name:    string
+  value:   number
   payload: { name: string; value: number }
 }
 
@@ -130,38 +133,42 @@ function PieTooltip({ active, payload }: PieTooltipProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Pie label  (module-level)
+//  Pie label
+//
+//  FIX: All props are optional (number | undefined) to satisfy recharts'
+//  PieLabelRenderProps. Guard each with ?? 0 inside the function body.
 // ─────────────────────────────────────────────────────────────────────────────
 interface PieLabelProps {
-  cx:         number
-  cy:         number
-  midAngle:   number
-  outerRadius: number
-  name:       string
-  percent:    number
+  cx?:          number
+  cy?:          number
+  midAngle?:    number
+  outerRadius?: number
+  name?:        string
+  percent?:     number
 }
 
 function PieLabel({ cx, cy, midAngle, outerRadius, name, percent }: PieLabelProps) {
-  if (percent < 0.05) return null
+  const pct = percent ?? 0
+  if (pct < 0.05) return null
   const RADIAN = Math.PI / 180
-  const r  = outerRadius + 22
-  const x  = cx + r * Math.cos(-midAngle * RADIAN)
-  const y  = cy + r * Math.sin(-midAngle * RADIAN)
+  const r = (outerRadius ?? 0) + 22
+  const x = (cx ?? 0) + r * Math.cos(-(midAngle ?? 0) * RADIAN)
+  const y = (cy ?? 0) + r * Math.sin(-(midAngle ?? 0) * RADIAN)
   return (
     <text
       x={x} y={y}
       fill="#8b9ec7"
-      textAnchor={x > cx ? 'start' : 'end'}
+      textAnchor={x > (cx ?? 0) ? 'start' : 'end'}
       dominantBaseline="central"
       fontSize={11}
     >
-      {name} ({(percent * 100).toFixed(0)}%)
+      {name ?? ''} ({(pct * 100).toFixed(0)}%)
     </text>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Empty state placeholder
+//  Empty state
 // ─────────────────────────────────────────────────────────────────────────────
 function ChartEmpty({ message }: { message: string }) {
   return (
@@ -212,40 +219,11 @@ function CashFlowChart({ transactions }: { transactions: Transaction[] }) {
               </linearGradient>
             </defs>
             <CartesianGrid stroke="#1f2d45" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fill: '#4a5a7a', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tickFormatter={yTick}
-              tick={{ fill: '#4a5a7a', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={60}
-            />
+            <XAxis dataKey="date" tick={{ fill: '#4a5a7a', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={yTick} tick={{ fill: '#4a5a7a', fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
             <Tooltip content={<ChartTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="income"
-              name="Income"
-              stroke={C_INCOME}
-              strokeWidth={2.5}
-              fill="url(#gradIncome)"
-              dot={false}
-              activeDot={{ r: 5, fill: C_INCOME }}
-            />
-            <Area
-              type="monotone"
-              dataKey="expense"
-              name="Expense"
-              stroke={C_EXPENSE}
-              strokeWidth={2.5}
-              fill="url(#gradExpense)"
-              dot={false}
-              activeDot={{ r: 5, fill: C_EXPENSE }}
-            />
+            <Area type="monotone" dataKey="income"  name="Income"  stroke={C_INCOME}  strokeWidth={2.5} fill="url(#gradIncome)"  dot={false} activeDot={{ r: 5, fill: C_INCOME }} />
+            <Area type="monotone" dataKey="expense" name="Expense" stroke={C_EXPENSE} strokeWidth={2.5} fill="url(#gradExpense)" dot={false} activeDot={{ r: 5, fill: C_EXPENSE }} />
           </AreaChart>
         </ResponsiveContainer>
       )}
@@ -259,18 +237,13 @@ function CashFlowChart({ transactions }: { transactions: Transaction[] }) {
 function ExpensePieChart({ breakdown }: { breakdown: CategoryBreakdown[] }) {
   const pieData = useMemo(() =>
     breakdown
-      // FIX: guard null/undefined type before comparing
-      .filter(b => b.type != null && b.type === 'EXPENSE')
-      // FIX: guard null categoryName and amount
+      .filter(b => b.type === 'EXPENSE')
       .map(b => ({ name: b.categoryName ?? 'Unknown', value: Math.round(Number(b.amount ?? 0)) }))
       .filter(b => b.value > 0),
     [breakdown]
   )
 
-  const total = useMemo(
-    () => pieData.reduce((s, b) => s + b.value, 0),
-    [pieData]
-  )
+  const total = useMemo(() => pieData.reduce((s, b) => s + b.value, 0), [pieData])
 
   return (
     <div className="chart-card">
@@ -283,24 +256,11 @@ function ExpensePieChart({ breakdown }: { breakdown: CategoryBreakdown[] }) {
       ) : (
         <ResponsiveContainer width="100%" height={240}>
           <PieChart>
-            <Pie
-              data={pieData}
-              cx="50%"
-              cy="50%"
-              outerRadius={85}
-              dataKey="value"
-              labelLine={false}
-              label={PieLabel}
-            >
+            <Pie data={pieData} cx="50%" cy="50%" outerRadius={85} dataKey="value" labelLine={false} label={PieLabel}>
               {pieData.map((_entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={PIE_COLORS[index % PIE_COLORS.length]}
-                  stroke="transparent"
-                />
+                <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="transparent" />
               ))}
             </Pie>
-            {/* PieTooltip is a stable module-level component — no render-time creation */}
             <Tooltip content={<PieTooltip />} />
           </PieChart>
         </ResponsiveContainer>
@@ -318,10 +278,9 @@ function ForecastChart({ transactions }: { transactions: Transaction[] }) {
 
     const byMonth = new Map<string, { income: number; expense: number }>()
     for (const txn of transactions) {
-      // FIX: guard null date
       const month = (txn.date ?? '').slice(0, 7)
       if (!month) continue
-      const curr  = byMonth.get(month) ?? { income: 0, expense: 0 }
+      const curr = byMonth.get(month) ?? { income: 0, expense: 0 }
       if (txn.amount > 0) curr.income  += txn.amount
       else                curr.expense += Math.abs(txn.amount)
       byMonth.set(month, curr)
@@ -330,7 +289,6 @@ function ForecastChart({ transactions }: { transactions: Transaction[] }) {
     const sorted = Array.from(byMonth.entries()).sort(([a], [b]) => a.localeCompare(b))
     if (sorted.length < 2) return []
 
-    // Simple linear regression for forecast
     const incomeValues  = sorted.map(([, v]) => v.income)
     const expenseValues = sorted.map(([, v]) => v.expense)
     const n = sorted.length
@@ -356,19 +314,12 @@ function ForecastChart({ transactions }: { transactions: Transaction[] }) {
       forecastExpense: i === n - 1 ? expenseReg(n) : null,
     }))
 
-    // Add 2 forecast months
     const lastMonth = sorted[n - 1][0]
     const [yr, mo]  = lastMonth.split('-').map(Number)
     for (let i = 1; i <= 2; i++) {
-      const date = new Date(yr, mo - 1 + i, 1)
+      const date  = new Date(yr, mo - 1 + i, 1)
       const label = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      result.push({
-        month:           label,
-        actualIncome:    null,
-        actualExpense:   null,
-        forecastIncome:  incomeReg(n + i - 1),
-        forecastExpense: expenseReg(n + i - 1),
-      })
+      result.push({ month: label, actualIncome: null, actualExpense: null, forecastIncome: incomeReg(n + i - 1), forecastExpense: expenseReg(n + i - 1) })
     }
 
     return result
@@ -386,19 +337,8 @@ function ForecastChart({ transactions }: { transactions: Transaction[] }) {
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="#1f2d45" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              dataKey="month"
-              tick={{ fill: '#4a5a7a', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tickFormatter={yTick}
-              tick={{ fill: '#4a5a7a', fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              width={60}
-            />
+            <XAxis dataKey="month" tick={{ fill: '#4a5a7a', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={yTick} tick={{ fill: '#4a5a7a', fontSize: 11 }} axisLine={false} tickLine={false} width={60} />
             <Tooltip content={<ChartTooltip />} />
             <Legend wrapperStyle={{ fontSize: '12px', color: '#8b9ec7', paddingTop: '12px' }} />
             <Line type="monotone" dataKey="actualIncome"    name="Actual Income"    stroke={C_INCOME}  strokeWidth={2.5} dot={{ r: 4, fill: C_INCOME }}  activeDot={{ r: 6 }} connectNulls={false} />
