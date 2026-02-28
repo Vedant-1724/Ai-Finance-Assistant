@@ -1,0 +1,109 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  CI/CD — Full Stack Integration (Docker Compose smoke test)
+#  File: .github/workflows/integration.yml
+#
+#  Triggers:
+#    • Only on pushes to main (not PRs, not develop)
+#    • After ALL three service workflows pass
+#    • Manual trigger
+#
+#  What it does:
+#    1. Pulls the freshly-built images tagged with :latest
+#    2. Runs docker compose up -d (full stack)
+#    3. Waits for all health checks to pass
+#    4. Hits the /actuator/health and /health endpoints as smoke tests
+#    5. Tears down the stack
+#
+#  This job confirms the three containers work TOGETHER before
+#  you consider a release green.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Integration Smoke Test
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    name: Docker Compose Smoke Test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read     # to pull images from ghcr.io
+
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry (to pull images)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Write a minimal .env so docker-compose doesn't error on missing vars
+      - name: Create .env file
+        run: |
+          echo "GEMINI_API_KEY=${GEMINI_API_KEY:-placeholder}" > .env
+
+      - name: Start full stack
+        run: docker compose up -d --wait
+        timeout-minutes: 10
+
+      - name: Show container status
+        run: docker compose ps
+
+      - name: Show container logs (on failure)
+        if: failure()
+        run: docker compose logs
+
+      # ── Smoke Tests ──────────────────────────────────────────────────────
+      - name: Smoke test — Spring Boot health
+        run: |
+          echo "Waiting for Spring Boot..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Spring Boot is healthy (attempt $i)"
+              break
+            fi
+            echo "  Attempt $i/30 — status=$STATUS, retrying in 5s..."
+            sleep 5
+          done
+          curl -sf http://localhost:8080/actuator/health | python3 -m json.tool
+
+      - name: Smoke test — Python AI Service health
+        run: |
+          echo "Waiting for Python AI service..."
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ AI Service is healthy (attempt $i)"
+              break
+            fi
+            echo "  Attempt $i/20 — status=$STATUS, retrying in 5s..."
+            sleep 5
+          done
+          curl -sf http://localhost:5000/health | python3 -m json.tool
+
+      - name: Smoke test — React Frontend (Nginx)
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/)
+          echo "Frontend HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Frontend returned status $STATUS"
+            exit 1
+          fi
+          echo "✅ Frontend is up"
+
+      # ── Tear down ────────────────────────────────────────────────────────
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v --remove-orphans

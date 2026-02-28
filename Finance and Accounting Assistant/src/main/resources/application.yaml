@@ -1,14 +1,14 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/financedb
-    username: postgres
-    password: vedant
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/financedb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:vedant}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false           # set to true only in dev; too noisy in production
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -17,14 +17,26 @@ spring:
     baseline-on-migrate: true
     baseline-version: 1
 
+  # FIX: Docker Compose passes SPRING_CACHE_TYPE=redis but the original yaml
+  # had "type: simple" hardcoded. Using ${...} lets the env var override it.
+  # Locally it stays "simple" (no Redis needed); in Docker it becomes "redis".
   cache:
-    type: simple          # in-memory cache — upgrade to redis when needed
+    type: ${SPRING_CACHE_TYPE:simple}
+
+  # FIX: Original yaml had NO data.redis block at all.
+  # Without this, SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT env vars
+  # passed by Docker Compose are ignored and Redis auto-config falls back
+  # to localhost:6379 — which doesn't exist inside the backend container.
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
 
 server:
   port: 8080
@@ -40,7 +52,7 @@ management:
 
 # ── JWT Configuration ─────────────────────────────────────────────────────────
 # Secret must be a Base64-encoded string that decodes to ≥ 32 bytes (256 bits)
-# for HS256. Change this in production — never commit a real secret.
+# for HS256. Override via env var in production — never commit a real secret.
 jwt:
-  secret: bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==
-  expiration: 86400000   # 24 hours in milliseconds
+  secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==}
+  expiration: ${JWT_EXPIRATION:86400000}   # 24 hours in milliseconds

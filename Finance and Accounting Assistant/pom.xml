@@ -11,8 +11,11 @@
     <groupId>com.financeassistant</groupId>
     <artifactId>finance-assistant</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <!-- FIX: was <n>Finance and Accounting Assistant</n> — invalid XML tag in Maven POM.
+         Maven silently ignores unknown tags, so the build doesn't break, but it's wrong.
+         The correct element is <name>. -->
     <name>Finance and Accounting Assistant</name>
-    <description>Finance and Accounting Assistant</description>
+    <description>AI-Driven Finance and Accounting Assistant</description>
     <url/>
     <licenses><license/></licenses>
     <developers><developer/></developers>
@@ -51,14 +54,19 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- ── Flyway ───────────────────────────────────────────────────── -->
+        <!-- ── Database ──────────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
@@ -68,35 +76,25 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- ── PostgreSQL Driver ────────────────────────────────────────── -->
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-
-        <!-- ── Lombok ───────────────────────────────────────────────────── -->
+        <!-- ── Lombok ────────────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!-- ── JWT (JJWT 0.12.x) ────────────────────────────────────────── -->
-        <!-- API jar — used at compile time -->
+        <!-- ── JWT ───────────────────────────────────────────────────────── -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
             <version>0.12.6</version>
         </dependency>
-        <!-- Implementation — only needed at runtime -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
-        <!-- Jackson serialiser for JWT claims — runtime only -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>

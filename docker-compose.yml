@@ -55,8 +55,6 @@ services:
 
   # ───────────────────────────────────────────────────────────────────────────
   #  SPRING BOOT BACKEND
-  #  Context points to your actual folder: "Finance and Accounting Assistant"
-  #  You must create a Dockerfile inside that folder (provided separately).
   # ───────────────────────────────────────────────────────────────────────────
 
   backend:
@@ -102,6 +100,12 @@ services:
     environment:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       BACKEND_URL:    http://backend:8080
+      # FIX: rabbitmq_consumer.py reads these three env vars.
+      # Without them the RabbitMQ consumer thread silently connects to
+      # "localhost" (which doesn't exist inside the container) and crashes.
+      RABBITMQ_HOST:  rabbitmq
+      RABBITMQ_USER:  guest
+      RABBITMQ_PASS:  guest
     volumes:
       - ./finance-ai/models:/app/models
     depends_on:
