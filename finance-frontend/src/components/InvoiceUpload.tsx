@@ -147,7 +147,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
 
       // Raw axios — the OCR endpoint is the Python server on port 5000, no JWT
       const res = await axios.post<OcrResult>(
-        'http://localhost:5000/ocr',
+        '/ai/ocr',
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )

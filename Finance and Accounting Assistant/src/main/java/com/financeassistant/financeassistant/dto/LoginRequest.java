@@ -1,25 +1,20 @@
 package com.financeassistant.financeassistant.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.*;
+import lombok.Data;
 
+/**
+ * Login request DTO with validation.
+ */
+@Data
 public class LoginRequest {
 
-    @Email(message = "Must be a valid email address")
     @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    @Size(max = 255, message = "Email too long")
     private String email;
 
     @NotBlank(message = "Password is required")
+    @Size(min = 1, max = 128, message = "Invalid password")
     private String password;
-
-    public LoginRequest() {}
-    public LoginRequest(String email, String password) {
-        this.email    = email;
-        this.password = password;
-    }
-
-    public String getEmail()              { return email; }
-    public void   setEmail(String email)  { this.email = email; }
-    public String getPassword()           { return password; }
-    public void   setPassword(String p)   { this.password = p; }
 }

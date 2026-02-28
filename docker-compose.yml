@@ -1,89 +1,83 @@
+version: '3.9'
+
 services:
 
-  # ───────────────────────────────────────────────────────────────────────────
-  #  INFRASTRUCTURE
-  # ───────────────────────────────────────────────────────────────────────────
-
+  # ── PostgreSQL Database ──────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: finance-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB:       financedb
-      POSTGRES_USER:     postgres
+      POSTGRES_DB: financedb
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: vedant
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d financedb"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
-    restart: unless-stopped
+      retries: 10
+      start_period: 30s
 
+  # ── Redis Cache ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: finance-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 3s
       retries: 5
-      start_period: 10s
-    restart: unless-stopped
 
+  # ── RabbitMQ Message Broker ──────────────────────────────────────────────
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: finance-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
+      retries: 10
+      start_period: 40s
 
-  # ───────────────────────────────────────────────────────────────────────────
-  #  SPRING BOOT BACKEND
-  # ───────────────────────────────────────────────────────────────────────────
-
+  # ── Spring Boot Backend ──────────────────────────────────────────────────
   backend:
     build:
-      context: "./Finance and Accounting Assistant"
+      context: ./Finance and Accounting Assistant
       dockerfile: Dockerfile
     container_name: finance-backend
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/financedb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/financedb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: vedant
-      SPRING_DATA_REDIS_HOST:     redis
-      SPRING_DATA_REDIS_PORT:     "6379"
-      SPRING_CACHE_TYPE:          redis
-      SPRING_RABBITMQ_HOST:       rabbitmq
-      SPRING_RABBITMQ_PORT:       "5672"
-      SPRING_RABBITMQ_USERNAME:   guest
-      SPRING_RABBITMQ_PASSWORD:   guest
-      JWT_SECRET:                 bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==
-      JWT_EXPIRATION:             "86400000"
-      # ── Email Alert Variables (NEW) ───────────────────────────────────────
-      # These are read from your .env file at docker compose up time.
-      # Copy .env.example → .env and fill in your Gmail App Password.
-      MAIL_HOST:     ${MAIL_HOST:-smtp.gmail.com}
-      MAIL_PORT:     ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      JWT_SECRET: bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==
+      JWT_EXPIRATION: 86400000
+      MAIL_HOST: smtp.gmail.com
+      MAIL_PORT: 587
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,46 +85,38 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: unless-stopped
 
-  # ───────────────────────────────────────────────────────────────────────────
-  #  PYTHON AI SERVICE
-  # ───────────────────────────────────────────────────────────────────────────
-
-  finance-ai:
+  # ── Python AI Service ────────────────────────────────────────────────────
+  ai-service:
     build:
       context: ./finance-ai
       dockerfile: Dockerfile
     container_name: finance-ai
+    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      BACKEND_URL:    http://backend:8080
-      RABBITMQ_HOST:  rabbitmq
-      RABBITMQ_USER:  guest
-      RABBITMQ_PASS:  guest
-    volumes:
-      - ./finance-ai/models:/app/models
+      BACKEND_URL: http://backend:8080
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-your-gemini-key-here}
     depends_on:
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
+      - backend
+      - rabbitmq
 
-  # ───────────────────────────────────────────────────────────────────────────
-  #  REACT FRONTEND
-  # ───────────────────────────────────────────────────────────────────────────
-
+  # ── React Frontend (Nginx) ───────────────────────────────────────────────
   frontend:
     build:
       context: ./finance-frontend
       dockerfile: Dockerfile
     container_name: finance-frontend
+    restart: unless-stopped
     ports:
-      - "5173:80"
+      - "80:80"
     depends_on:
       - backend
-    restart: unless-stopped
+      - ai-service
 
 volumes:
-  postgres_data:
+  pgdata:

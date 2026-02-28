@@ -4,11 +4,18 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:vedant}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: false
+    open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -24,6 +31,12 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
 
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
@@ -31,17 +44,6 @@ spring:
     username: ${SPRING_RABBITMQ_USERNAME:guest}
     password: ${SPRING_RABBITMQ_PASSWORD:guest}
 
-  # ── Email / SMTP Configuration ────────────────────────────────────────────
-  # Using Gmail SMTP (recommended for development).
-  # For production use SendGrid, AWS SES, or Mailgun instead.
-  #
-  # Gmail setup (one-time):
-  #   1. Go to your Google Account → Security → 2-Step Verification → ON
-  #   2. Search for "App passwords" → generate one for "Mail"
-  #   3. Use that 16-character password as MAIL_PASSWORD (NOT your Gmail password)
-  #   4. Set MAIL_USERNAME to your Gmail address
-  #
-  # All values come from environment variables so secrets are never in code.
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
@@ -60,21 +62,56 @@ spring:
 
 server:
   port: 8080
+  # Never reveal stack traces to client
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
+  # Hide sensitive actuator info from public
+  info:
+    env:
+      enabled: false
 
 # ── JWT ────────────────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET:bXlTdXBlclNlY3JldEtleUZvckpXVFNpZ25pbmcyMDI2RmluYW5jZUFwcA==}
-  expiration: ${JWT_EXPIRATION:86400000}
+  expiration: ${JWT_EXPIRATION:86400000}       # 24 hours
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days
+
+# ── Security ───────────────────────────────────────────────────────────────────
+security:
+  rate-limit:
+    login-max-attempts: 5
+    login-window-minutes: 1
+    register-max-attempts: 3
+    register-window-minutes: 10
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://localhost}
+
+# ── Internal service key (for Python AI ↔ Spring Boot) ────────────────────────
+internal:
+  api:
+    key: ${INTERNAL_API_KEY:change-this-to-a-strong-random-key}
+
+# ── Razorpay (for future payment integration) ─────────────────────────────────
+razorpay:
+  key:
+    id: ${RAZORPAY_KEY_ID:}
+    secret: ${RAZORPAY_KEY_SECRET:}
+  webhook:
+    secret: ${RAZORPAY_WEBHOOK_SECRET:}
 
 # ── App metadata ───────────────────────────────────────────────────────────────
 app:
   name: AI Finance Assistant
+  version: 1.0.0

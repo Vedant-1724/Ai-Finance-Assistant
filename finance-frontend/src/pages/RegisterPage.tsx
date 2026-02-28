@@ -25,7 +25,7 @@ export default function RegisterPage() {
 
     try {
       const res = await axios.post<AuthResponse>(
-        'http://localhost:8080/api/v1/auth/register',
+        '/api/v1/auth/register',
         { email, password, companyName }
       )
       login(res.data.token, res.data.companyId, res.data.email)

@@ -4,8 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,28 +17,29 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * JWT authentication filter.
+ * JWT authentication filter — runs once per request.
  *
- * Runs once per request. Reads the "Authorization: Bearer <token>" header,
- * validates the token, and sets the authentication in the SecurityContext
- * so the rest of the request pipeline sees an authenticated user.
- *
- * Requests without a valid token pass through unauthenticated —
- * the security config decides whether to reject them (403) or allow them
- * (public endpoints like /api/v1/auth/**).
+ * Security hardening vs original:
+ *  1. Checks token blacklist (Redis) — supports logout + subscription revocation
+ *  2. Catches all exceptions silently — never exposes JWT internals
+ *  3. Logs authentication events for audit trail
  */
+@Slf4j
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private static final Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
     private static final String BEARER_PREFIX = "Bearer ";
 
-    private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
+    private final JwtUtil               jwtUtil;
+    private final UserDetailsService    userDetailsService;
+    private final TokenBlacklistService blacklistService;
 
-    public JwtAuthFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
-        this.jwtUtil             = jwtUtil;
-        this.userDetailsService  = userDetailsService;
+    public JwtAuthFilter(JwtUtil jwtUtil,
+                         UserDetailsService userDetailsService,
+                         TokenBlacklistService blacklistService) {
+        this.jwtUtil           = jwtUtil;
+        this.userDetailsService = userDetailsService;
+        this.blacklistService  = blacklistService;
     }
 
     @Override
@@ -51,36 +51,40 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        // No Bearer token present — pass through (security config decides)
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
             filterChain.doFilter(request, response);
             return;
         }
 
         final String token = authHeader.substring(BEARER_PREFIX.length());
+
+        // ── Check blacklist (logged-out or revoked tokens) ────────────────────
+        if (blacklistService.isBlacklisted(token)) {
+            log.warn("Blacklisted token used from IP: {}", request.getRemoteAddr());
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String email = jwtUtil.extractEmail(token);
 
-        // Authenticate only if we got an email AND the context is not yet set
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
                 if (jwtUtil.isTokenValid(token, userDetails.getUsername())) {
                     UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities()
-                            );
+                        new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities()
+                        );
                     authToken.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
+                        new WebAuthenticationDetailsSource().buildDetails(request)
                     );
                     SecurityContextHolder.getContext().setAuthentication(authToken);
-                    log.debug("Authenticated user: {}", email);
+                    log.debug("Authenticated: {} → {}", email, request.getRequestURI());
                 }
             } catch (Exception e) {
-                log.warn("Could not authenticate user {}: {}", email, e.getMessage());
-                // Don't set authentication — security config will return 401/403
+                log.warn("Auth failed for {} on {}: {}", email,
+                         request.getRequestURI(), e.getMessage());
             }
         }
 

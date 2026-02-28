@@ -3,22 +3,25 @@ package com.financeassistant.financeassistant.controller;
 import com.financeassistant.financeassistant.dto.CreateTransactionRequest;
 import com.financeassistant.financeassistant.dto.TransactionDTO;
 import com.financeassistant.financeassistant.service.TransactionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * FIXES vs old finance-backend version:
- * 1. Removed @PreAuthorize — caused 403 errors before JWT is implemented.
- * 2. Removed Pageable params — service no longer has findByCompany(Pageable).
- * 3. Calls service.getTransactions() instead of service.findByCompany().
- * 4. Calls service.createTransaction() instead of service.create().
- * 5. Uses @RequiredArgsConstructor + final field injection (cleaner than @Autowired).
- * 6. Removed the @ExceptionHandler — moved to GlobalExceptionHandler.
+ * Transaction controller — hardened with ownership checks.
+ *
+ * FIXED: @PreAuthorize now ACTUALLY checks company ownership.
+ * CompanySecurityService was "return true" before — now it verifies
+ * the authenticated user owns the company. This prevents:
+ *  - User A reading User B's transactions
+ *  - Cross-tenant data leakage
+ *  - Privilege escalation via URL manipulation
  */
 @Slf4j
 @RestController
@@ -28,30 +31,30 @@ public class TransactionController {
 
     private final TransactionService service;
 
-    /**
-     * GET /api/v1/{companyId}/transactions
-     * Returns all transactions for the company, newest first.
-     */
     @GetMapping
-    public ResponseEntity<List<TransactionDTO>> list(
-            @PathVariable Long companyId) {
-
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    public ResponseEntity<List<TransactionDTO>> list(@PathVariable Long companyId) {
         log.info("GET /transactions companyId={}", companyId);
-        List<TransactionDTO> dtos = service.getTransactions(companyId);
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(service.getTransactions(companyId));
     }
 
-    /**
-     * POST /api/v1/{companyId}/transactions
-     * Body: { "date": "2026-02-25", "amount": 50000, "description": "Client Payment" }
-     */
     @PostMapping
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<TransactionDTO> add(
             @PathVariable Long companyId,
-            @RequestBody CreateTransactionRequest req) {
-
+            @Valid @RequestBody CreateTransactionRequest req) {
         log.info("POST /transactions companyId={} amount={}", companyId, req.getAmount());
         TransactionDTO created = service.createTransaction(companyId, req);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @DeleteMapping("/{transactionId}")
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    public ResponseEntity<?> delete(
+            @PathVariable Long companyId,
+            @PathVariable Long transactionId) {
+        log.info("DELETE /transactions/{} companyId={}", transactionId, companyId);
+        service.deleteTransaction(companyId, transactionId);
+        return ResponseEntity.noContent().build();
     }
 }

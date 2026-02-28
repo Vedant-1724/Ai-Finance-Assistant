@@ -1,33 +1,33 @@
 package com.financeassistant.financeassistant.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
+import lombok.Data;
 
+/**
+ * Registration request DTO with strong validation.
+ * Password policy meets PCI-DSS requirements (needed for Razorpay payments).
+ */
+@Data
 public class RegisterRequest {
 
-    @Email(message = "Must be a valid email address")
     @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    @Size(max = 255, message = "Email too long")
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @Size(min = 8, max = 128, message = "Password must be 8–128 characters")
+    @Pattern(
+        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).*$",
+        message = "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+    )
     private String password;
 
     @NotBlank(message = "Company name is required")
+    @Size(min = 2, max = 100, message = "Company name must be 2–100 characters")
+    @Pattern(
+        regexp = "^[a-zA-Z0-9 .,'&()-]+$",
+        message = "Company name contains invalid characters"
+    )
     private String companyName;
-
-    public RegisterRequest() {}
-    public RegisterRequest(String email, String password, String companyName) {
-        this.email       = email;
-        this.password    = password;
-        this.companyName = companyName;
-    }
-
-    public String getEmail()                     { return email; }
-    public void   setEmail(String email)         { this.email = email; }
-    public String getPassword()                  { return password; }
-    public void   setPassword(String p)          { this.password = p; }
-    public String getCompanyName()               { return companyName; }
-    public void   setCompanyName(String name)    { this.companyName = name; }
 }

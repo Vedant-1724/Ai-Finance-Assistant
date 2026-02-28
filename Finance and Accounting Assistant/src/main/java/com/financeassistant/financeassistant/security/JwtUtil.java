@@ -5,8 +5,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,100 +13,113 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 
 /**
- * JWT utility using JJWT 0.12.x API.
+ * JWT token creation and validation.
  *
- * Tokens contain two claims:
- *   sub        → user's email (standard JWT subject)
- *   companyId  → the user's primary company ID
+ * Security hardening:
+ *  - HS256 with a Base64-encoded secret (min 32 bytes)
+ *  - Claims include: email, companyId, issued-at, expiry
+ *  - Token expiry configurable via environment variable
+ *  - All exceptions caught and logged — never leaks internals
  *
- * The secret key is read from application.yaml (jwt.secret) and must be a
- * Base64-encoded string that decodes to at least 32 bytes (256 bits) for HS256.
+ * Ready for Razorpay: companyId in claims lets payment controller
+ * verify the user's company without a database call.
  */
+@Slf4j
 @Component
 public class JwtUtil {
 
-    private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
-
     @Value("${jwt.secret}")
-    private String secretKey;
+    private String secret;
 
-    @Value("${jwt.expiration}")
-    private long expiration;   // milliseconds
+    @Value("${jwt.expiration:86400000}")
+    private long expirationMs;
 
-    // ── Token Generation ──────────────────────────────────────────────────────
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secret);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
 
     /**
-     * Builds a signed HS256 JWT containing the user's email as subject
-     * and companyId as a custom claim.
+     * Generate a signed JWT containing email and companyId.
      */
     public String generateToken(String email, Long companyId) {
+        Date now    = new Date();
+        Date expiry = new Date(now.getTime() + expirationMs);
+
         return Jwts.builder()
-                .subject(email)
-                .claim("companyId", companyId)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey())
-                .compact();
+            .subject(email)
+            .claim("companyId", companyId)
+            .claim("type", "access")
+            .issuedAt(now)
+            .expiration(expiry)
+            .signWith(getSigningKey())
+            .compact();
     }
 
-    // ── Token Parsing ─────────────────────────────────────────────────────────
-
-    /** Extracts the email (subject) from the token. Returns null if invalid. */
+    /**
+     * Extract the email (subject) from a token.
+     * Returns null if token is invalid/expired.
+     */
     public String extractEmail(String token) {
         try {
-            return parseClaims(token).getSubject();
-        } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Could not extract email from token: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /** Extracts the companyId custom claim. Returns null if invalid. */
-    public Long extractCompanyId(String token) {
-        try {
-            Object raw = parseClaims(token).get("companyId");
-            if (raw == null) return null;
-            return Long.valueOf(raw.toString());
-        } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Could not extract companyId from token: {}", e.getMessage());
+            return getClaims(token).getSubject();
+        } catch (Exception e) {
+            log.debug("Could not extract email from token: {}", e.getMessage());
             return null;
         }
     }
 
     /**
-     * Returns true if the token is valid (signature OK, not expired)
-     * and the subject matches the provided email.
+     * Extract companyId from token claims.
+     */
+    public Long extractCompanyId(String token) {
+        try {
+            Object id = getClaims(token).get("companyId");
+            if (id instanceof Integer) return ((Integer) id).longValue();
+            if (id instanceof Long)    return (Long) id;
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get token expiry as milliseconds from epoch.
+     */
+    public long getExpiryMs(String token) {
+        try {
+            return getClaims(token).getExpiration().getTime();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Validate token: signature, expiry, and email match.
      */
     public boolean isTokenValid(String token, String email) {
         try {
-            String subject = parseClaims(token).getSubject();
-            return email.equals(subject);
-        } catch (JwtException | IllegalArgumentException e) {
-            log.warn("Token validation failed: {}", e.getMessage());
+            String tokenEmail = extractEmail(token);
+            return email.equals(tokenEmail) && !isExpired(token);
+        } catch (Exception e) {
+            log.debug("Token validation failed: {}", e.getMessage());
             return false;
         }
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
-
-    /**
-     * Parses and verifies the token, returning the Claims payload.
-     * Throws JwtException on invalid signature or expired token.
-     */
-    private Claims parseClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+    private boolean isExpired(String token) {
+        try {
+            return getClaims(token).getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
     }
 
-    /**
-     * Decodes the Base64 secret from application.yaml and builds an
-     * HMAC-SHA256 SecretKey suitable for signing and verifying JWTs.
-     */
-    private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private Claims getClaims(String token) {
+        return Jwts.parser()
+            .verifyWith(getSigningKey())
+            .build()
+            .parseSignedClaims(token)
+            .getPayload();
     }
 }
