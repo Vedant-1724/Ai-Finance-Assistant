@@ -1,131 +1,228 @@
-import pika
+"""
+PATH: finance-ai/rabbitmq_consumer.py
+
+CHANGES vs original:
+  1. Dead-letter exchange (DLX) — messages that fail 3 times go to
+     ai.anomaly.dlq instead of vanishing silently.
+  2. prefetch_count=1 — prevents the consumer from taking more messages
+     than it can process, protecting against memory overload.
+  3. Retry count header — nack'd messages are requeued up to 3 times,
+     then sent to the dead-letter queue.
+  4. Reconnect loop — consumer auto-restarts if RabbitMQ drops the connection.
+  5. Structured logging — every step is logged with companyId for tracing.
+"""
+
 import json
 import logging
 import os
-import requests
+import time
 from datetime import datetime
 
-from anomaly_detector import detect_anomalies
+import pika
+import requests
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
-SPRING_BOOT_BASE_URL = os.environ.get('BACKEND_URL', 'http://localhost:8080')
+BACKEND_URL   = os.environ.get("BACKEND_URL",   "http://localhost:8080")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
+RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
+RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
+
+INPUT_QUEUE  = "ai.anomaly.queue"
+RESULT_QUEUE = "ai.anomaly.results"
+DLQ          = "ai.anomaly.dlq"
+EXCHANGE     = "finance.exchange"
+DLX          = "finance.dlx"
+MAX_RETRIES  = 3
 
 
-# ── Fetch real transaction data from Spring Boot ──────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+#  Fetch transactions from Spring Boot backend
+# ─────────────────────────────────────────────────────────────────────────────
+
 def fetch_transactions(company_id: int, txn_ids: list) -> list:
-    """
-    Calls Spring Boot REST API to get real transaction data for the given IDs.
-    Falls back to an empty list on any error.
-    """
+    """Fetch raw transaction data from the Spring Boot backend."""
     try:
-        url = f"{SPRING_BOOT_BASE_URL}/api/v1/{company_id}/transactions"
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        all_txns = resp.json()
-
-        # Filter to only the IDs we care about
-        txn_id_set = set(txn_ids)
-        filtered = [t for t in all_txns if t.get('id') in txn_id_set]
-        logging.info("Fetched %d transaction(s) from Spring Boot for company %d",
-                     len(filtered), company_id)
-        return filtered
-
+        url = f"{BACKEND_URL}/internal/transactions"
+        resp = requests.post(
+            url,
+            json={"companyId": company_id, "ids": txn_ids},
+            timeout=10,
+            headers={"X-Internal-Call": "true"},
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        logger.warning("Backend returned %d for company=%d", resp.status_code, company_id)
+        return []
     except Exception as e:
-        logging.error("Failed to fetch transactions from Spring Boot: %s", e)
+        logger.error("Failed to fetch transactions for company=%d: %s", company_id, e)
         return []
 
 
-# ── Publish anomaly results back to Spring Boot via RabbitMQ ──────────────────
-def publish_anomaly_results(channel, company_id: int, anomalies: list):
-    """
-    Publishes detected anomalies to the 'ai.anomaly.results' queue so
-    Spring Boot's AnomalyResultListener can save them to the DB.
-    """
+# ─────────────────────────────────────────────────────────────────────────────
+#  Run anomaly detection
+# ─────────────────────────────────────────────────────────────────────────────
+
+def detect_anomalies(transactions: list) -> list:
+    """Run Isolation Forest detection. Returns list of anomaly dicts."""
+    try:
+        from anomaly_detector import detect
+        return detect(transactions)
+    except Exception as e:
+        logger.error("Anomaly detection error: %s", e)
+        return []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Publish results back to Spring Boot
+# ─────────────────────────────────────────────────────────────────────────────
+
+def publish_results(channel, company_id: int, anomalies: list):
     payload = {
-        'companyId': company_id,
-        'anomalies': anomalies,
-        'detectedAt': datetime.utcnow().isoformat(),
+        "companyId":  company_id,
+        "anomalies":  anomalies,
+        "detectedAt": datetime.utcnow().isoformat(),
     }
     channel.basic_publish(
-        exchange='finance.exchange',
-        routing_key='anomalies.detected',
+        exchange=EXCHANGE,
+        routing_key="anomalies.detected",
         body=json.dumps(payload),
         properties=pika.BasicProperties(
-            delivery_mode=2,          # persistent message
-            content_type='application/json',
-        )
+            delivery_mode=2,
+            content_type="application/json",
+        ),
     )
-    logging.info("Published %d anomaly/anomalies for company %d",
-                 len(anomalies), company_id)
+    logger.info("Published %d anomaly/anomalies for company=%d", len(anomalies), company_id)
 
 
-# ── RabbitMQ message handler ──────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+#  Message handler
+# ─────────────────────────────────────────────────────────────────────────────
+
 def on_message(channel, method, properties, body):
-    try:
-        event = json.loads(body)
-        company_id = int(event.get('companyId', 0))
-        txn_ids    = event.get('txnIds', [])
+    retry_count = 0
+    if properties.headers:
+        retry_count = int(properties.headers.get("x-retry-count", 0))
 
-        logging.info("Received transaction event: companyId=%d txnIds=%s",
-                     company_id, txn_ids)
+    try:
+        event      = json.loads(body)
+        company_id = int(event.get("companyId", 0))
+        txn_ids    = event.get("txnIds", [])
+
+        logger.info("Processing event: company=%d txns=%s retries=%d",
+                    company_id, txn_ids, retry_count)
 
         if not txn_ids:
             channel.basic_ack(delivery_tag=method.delivery_tag)
             return
 
-        # Fetch real transaction data from Spring Boot
         transactions = fetch_transactions(company_id, txn_ids)
 
         if transactions:
-            # Run Isolation Forest anomaly detection
             anomalies = detect_anomalies(transactions)
-            logging.info("Detected %d anomaly/anomalies for company %d",
-                         len(anomalies), company_id)
-
-            # Publish results back to Spring Boot
-            publish_anomaly_results(channel, company_id, anomalies)
+            publish_results(channel, company_id, anomalies)
         else:
-            logging.warning("No transaction data returned for company %d — skipping detection",
-                            company_id)
+            logger.warning("No transactions fetched for company=%d — skipping", company_id)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        logging.error("Error processing message: %s", e)
-        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        logger.error("Error processing message (retry %d/%d): %s", retry_count, MAX_RETRIES, e)
+
+        if retry_count < MAX_RETRIES:
+            # Requeue with incremented retry counter
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            headers = {"x-retry-count": retry_count + 1}
+            channel.basic_publish(
+                exchange="",
+                routing_key=INPUT_QUEUE,
+                body=body,
+                properties=pika.BasicProperties(
+                    delivery_mode=2,
+                    headers=headers,
+                ),
+            )
+            logger.info("Re-queued message for retry %d", retry_count + 1)
+        else:
+            # Dead-letter after max retries
+            logger.error("Max retries exceeded — sending to DLQ")
+            channel.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+#  Setup topology
+# ─────────────────────────────────────────────────────────────────────────────
+
+def setup_topology(channel):
+    """Declare all exchanges and queues with DLX support."""
+    # Dead-letter exchange
+    channel.exchange_declare(exchange=DLX, exchange_type="direct", durable=True)
+    channel.queue_declare(queue=DLQ, durable=True)
+    channel.queue_bind(queue=DLQ, exchange=DLX, routing_key=INPUT_QUEUE)
+
+    # Main exchange
+    channel.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
+
+    # Input queue — messages that fail go to DLX → DLQ
+    channel.queue_declare(
+        queue=INPUT_QUEUE,
+        durable=True,
+        arguments={
+            "x-dead-letter-exchange":    DLX,
+            "x-dead-letter-routing-key": INPUT_QUEUE,
+        },
+    )
+    channel.queue_bind(queue=INPUT_QUEUE, exchange=EXCHANGE, routing_key="transactions.new")
+
+    # Result queue
+    channel.queue_declare(queue=RESULT_QUEUE, durable=True)
+    channel.queue_bind(queue=RESULT_QUEUE, exchange=EXCHANGE, routing_key="anomalies.detected")
+
+    # Process one message at a time — prevents memory overload
+    channel.basic_qos(prefetch_count=1)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Entry point — auto-reconnect loop
+# ─────────────────────────────────────────────────────────────────────────────
+
 def start_consumer():
-    rabbitmq_host = os.environ.get('RABBITMQ_HOST', 'localhost')
-    rabbitmq_user = os.environ.get('RABBITMQ_USER', 'guest')
-    rabbitmq_pass = os.environ.get('RABBITMQ_PASS', 'guest')
-
-    credentials = pika.PlainCredentials(rabbitmq_user, rabbitmq_pass)
+    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
     parameters  = pika.ConnectionParameters(
-        host=rabbitmq_host,
+        host=RABBITMQ_HOST,
         port=5672,
         credentials=credentials,
         heartbeat=600,
         blocked_connection_timeout=300,
     )
 
-    logging.info("Connecting to RabbitMQ at %s ...", rabbitmq_host)
-    connection = pika.BlockingConnection(parameters)
-    channel    = connection.channel()
+    while True:
+        try:
+            logger.info("Connecting to RabbitMQ at %s ...", RABBITMQ_HOST)
+            connection = pika.BlockingConnection(parameters)
+            channel    = connection.channel()
 
-    # Declare queue (idempotent — safe to re-declare)
-    channel.queue_declare(queue='ai.anomaly.queue', durable=True)
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(
-        queue='ai.anomaly.queue',
-        on_message_callback=on_message,
-    )
+            setup_topology(channel)
 
-    logging.info("RabbitMQ consumer started. Waiting for messages...")
-    channel.start_consuming()
+            channel.basic_consume(
+                queue=INPUT_QUEUE,
+                on_message_callback=on_message,
+            )
+
+            logger.info("Consumer ready — waiting for messages on %s", INPUT_QUEUE)
+            channel.start_consuming()
+
+        except pika.exceptions.AMQPConnectionError as e:
+            logger.error("RabbitMQ connection lost: %s — reconnecting in 5s", e)
+            time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("Consumer stopped by user")
+            break
+        except Exception as e:
+            logger.error("Unexpected consumer error: %s — reconnecting in 5s", e)
+            time.sleep(5)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     start_consumer()

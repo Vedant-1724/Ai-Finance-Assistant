@@ -5,20 +5,23 @@ import com.financeassistant.financeassistant.repository.AnomalyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * NEW FILE — did not exist in finance-backend.
+ * PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/
+ *       financeassistant/controller/AnomalyController.java
+ *
+ * CHANGE: @PreAuthorize added to both endpoints.
+ * Without this, any authenticated user could:
+ *   - Read another company's anomaly alerts (data leak)
+ *   - Dismiss another company's anomalies (data tampering)
  *
  * Exposes HTTP endpoints so the React Dashboard can display anomaly alerts.
  * AnomalyResultListener saves anomalies to the DB via RabbitMQ;
- * this controller lets the frontend READ them.
- *
- * Endpoints:
- *   GET    /api/v1/{companyId}/anomalies            → list all anomalies
- *   DELETE /api/v1/{companyId}/anomalies/{anomalyId} → dismiss one
+ * this controller lets the authenticated owner READ and DISMISS them.
  */
 @Slf4j
 @RestController
@@ -28,24 +31,36 @@ public class AnomalyController {
 
     private final AnomalyRepository anomalyRepository;
 
+    /**
+     * GET /api/v1/{companyId}/anomalies
+     * Returns all anomalies for this company, newest first.
+     */
     @GetMapping
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<List<Anomaly>> getAnomalies(@PathVariable Long companyId) {
         log.info("GET /anomalies companyId={}", companyId);
-        List<Anomaly> anomalies =
-                anomalyRepository.findByCompanyIdOrderByDetectedAtDesc(companyId);
-        return ResponseEntity.ok(anomalies);
+        return ResponseEntity.ok(
+                anomalyRepository.findByCompanyIdOrderByDetectedAtDesc(companyId));
     }
 
+    /**
+     * DELETE /api/v1/{companyId}/anomalies/{anomalyId}
+     * Dismisses (hard-deletes) a single anomaly alert.
+     */
     @DeleteMapping("/{anomalyId}")
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<Void> dismissAnomaly(
             @PathVariable Long companyId,
             @PathVariable Long anomalyId) {
-
         log.info("DELETE /anomalies/{} companyId={}", anomalyId, companyId);
-        if (!anomalyRepository.existsById(anomalyId)) {
-            return ResponseEntity.notFound().build();
-        }
-        anomalyRepository.deleteById(anomalyId);
+
+        // Extra guard: verify the anomaly actually belongs to this company
+        anomalyRepository.findById(anomalyId).ifPresent(a -> {
+            if (a.getCompanyId().equals(companyId)) {
+                anomalyRepository.deleteById(anomalyId);
+            }
+        });
+
         return ResponseEntity.noContent().build();
     }
 }

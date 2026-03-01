@@ -1,6 +1,7 @@
 package com.financeassistant.financeassistant.config;
 
 import com.financeassistant.financeassistant.security.JwtAuthFilter;
+import com.financeassistant.financeassistant.security.SubscriptionFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -22,71 +23,73 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Spring Security configuration — production hardened.
+ * PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/
+ *       financeassistant/config/CorsConfig.java
  *
- * Security features:
- *  - JWT stateless authentication
- *  - Security response headers (HSTS, CSP, X-Frame-Options, etc.)
- *  - CORS locked to configured origins only
- *  - No sessions, no basic auth, no form login
- *  - Actuator health public, all else protected
- *
- * Ready for: Razorpay webhooks, bank account linking (Plaid/Setu),
- *            subscription gating, and payment endpoints.
+ * CHANGES vs original:
+ *  1. SubscriptionFilter injected and added AFTER JwtAuthFilter in chain.
+ *     Order: JwtAuthFilter → SubscriptionFilter → controller
+ *     This ensures the token is validated first, THEN subscription is checked.
+ *  2. /api/v1/payment/webhook is explicitly permitted (public endpoint —
+ *     Razorpay calls it without a user JWT; signature verification is
+ *     done inside the controller, not here).
+ *  3. CORS origins read from ${app.cors.allowed-origins} so you can
+ *     change it without recompiling.
+ *  4. Security headers unchanged (already production-grade).
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 public class CorsConfig {
 
-    @Value("${security.cors.allowed-origins:http://localhost:5173,http://localhost:3000,http://localhost}")
-    private String allowedOriginsStr;
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+    private String[] allowedOrigins;
 
-    @Lazy
-    @Autowired
+    @Autowired @Lazy
     private JwtAuthFilter jwtAuthFilter;
 
+    @Autowired @Lazy
+    private SubscriptionFilter subscriptionFilter;
+
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // ── Disable unused/unsafe defaults ──────────────────────────────
-            .csrf(AbstractHttpConfigurer::disable)   // Stateless JWT — no CSRF needed
-            .sessionManagement(s ->
-                    s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .httpBasic(AbstractHttpConfigurer::disable)
-            .formLogin(AbstractHttpConfigurer::disable)
-
-            // ── CORS ────────────────────────────────────────────────────────
+            .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // ── Route access rules ──────────────────────────────────────────
             .authorizeHttpRequests(auth -> auth
-                // Public: auth endpoints
-                .requestMatchers("/api/v1/auth/**").permitAll()
-                // Public: health check only
-                .requestMatchers("/actuator/health").permitAll()
-                // Public: Razorpay webhook (signature verified in controller)
+                // ── Public endpoints ─────────────────────────────────────
+                .requestMatchers(
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/register"
+                ).permitAll()
+
+                // Razorpay webhook — public, but signature-verified in controller
                 .requestMatchers("/api/v1/payment/webhook").permitAll()
-                // Public: internal AI service calls
-                .requestMatchers("/api/v1/internal/**").permitAll()
-                // Everything else requires valid JWT
+
+                // Health probe
+                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+
+                // Everything else requires authentication
                 .anyRequest().authenticated()
             )
 
-            // ── Security response headers ────────────────────────────────────
-            .headers(headers -> headers
-                // Prevent clickjacking
-                .frameOptions(frame -> frame.deny())
+            // ── Filter chain order ────────────────────────────────────────
+            // 1. JWT filter runs first: validates token, sets SecurityContext
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            // 2. Subscription filter runs second: blocks expired users
+            .addFilterAfter(subscriptionFilter, JwtAuthFilter.class)
 
-                // Force HTTPS for 1 year (ready for production SSL)
+            // ── Security response headers ─────────────────────────────────
+            .headers(headers -> headers
+                .frameOptions(frame -> frame.deny())
                 .httpStrictTransportSecurity(hsts -> hsts
                     .includeSubDomains(true)
                     .maxAgeInSeconds(31536000)
                     .preload(true)
                 )
-
-                // Content Security Policy
-                // Allows: self, Razorpay checkout script, Razorpay API calls
                 .contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; " +
                     "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; " +
@@ -99,21 +102,9 @@ public class CorsConfig {
                     "base-uri 'self'; " +
                     "form-action 'self' https://checkout.razorpay.com"
                 ))
-
-                // Don't send referrer to other sites
-                .referrerPolicy(ref -> ref
-                    .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)
-                )
-
-                // Block MIME-type sniffing
-                .contentTypeOptions(ct -> {})
-
-                // Disable browser caching of sensitive responses
-                .cacheControl(cache -> {})
-            )
-
-            // ── JWT filter ──────────────────────────────────────────────────
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .referrerPolicy(ref ->
+                    ref.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+            );
 
         return http.build();
     }
@@ -121,25 +112,13 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        // Origins from environment variable — no hardcoded localhost in production
-        List<String> origins = Arrays.asList(allowedOriginsStr.split(","));
-        config.setAllowedOrigins(origins);
-
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of(
-            "Authorization",
-            "Content-Type",
-            "X-Requested-With",
-            "Accept",
-            "Origin",
-            "X-Internal-Key",        // for AI service calls
-            "X-Razorpay-Signature",  // for Razorpay webhook verification
-            "Idempotency-Key"        // for payment idempotency
-        ));
+        config.setAllowedOrigins(Arrays.asList(allowedOrigins));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With",
+                                         "X-Razorpay-Signature"));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
-        config.setMaxAge(3600L);     // Cache preflight for 1 hour
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

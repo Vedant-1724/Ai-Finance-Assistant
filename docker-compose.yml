@@ -118,5 +118,7 @@ services:
       - backend
       - ai-service
 
+      
+
 volumes:
   pgdata:

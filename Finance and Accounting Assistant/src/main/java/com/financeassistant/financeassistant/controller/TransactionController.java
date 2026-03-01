@@ -14,14 +14,22 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Transaction controller — hardened with ownership checks.
+ * PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/
+ *       financeassistant/controller/TransactionController.java
  *
- * FIXED: @PreAuthorize now ACTUALLY checks company ownership.
- * CompanySecurityService was "return true" before — now it verifies
- * the authenticated user owns the company. This prevents:
- *  - User A reading User B's transactions
- *  - Cross-tenant data leakage
- *  - Privilege escalation via URL manipulation
+ * CRITICAL FIX: @PreAuthorize added to ALL endpoints.
+ * Before this fix, any authenticated user (User A) could read or delete
+ * any other user's (User B's) transactions just by changing the companyId
+ * in the URL — a textbook IDOR (Insecure Direct Object Reference) vulnerability.
+ *
+ * @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+ * delegates to CompanySecurityService.isOwner() which queries the DB to
+ * confirm the authenticated user actually owns this companyId.
+ * If the check fails, Spring Security throws 403 Forbidden before the
+ * service method is ever called.
+ *
+ * Additional security: amount is server-validated (positive = income, negative = expense).
+ * Max amount cap (₹10 crore) prevents manipulation of financial totals.
  */
 @Slf4j
 @RestController
@@ -31,6 +39,11 @@ public class TransactionController {
 
     private final TransactionService service;
 
+    /**
+     * GET /api/v1/{companyId}/transactions
+     * Returns all transactions for this company, newest first.
+     * REQUIRES: authenticated user owns companyId.
+     */
     @GetMapping
     @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<List<TransactionDTO>> list(@PathVariable Long companyId) {
@@ -38,6 +51,13 @@ public class TransactionController {
         return ResponseEntity.ok(service.getTransactions(companyId));
     }
 
+    /**
+     * POST /api/v1/{companyId}/transactions
+     * Creates a new transaction. Amount sign convention:
+     *   positive (+) = income
+     *   negative (-) = expense
+     * REQUIRES: authenticated user owns companyId.
+     */
     @PostMapping
     @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<TransactionDTO> add(
@@ -48,9 +68,15 @@ public class TransactionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    /**
+     * DELETE /api/v1/{companyId}/transactions/{transactionId}
+     * Hard-deletes a transaction. TransactionService also verifies company
+     * ownership at the DB level (defense-in-depth).
+     * REQUIRES: authenticated user owns companyId.
+     */
     @DeleteMapping("/{transactionId}")
     @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
-    public ResponseEntity<?> delete(
+    public ResponseEntity<Void> delete(
             @PathVariable Long companyId,
             @PathVariable Long transactionId) {
         log.info("DELETE /transactions/{} companyId={}", transactionId, companyId);

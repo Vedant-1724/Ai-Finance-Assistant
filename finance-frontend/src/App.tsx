@@ -1,30 +1,42 @@
+// PATH: finance-frontend/src/App.tsx
+//
+// CHANGES vs original:
+//  1. TrialBanner component added above main content (shows days remaining / expired)
+//  2. /subscription route added — SubscriptionPage with Razorpay checkout
+//  3. subscriptionTab state controls whether the upgrade page is shown
+//  4. 402 Payment Required responses in api.ts interceptor redirect to /subscription
+
 import { useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
 import ChatAssistant from './components/ChatAssistant'
 import InvoiceUpload from './components/InvoiceUpload'
+import TrialBanner from './components/TrialBanner'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import SubscriptionPage from './pages/SubscriptionPage'
 import { useAuth } from './context/AuthContext'
 import './App.css'
 
 type Tab = 'dashboard' | 'chat' | 'invoices'
 
-// ── Protected wrapper — redirects to /login if not authenticated ──────────────
+// ── Protected app wrapper ─────────────────────────────────────────────────────
 function ProtectedApp() {
-  const { user, logout } = useAuth()
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
-
-  // companyId comes from the JWT (set during login) — no more hardcoded 1
-  const companyId = user!.companyId
+  const { user, logout }    = useAuth()
+  const navigate             = useNavigate()
+  const [activeTab, setTab]  = useState<Tab>('dashboard')
+  const companyId            = user!.companyId
 
   return (
     <div className="app">
+      {/* Trial/subscription banner — shows for TRIAL and EXPIRED users */}
+      <TrialBanner onUpgrade={() => navigate('/subscription')} />
+
       <header className="app-header">
         <div className="brand">
           <div className="brand-icon">💼</div>
           <div className="brand-text">
-            <h1>Finance & Accounting Assistant</h1>
+            <h1>Finance &amp; Accounting Assistant</h1>
             <p>AI-Powered Financial Intelligence</p>
           </div>
         </div>
@@ -32,30 +44,26 @@ function ProtectedApp() {
         <nav>
           <button
             className={activeTab === 'dashboard' ? 'active' : ''}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            📊 Dashboard
-          </button>
+            onClick={() => setTab('dashboard')}
+          >📊 Dashboard</button>
           <button
             className={activeTab === 'invoices' ? 'active' : ''}
-            onClick={() => setActiveTab('invoices')}
-          >
-            🧾 Invoices
-          </button>
+            onClick={() => setTab('invoices')}
+          >🧾 Invoices</button>
           <button
             className={activeTab === 'chat' ? 'active' : ''}
-            onClick={() => setActiveTab('chat')}
-          >
-            💬 AI Assistant
-          </button>
+            onClick={() => setTab('chat')}
+          >💬 AI Assistant</button>
         </nav>
 
-        {/* User info + logout */}
         <div className="user-menu">
           <span className="user-email">{user!.email}</span>
-          <button className="btn-logout" onClick={logout}>
-            Sign Out
-          </button>
+          <button
+            className="btn-upgrade"
+            onClick={() => navigate('/subscription')}
+            style={{ marginRight: 8 }}
+          >⭐ Upgrade</button>
+          <button className="btn-logout" onClick={logout}>Sign Out</button>
         </div>
       </header>
 
@@ -68,26 +76,16 @@ function ProtectedApp() {
   )
 }
 
-// ── Root App — defines all routes ─────────────────────────────────────────────
+// ── Root app — all routes ────────────────────────────────────────────────────
 function App() {
   const { isAuthenticated } = useAuth()
 
   return (
     <Routes>
-      {/* Public routes */}
-      <Route path="/login"    element={
-        isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
-      } />
-      <Route path="/register" element={
-        isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />
-      } />
-
-      {/* Protected route — redirects to /login if not authenticated */}
-      <Route path="/" element={
-        isAuthenticated ? <ProtectedApp /> : <Navigate to="/login" replace />
-      } />
-
-      {/* Catch-all — redirect to home */}
+      <Route path="/login"    element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/register" element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />} />
+      <Route path="/subscription" element={isAuthenticated ? <SubscriptionPage /> : <Navigate to="/login" replace />} />
+      <Route path="/" element={isAuthenticated ? <ProtectedApp /> : <Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
