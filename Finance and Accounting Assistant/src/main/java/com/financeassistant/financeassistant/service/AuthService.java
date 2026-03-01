@@ -18,26 +18,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Handles user registration and login.
- * Also implements UserDetailsService so Spring Security / JwtAuthFilter
- * can load users by email during JWT validation.
- *
- * ── Why AuthenticationManager was removed ────────────────────────────────────
- * Injecting AuthenticationManager here creates an unresolvable cycle:
- *
- *   AuthService  →  AuthenticationManager
- *                       ↓
- *              (Spring Security builds it by scanning
- *               for the UserDetailsService bean)
- *                       ↓
- *                   AuthService   ← cycle!
- *
- * The fix: verify the password directly with PasswordEncoder.
- * This is exactly what AuthenticationManager (DaoAuthenticationProvider)
- * does internally — we just skip the middleman.
- * ─────────────────────────────────────────────────────────────────────────────
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -49,77 +29,69 @@ public class AuthService implements UserDetailsService {
     private final JwtUtil           jwtUtil;
 
     // ── UserDetailsService ────────────────────────────────────────────────────
-
-    /**
-     * Called by JwtAuthFilter to load the user entity by email.
-     * Spring Security uses the returned UserDetails to verify the JWT.
-     */
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new UsernameNotFoundException("User not found: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
     }
 
     // ── Register ──────────────────────────────────────────────────────────────
-
-    /**
-     * Creates a new user + company, then returns a signed JWT.
-     */
     @Transactional
     public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.getEmail())) {
-            throw new IllegalArgumentException("Email already registered: " + req.getEmail());
+            throw new IllegalArgumentException("An account with this email already exists.");
         }
 
+        // Create user — defaults to FREE tier (no trial auto-start)
         User user = new User(
-                req.getEmail(),
+                req.getEmail().toLowerCase().trim(),
                 passwordEncoder.encode(req.getPassword()),
                 "USER"
         );
         User savedUser = userRepository.save(user);
-        log.info("Registered new user: {}", savedUser.getEmail());
 
+        // Create company
         Company company = new Company();
         company.setOwnerId(savedUser.getId());
         company.setName(req.getCompanyName());
-        company.setCurrency("USD");
+        company.setCurrency("INR");
         Company savedCompany = companyRepository.save(company);
-        log.info("Created company '{}' (id={}) for user {}",
-                savedCompany.getName(), savedCompany.getId(), savedUser.getEmail());
 
+        // ✅ FIX: generateToken needs TWO args (email, companyId)
         String token = jwtUtil.generateToken(savedUser.getEmail(), savedCompany.getId());
-        return new AuthResponse(token, savedCompany.getId(), savedUser.getEmail());
+        log.info("Registered new FREE user: {}", savedUser.getEmail());
+        return buildAuthResponse(token, savedCompany.getId(), savedUser);
     }
 
     // ── Login ─────────────────────────────────────────────────────────────────
-
-    /**
-     * Verifies email + password directly with BCrypt, then returns a signed JWT.
-     *
-     * We call passwordEncoder.matches() ourselves instead of delegating to
-     * AuthenticationManager — identical behaviour, zero circular dependency.
-     */
+    @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest req) {
-        // 1. Load user — throws UsernameNotFoundException if not found
-        User user = userRepository.findByEmail(req.getEmail())
-                .orElseThrow(() ->
-                        new BadCredentialsException("Invalid email or password"));
+        User user = userRepository.findByEmail(req.getEmail().toLowerCase().trim())
+                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
-        // 2. Verify BCrypt hash — throws BadCredentialsException on mismatch
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             throw new BadCredentialsException("Invalid email or password");
         }
 
-        // 3. Load the user's primary company
+        // ✅ FIX: use findFirstByOwnerId (not findByOwnerId)
         Company company = companyRepository.findFirstByOwnerId(user.getId())
-                .orElseThrow(() ->
-                        new IllegalStateException(
-                                "No company found for user: " + req.getEmail()));
+                .orElseThrow(() -> new IllegalStateException("No company found for user"));
 
-        log.info("User {} logged in, companyId={}", user.getEmail(), company.getId());
-
+        // ✅ FIX: generateToken needs TWO args (email, companyId)
         String token = jwtUtil.generateToken(user.getEmail(), company.getId());
-        return new AuthResponse(token, company.getId(), user.getEmail());
+        log.info("Login: {}", user.getEmail());
+        return buildAuthResponse(token, company.getId(), user);
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────
+    private AuthResponse buildAuthResponse(String token, Long companyId, User user) {
+        return new AuthResponse(
+                token,
+                companyId,
+                user.getEmail(),
+                user.getEffectiveTier(),
+                user.trialDaysRemaining(),
+                user.getAiChatsRemainingToday()
+        );
     }
 }

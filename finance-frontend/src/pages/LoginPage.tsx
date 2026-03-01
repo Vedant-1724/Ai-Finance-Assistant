@@ -4,18 +4,22 @@ import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
 interface AuthResponse {
-  token: string
-  companyId: number
-  email: string
+  token:              string
+  companyId:          number
+  email:              string
+  subscriptionStatus: string
+  trialDaysRemaining: number
+  aiChatsRemaining:   number
 }
 
 export default function LoginPage() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const { login }   = useAuth()
+  const navigate    = useNavigate()
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [loading, setLoading]   = useState(false)
+  const [showPwd, setShowPwd]   = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -23,12 +27,15 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      // ✅ FIXED: No hardcoded localhost — uses proxy (Vite dev) or nginx (Docker)
-      const res = await axios.post<AuthResponse>(
-        '/api/v1/auth/login',
-        { email, password }
+      const res = await axios.post<AuthResponse>('/api/v1/auth/login', { email, password })
+      login(
+        res.data.token,
+        res.data.companyId,
+        res.data.email,
+        res.data.subscriptionStatus,
+        res.data.trialDaysRemaining,
+        res.data.aiChatsRemaining
       )
-      login(res.data.token, res.data.companyId, res.data.email)
       navigate('/', { replace: true })
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -43,70 +50,72 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.brand}>
-          <div style={styles.brandIcon}>💼</div>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="auth-brand-icon">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <path d="M4 16l5-10 5 8 3-5 5 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
           <div>
-            <h1 style={styles.brandTitle}>Finance Assistant</h1>
-            <p style={styles.brandSub}>AI-Powered Financial Intelligence</p>
+            <div className="auth-brand-name">FinanceAI</div>
+            <div className="auth-brand-tag">AI-Powered Financial Intelligence</div>
           </div>
         </div>
 
-        <h2 style={styles.heading}>Sign in to your account</h2>
+        <h1 className="auth-heading">Welcome back</h1>
+        <p className="auth-subheading">Sign in to your account to continue</p>
 
-        {error && <div style={styles.errorBox}>⚠️ {error}</div>}
+        {error && <div className="error-box">⚠️ {error}</div>}
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="form-field">
+            <label className="input-label">Email address</label>
             <input
-              type="email" value={email}
+              type="email"
+              value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              required autoFocus style={styles.input}
+              required
+              autoFocus
+              className="input-field"
             />
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
+          <div className="form-field">
+            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              Password
+              <span style={{ fontSize: '11px', color: 'var(--text-accent)', cursor: 'pointer', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}
+                onClick={() => setShowPwd(!showPwd)}>
+                {showPwd ? 'Hide' : 'Show'}
+              </span>
+            </label>
             <input
-              type="password" value={password}
+              type={showPwd ? 'text' : 'password'}
+              value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Your password"
-              required style={styles.input}
+              required
+              className="input-field"
             />
           </div>
 
-          <button type="submit" disabled={loading}
-            style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}>
-            {loading ? '⏳ Signing in…' : 'Sign In →'}
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-gradient"
+            style={{ marginTop: '4px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            {loading ? <><span className="spinner" style={{width:16,height:16}} /> Signing in…</> : 'Sign In →'}
           </button>
         </form>
 
-        <p style={styles.footer}>
+        <p className="auth-footer">
           Don't have an account?{' '}
-          <Link to="/register" style={styles.link}>Create one free</Link>
+          <Link to="/register" className="auth-link">Create one free</Link>
         </p>
       </div>
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0f1e', padding: '24px' },
-  card: { width: '100%', maxWidth: '420px', background: '#0d1526', border: '1px solid #1a2744', borderRadius: '16px', padding: '40px 36px', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' },
-  brand: { display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '32px' },
-  brandIcon: { fontSize: '36px', background: 'rgba(59,130,246,0.15)', borderRadius: '12px', padding: '10px', border: '1px solid rgba(59,130,246,0.3)' },
-  brandTitle: { fontSize: '18px', fontWeight: 700, color: '#e2e8f0', margin: 0 },
-  brandSub: { fontSize: '12px', color: '#4a5a7a', margin: 0 },
-  heading: { fontSize: '20px', fontWeight: 700, color: '#e2e8f0', marginBottom: '24px', marginTop: 0 },
-  errorBox: { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', marginBottom: '20px' },
-  form: { display: 'flex', flexDirection: 'column', gap: '18px' },
-  field: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { fontSize: '12px', fontWeight: 600, color: '#8b9ec7', textTransform: 'uppercase', letterSpacing: '0.6px' },
-  input: { background: '#0a1428', border: '1px solid #1a2744', borderRadius: '8px', padding: '11px 14px', color: '#e2e8f0', fontSize: '14px', outline: 'none', fontFamily: 'Inter, sans-serif' },
-  btn: { marginTop: '8px', padding: '13px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif', boxShadow: '0 2px 12px rgba(59,130,246,0.35)' },
-  footer: { marginTop: '24px', textAlign: 'center', fontSize: '13px', color: '#4a5a7a' },
-  link: { color: '#60a5fa', textDecoration: 'none', fontWeight: 600 },
 }

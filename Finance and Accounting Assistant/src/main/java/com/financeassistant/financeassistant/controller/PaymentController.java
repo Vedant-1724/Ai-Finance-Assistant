@@ -168,11 +168,12 @@ public class PaymentController {
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(Map.of(
-            "status",        user.getSubscriptionStatus().name(),
-            "daysRemaining", subscriptionService.trialDaysRemaining(user),
-            "canAccess",     subscriptionService.canAccess(user),
-            "expiresAt",     user.getSubscriptionExpiresAt() != null
-                             ? user.getSubscriptionExpiresAt().toString() : ""
+                "status",           user.getSubscriptionStatus().name(),
+                "tier",             user.getEffectiveTier(),
+                "trialDaysRemaining", subscriptionService.trialDaysRemaining(user),
+                "hasPremiumAccess", subscriptionService.hasPremiumAccess(user),
+                "expiresAt",        user.getSubscriptionExpiresAt() != null
+                        ? user.getSubscriptionExpiresAt().toString() : ""
         ));
     }
 }

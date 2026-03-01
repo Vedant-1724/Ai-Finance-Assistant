@@ -2,7 +2,6 @@ package com.financeassistant.financeassistant.security;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -11,18 +10,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * In-memory rate limiter using Bucket4j token bucket algorithm.
+ * In-memory rate limiter using Bucket4j (updated to non-deprecated API).
  *
  * Login:    5 attempts per minute per IP
  * Register: 3 attempts per 10 minutes per IP
- *
- * Protects against:
- *  - Brute-force password attacks
- *  - Credential stuffing attacks
- *  - Account enumeration attacks
- *
- * Critical before Razorpay integration — payment endpoints must not be
- * accessible to automated attackers who might have stolen credentials.
  */
 @Component
 public class LoginRateLimiter {
@@ -39,45 +30,30 @@ public class LoginRateLimiter {
     @Value("${security.rate-limit.register-window-minutes:10}")
     private int registerWindowMinutes;
 
-    // Separate buckets for login vs register
     private final Map<String, Bucket> loginBuckets    = new ConcurrentHashMap<>();
     private final Map<String, Bucket> registerBuckets = new ConcurrentHashMap<>();
 
     private Bucket createLoginBucket() {
-        return Bucket.builder()
-                .addLimit(Bandwidth.classic(
-                        loginMaxAttempts,
-                        Refill.intervally(loginMaxAttempts, Duration.ofMinutes(loginWindowMinutes))
-                ))
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(loginMaxAttempts)
+                .refillGreedy(loginMaxAttempts, Duration.ofMinutes(loginWindowMinutes))
                 .build();
+        return Bucket.builder().addLimit(limit).build();
     }
 
     private Bucket createRegisterBucket() {
-        return Bucket.builder()
-                .addLimit(Bandwidth.classic(
-                        registerMaxAttempts,
-                        Refill.intervally(registerMaxAttempts, Duration.ofMinutes(registerWindowMinutes))
-                ))
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(registerMaxAttempts)
+                .refillGreedy(registerMaxAttempts, Duration.ofMinutes(registerWindowMinutes))
                 .build();
+        return Bucket.builder().addLimit(limit).build();
     }
 
-    /**
-     * Try to consume a login attempt for this IP.
-     * Returns false if rate limit exceeded.
-     */
     public boolean tryConsumeLogin(String ip) {
-        return loginBuckets
-                .computeIfAbsent(ip, k -> createLoginBucket())
-                .tryConsume(1);
+        return loginBuckets.computeIfAbsent(ip, k -> createLoginBucket()).tryConsume(1);
     }
 
-    /**
-     * Try to consume a register attempt for this IP.
-     * Returns false if rate limit exceeded.
-     */
     public boolean tryConsumeRegister(String ip) {
-        return registerBuckets
-                .computeIfAbsent(ip, k -> createRegisterBucket())
-                .tryConsume(1);
+        return registerBuckets.computeIfAbsent(ip, k -> createRegisterBucket()).tryConsume(1);
     }
 }

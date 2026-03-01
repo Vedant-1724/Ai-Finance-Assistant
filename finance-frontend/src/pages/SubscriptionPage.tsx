@@ -1,250 +1,248 @@
-// PATH: finance-frontend/src/pages/SubscriptionPage.tsx
-//
-// NEW FILE — Pricing page with Razorpay checkout.
-//
-// Flow:
-//  1. Page loads — shows pricing plans
-//  2. User clicks "Subscribe" — calls POST /api/v1/payment/create-order
-//  3. Backend returns orderId + keyId (₹499 in paise)
-//  4. Razorpay JS SDK opens native payment modal
-//  5. On success → verify payment → show success state
-//  6. On failure → show error message
-//
-// Requires Razorpay checkout.js script loaded in index.html:
-//   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+// CHANGES:
+//  - Shows 3 tiers: Free (current/permanent) / Trial (5-day) / Pro (₹499/mo)
+//  - Start Trial button for FREE users
+//  - Razorpay checkout for Pro
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
-import api from '../api'
 
-interface OrderResponse {
-  orderId:  string
-  amount:   number
-  currency: string
-  keyId:    string
-  email:    string
+declare global {
+  interface Window {
+    Razorpay: any
+  }
 }
 
 interface SubStatus {
-  status:        string
-  daysRemaining: number
-  canAccess:     boolean
+  tier:             string
+  status:           string
+  trialDaysRemaining: number
+  aiChatsRemaining: number
+  trialAlreadyUsed: boolean
 }
 
-// Extend window with Razorpay SDK type
-declare global {
-  interface Window { Razorpay: any }
-}
+const FREE_FEATURES    = ['10 transactions visible', '3 AI chats / day', 'Basic dashboard', 'Add up to 20 transactions']
+const FREE_LOCKED      = ['Cash flow forecast', 'Anomaly detection', 'Invoice OCR', 'P&L reports', 'Advanced charts']
+const TRIAL_FEATURES   = ['All premium features for 5 days', '10 AI chats / day', 'Cash flow forecast (30 days)', 'Anomaly detection', 'Invoice OCR parsing', 'Full P&L reports', 'Unlimited transactions']
+const PRO_FEATURES     = ['Everything in Trial', '50 AI chats / day', 'Priority support', 'Export to PDF/CSV (soon)', 'Email alerts (soon)', 'Bank sync via Plaid (soon)']
 
 export default function SubscriptionPage() {
-  const { user }                          = useAuth()
-  const navigate                          = useNavigate()
-  const [loading, setLoading]             = useState(false)
-  const [error, setError]                 = useState<string | null>(null)
-  const [success, setSuccess]             = useState(false)
-  const [subStatus, setSubStatus]         = useState<SubStatus | null>(null)
-  const [statusLoading, setStatusLoading] = useState(true)
+  const { user, updateSubscription } = useAuth()
+  const navigate    = useNavigate()
+  const [subStatus, setSubStatus] = useState<SubStatus | null>(null)
+  const [loading, setLoading]     = useState(false)
+  const [trialLoading, setTrialLoading] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [msg, setMsg]             = useState<string | null>(null)
 
   useEffect(() => {
-    api.get<SubStatus>('/api/v1/payment/status')
-      .then(r => setSubStatus(r.data))
-      .catch(() => {})
-      .finally(() => setStatusLoading(false))
-  }, [])
+    if (!user) return
+    axios.get('/api/v1/subscription/status', {
+      headers: { Authorization: `Bearer ${user.token}` }
+    }).then(r => setSubStatus(r.data)).catch(() => {})
+  }, [user])
+
+  const handleStartTrial = async () => {
+    if (!user) return
+    setTrialLoading(true)
+    setError(null)
+    try {
+      const res = await axios.post('/api/v1/subscription/start-trial', {}, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      })
+      const data = res.data as { tier: string; trialDaysRemaining: number; aiChatsRemaining: number }
+      updateSubscription(data.tier, data.trialDaysRemaining, data.aiChatsRemaining)
+      setMsg('🎉 Your 5-day free trial has started! Enjoy all premium features.')
+      setSubStatus(prev => prev ? { ...prev, tier: 'TRIAL', trialDaysRemaining: 5, trialAlreadyUsed: true } : null)
+    } catch (err: any) {
+      const errCode = err?.response?.data?.error
+      if (errCode === 'TRIAL_ALREADY_USED') {
+        setError('Your free trial has already been used. Please subscribe to Pro to continue.')
+      } else {
+        setError('Failed to start trial. Please try again.')
+      }
+    } finally {
+      setTrialLoading(false)
+    }
+  }
 
   const handleSubscribe = async () => {
+    if (!user) return
     setLoading(true)
     setError(null)
-
     try {
-      // Step 1: Create Razorpay order on the backend
-      const { data } = await api.post<OrderResponse>('/api/v1/payment/create-order')
-
-      // Step 2: Open Razorpay checkout
+      const orderRes = await axios.post(
+        '/api/v1/payment/create-order',
+        { amount: 49900, currency: 'INR', receipt: `receipt_${Date.now()}` },
+        { headers: { Authorization: `Bearer ${user.token}` } }
+      )
+      const order = orderRes.data as any
       const options = {
-        key:      data.keyId,
-        amount:   data.amount,
-        currency: data.currency,
-        name:     'Finance & Accounting Assistant',
-        description: 'Monthly Subscription — ₹499/month',
-        order_id: data.orderId,
-        prefill: {
-          email: data.email || user?.email,
-        },
-        theme: { color: '#3b82f6' },
-        modal: {
-          ondismiss: () => {
-            setLoading(false)
-            setError('Payment was cancelled. Your free trial is still active.')
-          },
-        },
-        handler: async (_response: any) => {
-          // Payment succeeded — wait for webhook to activate subscription
-          setSuccess(true)
-          setLoading(false)
-          // Redirect to dashboard after 3 seconds
-          setTimeout(() => navigate('/'), 3000)
-        },
+        key:          order.keyId,
+        amount:       order.amount,
+        currency:     order.currency,
+        name:         'FinanceAI',
+        description:  'Pro Subscription — ₹499/month',
+        order_id:     order.id,
+        prefill:      { email: user.email },
+        theme:        { color: '#3b82f6' },
+        handler: async (res: any) => {
+          await axios.post('/api/v1/payment/verify', res, {
+            headers: { Authorization: `Bearer ${user.token}` }
+          })
+          updateSubscription('ACTIVE', 0, 50)
+          setMsg('🎉 Welcome to FinanceAI Pro! All features are now unlocked.')
+          navigate('/')
+        }
       }
-
       if (!window.Razorpay) {
-        throw new Error('Razorpay SDK not loaded. Check your internet connection.')
+        const script = document.createElement('script')
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+        script.onload = () => new window.Razorpay(options).open()
+        document.body.appendChild(script)
+      } else {
+        new window.Razorpay(options).open()
       }
-
-      const rzp = new window.Razorpay(options)
-      rzp.on('payment.failed', (resp: any) => {
-        setError(`Payment failed: ${resp.error.description}`)
-        setLoading(false)
-      })
-      rzp.open()
-
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Failed to start payment. Try again.')
+    } catch {
+      setError('Failed to open payment. Please try again.')
+    } finally {
       setLoading(false)
     }
   }
 
-  // ── Success state ─────────────────────────────────────────────────────────
-  if (success) {
-    return (
-      <div style={styles.page}>
-        <div style={{ ...styles.card, textAlign: 'center' }}>
-          <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
-          <h2 style={{ color: '#4ade80', fontSize: 24, marginBottom: 8 }}>Payment Successful!</h2>
-          <p style={{ color: '#94a3b8', marginBottom: 24 }}>
-            Your subscription is now active. Welcome to the full experience!
-          </p>
-          <p style={{ color: '#64748b', fontSize: 13 }}>Redirecting to Dashboard…</p>
-        </div>
-      </div>
-    )
-  }
+  const currentTier = subStatus?.tier ?? user?.subscriptionTier ?? 'FREE'
+  const isActive    = currentTier === 'ACTIVE'
+  const isTrial     = currentTier === 'TRIAL'
+  const isFree      = !isActive && !isTrial
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
 
-        {/* Header */}
-        <div style={styles.header}>
-          <button onClick={() => navigate('/')} style={styles.backBtn}>← Back to Dashboard</button>
-          <h1 style={styles.title}>Choose Your Plan</h1>
-          <p style={styles.subtitle}>
-            {subStatus && !statusLoading
-              ? subStatus.status === 'ACTIVE'
-                ? '✅ You are on the Pro plan — thank you!'
-                : subStatus.status === 'TRIAL'
-                ? `⏳ Free trial — ${subStatus.daysRemaining} day${subStatus.daysRemaining !== 1 ? 's' : ''} remaining`
-                : '🔒 Your trial has ended. Subscribe to regain access.'
-              : 'Unlock full access to your financial intelligence platform.'}
+      {/* Header */}
+      <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <button
+          onClick={() => navigate('/')}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto 20px' }}
+        >
+          ← Back to dashboard
+        </button>
+        <h1 className="page-title" style={{ fontSize: 28, marginBottom: 8 }}>Choose your plan</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
+          {isActive ? '✅ You are on the Pro plan — thank you for subscribing!'
+          : isTrial ? `⏳ Free trial active — ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining`
+          : 'Start free, upgrade when you need more power'}
+        </p>
+        {msg   && <div className="success-box" style={{ marginTop: 16, textAlign: 'left', maxWidth: 500, margin: '16px auto 0' }}>{msg}</div>}
+        {error && <div className="error-box"   style={{ marginTop: 16, textAlign: 'left', maxWidth: 500, margin: '16px auto 0' }}>⚠️ {error}</div>}
+      </div>
+
+      <div className="plans-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px,1fr))' }}>
+
+        {/* Free plan */}
+        <div className={`plan-card ${isFree ? 'featured' : ''}`}>
+          {isFree && <div className="plan-badge">Current Plan</div>}
+          <div className="plan-name">Free</div>
+          <div className="plan-price">₹0</div>
+          <div className="plan-period">forever</div>
+          <ul className="plan-features">
+            {FREE_FEATURES.map(f => (
+              <li key={f} className="plan-feature">
+                <span className="feat-icon">✓</span> {f}
+              </li>
+            ))}
+            {FREE_LOCKED.map(f => (
+              <li key={f} className="plan-feature feat-locked">
+                <span className="feat-icon">🔒</span> {f}
+              </li>
+            ))}
+          </ul>
+          <button className="btn-secondary" style={{ width: '100%' }} disabled>
+            {isFree ? 'Current Plan' : 'Downgrade'}
+          </button>
+        </div>
+
+        {/* Trial plan */}
+        <div className={`plan-card ${isTrial ? 'featured' : ''}`}>
+          {isTrial && <div className="plan-badge">Active Trial</div>}
+          {!isTrial && !subStatus?.trialAlreadyUsed && <div className="plan-badge" style={{ background: 'rgba(245,158,11,0.9)' }}>Try Free</div>}
+          <div className="plan-name" style={{ color: 'var(--amber)' }}>Premium Trial</div>
+          <div className="plan-price" style={{ color: 'var(--amber)' }}>₹0</div>
+          <div className="plan-period">for 5 days · one time</div>
+          <ul className="plan-features">
+            {TRIAL_FEATURES.map(f => (
+              <li key={f} className="plan-feature">
+                <span className="feat-icon" style={{ color: 'var(--amber)' }}>✓</span> {f}
+              </li>
+            ))}
+          </ul>
+          {isTrial ? (
+            <button className="btn-secondary" style={{ width: '100%' }} disabled>
+              Trial Active · {subStatus?.trialDaysRemaining}d left
+            </button>
+          ) : subStatus?.trialAlreadyUsed ? (
+            <button className="btn-secondary" style={{ width: '100%' }} disabled>
+              Trial Already Used
+            </button>
+          ) : (
+            <button
+              className="btn-gradient"
+              style={{ width: '100%' }}
+              onClick={handleStartTrial}
+              disabled={trialLoading || isActive}
+            >
+              {trialLoading ? '⏳ Starting…' : '🚀 Start 5-Day Trial'}
+            </button>
+          )}
+        </div>
+
+        {/* Pro plan */}
+        <div className={`plan-card ${isActive ? 'featured' : ''}`} style={{ borderColor: isActive ? 'rgba(59,130,246,0.5)' : undefined }}>
+          {isActive && <div className="plan-badge">Current Plan</div>}
+          {!isActive && <div className="plan-badge">⭐ Recommended</div>}
+          <div className="plan-name" style={{ color: 'var(--blue)' }}>Pro</div>
+          <div className="plan-price" style={{ color: 'var(--blue)' }}>₹499</div>
+          <div className="plan-period">per month · cancel anytime</div>
+          <ul className="plan-features">
+            {PRO_FEATURES.map(f => (
+              <li key={f} className="plan-feature">
+                <span className="feat-icon" style={{ color: 'var(--blue)' }}>✓</span> {f}
+              </li>
+            ))}
+          </ul>
+          <button
+            className="btn-gradient"
+            style={{ width: '100%' }}
+            onClick={handleSubscribe}
+            disabled={loading || isActive}
+          >
+            {loading  ? '⏳ Opening payment…' : isActive ? '✅ Subscribed' : '💳 Subscribe — ₹499/mo'}
+          </button>
+          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
+            🔒 Secured by Razorpay · No hidden charges
           </p>
         </div>
 
-        {/* Plans */}
-        <div style={styles.plansRow}>
+      </div>
 
-          {/* Free Trial */}
-          <div style={styles.planCard}>
-            <div style={styles.planBadge}>Current Plan</div>
-            <h3 style={styles.planName}>Free Trial</h3>
-            <div style={styles.planPrice}>₹0</div>
-            <p style={styles.planPeriod}>5 days</p>
-            <ul style={styles.featureList}>
-              {['All features unlocked', 'AI chat (limited)', 'Cash flow forecast', 'Anomaly detection', 'Invoice OCR'].map(f => (
-                <li key={f} style={styles.feature}>✓ {f}</li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Pro */}
-          <div style={{ ...styles.planCard, ...styles.planCardPro }}>
-            <div style={styles.proBadge}>⭐ RECOMMENDED</div>
-            <h3 style={{ ...styles.planName, color: '#60a5fa' }}>Pro</h3>
-            <div style={{ ...styles.planPrice, color: '#60a5fa' }}>₹499</div>
-            <p style={styles.planPeriod}>per month</p>
-            <ul style={styles.featureList}>
-              {[
-                'Unlimited transactions',
-                'AI chat (unlimited)',
-                'Cash flow forecast (30 days)',
-                'Anomaly detection + email alerts',
-                'Invoice OCR',
-                'P&L reports with Redis cache',
-                'Priority support',
-                'Export to PDF/CSV (coming soon)',
-              ].map(f => (
-                <li key={f} style={styles.feature}>✓ {f}</li>
-              ))}
-            </ul>
-            {error && (
-              <div style={styles.errorBox}>{error}</div>
-            )}
-            <button
-              onClick={handleSubscribe}
-              disabled={loading || subStatus?.status === 'ACTIVE'}
-              style={{
-                ...styles.subscribeBtn,
-                opacity: loading || subStatus?.status === 'ACTIVE' ? 0.6 : 1,
-                cursor:  loading || subStatus?.status === 'ACTIVE' ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {loading
-                ? '⏳ Opening payment…'
-                : subStatus?.status === 'ACTIVE'
-                ? '✅ Already subscribed'
-                : '🚀 Subscribe — ₹499/month'}
-            </button>
-            <p style={styles.secureNote}>🔒 Secured by Razorpay · Cancel anytime</p>
-          </div>
-
-        </div>
-
-        {/* FAQ */}
-        <div style={styles.faq}>
-          <h3 style={styles.faqTitle}>Frequently Asked Questions</h3>
-          {[
-            ['When will I be charged?', 'You are charged ₹499 immediately upon subscribing. Your subscription lasts 30 days from the payment date.'],
-            ['Can I cancel?', 'Yes, you can cancel any time. You retain access until the current period ends.'],
-            ['Is my payment data safe?', 'We never store card details. All payments are processed by Razorpay, which is PCI-DSS Level 1 certified.'],
-            ['What payment methods are accepted?', 'UPI, Debit cards, Credit cards, Netbanking, and Wallets via Razorpay.'],
-          ].map(([q, a]) => (
-            <div key={q as string} style={styles.faqItem}>
-              <strong style={styles.faqQ}>{q}</strong>
-              <p style={styles.faqA}>{a}</p>
-            </div>
-          ))}
-        </div>
-
+      {/* FAQ */}
+      <div style={{ maxWidth: 600, margin: '48px auto 0' }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16 }}>FAQ</h3>
+        {[
+          ['Does the free plan expire?', 'No. The free plan is permanent with no time limit. You keep basic features forever.'],
+          ['Can I use the trial more than once?', 'No. Each account gets one 5-day trial. After it ends, you can upgrade to Pro.'],
+          ['When will I be charged for Pro?', 'Only when you click Subscribe and complete payment. Trial is always free.'],
+          ['What happens after trial ends?', 'Your account returns to the free tier. No charge, no auto-billing.'],
+          ['Are my AI chats secure?', 'Yes. All chat goes through our backend which validates your identity before forwarding to the AI service. Prompt injection is filtered server-side.'],
+        ].map(([q, a]) => (
+          <details key={q} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', padding: '8px 0', listStyle: 'none' }}>
+              ▸ {q}
+            </summary>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.6 }}>{a}</p>
+          </details>
+        ))}
       </div>
     </div>
   )
-}
-
-// ── Styles ─────────────────────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-  page:         { minHeight: '100vh', background: '#0a0f1e', padding: '32px 16px' },
-  container:    { maxWidth: 960, margin: '0 auto' },
-  header:       { textAlign: 'center', marginBottom: 48 },
-  backBtn:      { background: 'transparent', border: '1px solid #1a2744', color: '#64748b', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, marginBottom: 24 },
-  title:        { fontSize: 36, fontWeight: 800, color: '#e2e8f0', margin: '0 0 12px' },
-  subtitle:     { fontSize: 16, color: '#64748b' },
-  plansRow:     { display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 64 },
-  planCard:     { background: '#0d1526', border: '1px solid #1a2744', borderRadius: 16, padding: '32px 28px', width: 320, position: 'relative' },
-  planCardPro:  { border: '2px solid #3b82f6', boxShadow: '0 0 40px rgba(59,130,246,0.15)' },
-  planBadge:    { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#1a2744', color: '#94a3b8', fontSize: 11, padding: '4px 12px', borderRadius: 20, fontWeight: 600, whiteSpace: 'nowrap' },
-  proBadge:     { position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#1e40af', color: '#93c5fd', fontSize: 11, padding: '4px 12px', borderRadius: 20, fontWeight: 700, whiteSpace: 'nowrap' },
-  planName:     { fontSize: 22, fontWeight: 700, color: '#e2e8f0', margin: '12px 0 8px' },
-  planPrice:    { fontSize: 48, fontWeight: 800, color: '#e2e8f0' },
-  planPeriod:   { color: '#64748b', marginBottom: 24, fontSize: 14 },
-  featureList:  { listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 8 },
-  feature:      { color: '#94a3b8', fontSize: 14 },
-  subscribeBtn: { width: '100%', padding: 14, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(37,99,235,0.4)' },
-  secureNote:   { textAlign: 'center', fontSize: 12, color: '#475569', marginTop: 12 },
-  errorBox:     { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 },
-  card:         { background: '#0d1526', border: '1px solid #1a2744', borderRadius: 16, padding: '48px 40px', maxWidth: 480, margin: '80px auto', color: '#e2e8f0' },
-  faq:          { borderTop: '1px solid #1a2744', paddingTop: 48 },
-  faqTitle:     { color: '#e2e8f0', fontSize: 20, fontWeight: 700, marginBottom: 24 },
-  faqItem:      { marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #0f172a' },
-  faqQ:         { color: '#cbd5e1', fontSize: 15 },
-  faqA:         { color: '#64748b', fontSize: 14, marginTop: 6, lineHeight: 1.6 },
 }

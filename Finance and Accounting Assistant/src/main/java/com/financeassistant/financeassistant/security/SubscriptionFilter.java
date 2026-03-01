@@ -15,33 +15,44 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * PATH: finance-backend/src/main/java/com/financeassistant/financeassistant/security/SubscriptionFilter.java
  *
- * Runs AFTER JwtAuthFilter. Blocks authenticated users whose trial has
- * expired or whose subscription has lapsed from calling any business API.
+ * CHANGES:
+ *  - FREE/EXPIRED/CANCELLED users are no longer hard-blocked from all APIs.
+ *    They get through, but premium endpoints return 402 FEATURE_LOCKED.
+ *  - Premium endpoints (forecast, anomaly, OCR, P&L) are blocked for FREE tier.
+ *  - Sets X-Subscription-Tier header on every request for downstream use.
+ *  - TRIAL users pass through to all premium endpoints (within 5-day window).
  *
- * Exemptions (always allowed, no subscription check):
- *  - /api/v1/auth/**         — login, register, logout
- *  - /api/v1/payment/**      — Razorpay order creation + webhook + status
- *  - /actuator/health        — health probe
- *
- * Returns 402 Payment Required JSON so the React frontend can redirect
- * the user to the upgrade/subscription page.
+ * Tier access matrix:
+ *   FREE/EXPIRED/CANCELLED → blocked on PREMIUM_ENDPOINTS set, allowed on rest
+ *   TRIAL (active)         → all endpoints allowed
+ *   ACTIVE (not expired)   → all endpoints allowed
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SubscriptionFilter extends OncePerRequestFilter {
 
+    // Always exempted — no subscription check at all
     private static final Set<String> EXEMPT_PREFIXES = Set.of(
             "/api/v1/auth/",
             "/api/v1/payment/",
+            "/api/v1/subscription/start-trial",
             "/actuator/"
+    );
+
+    // These endpoints require premium access (TRIAL or ACTIVE)
+    private static final Set<String> PREMIUM_ENDPOINT_FRAGMENTS = Set.of(
+            "/ai/forecast",
+            "/ai/anomaly",
+            "/ai/ocr",
+            "/reports/pnl",
+            "/reports/"
     );
 
     private final ObjectMapper objectMapper;
@@ -55,7 +66,7 @@ public class SubscriptionFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // Skip subscription check for public/payment endpoints
+        // Skip all checks for public endpoints
         if (isExempt(path)) {
             chain.doFilter(request, response);
             return;
@@ -63,23 +74,30 @@ public class SubscriptionFilter extends OncePerRequestFilter {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        // If not authenticated yet, let Spring Security handle the 401
-        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof User user)) {
+        // Not authenticated — let Spring Security handle 401
+        if (auth == null || !auth.isAuthenticated() ||
+                !(auth.getPrincipal() instanceof User user)) {
             chain.doFilter(request, response);
             return;
         }
 
-        // Gate: trial / subscription must be active
-        if (!user.isSubscriptionActive()) {
-            log.warn("Blocked subscription-expired user {} accessing {}", user.getEmail(), path);
+        String effectiveTier = user.getEffectiveTier();
+
+        // Always inject tier header so controllers can use it
+        response.setHeader("X-Subscription-Tier", effectiveTier);
+
+        // FREE/EXPIRED/CANCELLED: block premium endpoints
+        if ("FREE".equals(effectiveTier) && isPremiumEndpoint(path)) {
+            log.info("Blocked free-tier user {} from premium endpoint {}", user.getEmail(), path);
             response.setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED); // 402
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
             response.getWriter().write(
                 objectMapper.writeValueAsString(Map.of(
-                    "error",   "SUBSCRIPTION_EXPIRED",
-                    "message", "Your free trial has ended. Please subscribe to continue.",
-                    "upgradeUrl", "/subscription"
+                    "error",       "FEATURE_LOCKED",
+                    "message",     "This feature requires a Premium or Trial subscription.",
+                    "tier",        effectiveTier,
+                    "upgradeUrl",  "/subscription"
                 ))
             );
             return;
@@ -93,5 +111,12 @@ public class SubscriptionFilter extends OncePerRequestFilter {
             if (path.startsWith(prefix)) return true;
         }
         return path.equals("/actuator/health");
+    }
+
+    private boolean isPremiumEndpoint(String path) {
+        for (String fragment : PREMIUM_ENDPOINT_FRAGMENTS) {
+            if (path.contains(fragment)) return true;
+        }
+        return false;
     }
 }

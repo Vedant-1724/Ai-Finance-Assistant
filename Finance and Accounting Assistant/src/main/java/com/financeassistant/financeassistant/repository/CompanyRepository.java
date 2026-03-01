@@ -1,9 +1,10 @@
 package com.financeassistant.financeassistant.repository;
 
 import com.financeassistant.financeassistant.entity.Company;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
 
 @Repository
 public interface CompanyRepository extends JpaRepository<Company, Long> {
@@ -16,6 +17,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     /**
      * Checks whether a company with the given id belongs to the given owner.
+     * Used by CompanySecurityService for @PreAuthorize checks.
      */
     boolean existsByIdAndOwnerId(Long id, Long ownerId);
 }

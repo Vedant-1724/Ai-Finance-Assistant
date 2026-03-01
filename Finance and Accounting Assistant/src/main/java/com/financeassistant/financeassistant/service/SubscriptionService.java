@@ -9,21 +9,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 /**
- * PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/
- *       financeassistant/service/SubscriptionService.java
+ * PATH: finance-backend/src/main/java/com/financeassistant/financeassistant/service/SubscriptionService.java
  *
- * NEW FILE — handles all subscription lifecycle:
- *   - Trial start / days remaining
- *   - Activation after Razorpay payment confirmed (webhook)
- *   - Cancellation / expiry management
- *
- * Called by:
- *   PaymentController  — activate after webhook, get status
- *   SubscriptionFilter — canAccess() check on every API call
- *   AuthService        — startTrialIfNotStarted() on registration
+ * CHANGES:
+ *  - startTrial() is now an explicit user action (not auto-called on register)
+ *  - Added incrementAiChatUsage() and getAiChatsRemaining() for daily quota
+ *  - FREE/EXPIRED/CANCELLED all map to free-tier behaviour (not hard-blocked)
  */
 @Slf4j
 @Service
@@ -34,98 +29,120 @@ public class SubscriptionService {
 
     private final UserRepository userRepository;
 
+    // ── Trial management ──────────────────────────────────────────────────────
+
     /**
-     * Starts the free trial for a new user if it hasn't been started yet.
-     * Called from AuthService.register() so every new user gets 5 days free.
+     * Explicitly starts the 5-day trial for a FREE/EXPIRED user.
+     * Called from SubscriptionController POST /api/v1/subscription/start-trial.
+     * Returns false if trial already used.
      */
     @Transactional
-    public void startTrialIfNotStarted(User user) {
-        if (user.getTrialStartedAt() == null) {
-            user.setTrialStartedAt(Instant.now());
-            user.setSubscriptionStatus(SubscriptionStatus.TRIAL);
-            userRepository.save(user);
-            log.info("Trial started for user {}", user.getEmail());
+    public boolean startTrial(User user) {
+        // Can only start trial once — if trialStartedAt is already set, deny
+        if (user.getTrialStartedAt() != null) {
+            log.warn("User {} attempted to start trial but already used it", user.getEmail());
+            return false;
         }
+        user.setTrialStartedAt(Instant.now());
+        user.setSubscriptionStatus(SubscriptionStatus.TRIAL);
+        userRepository.save(user);
+        log.info("Trial started for user {}", user.getEmail());
+        return true;
     }
 
     /**
-     * Returns true if user can access the app right now.
-     * Thin wrapper around User.isSubscriptionActive() for convenience.
+     * Returns true if the user can access premium features.
      */
-    public boolean canAccess(User user) {
-        return user.isSubscriptionActive();
+    public boolean hasPremiumAccess(User user) {
+        return user.hasPremiumAccess();
     }
 
     /**
-     * Returns days remaining in the free trial (0 if expired or paid).
+     * Returns days remaining in free trial.
      */
     public long trialDaysRemaining(User user) {
         return user.trialDaysRemaining();
     }
 
+    // ── AI Chat daily quota ───────────────────────────────────────────────────
+
     /**
-     * Activates a paid subscription after a Razorpay payment.captured webhook.
-     * Sets status to ACTIVE and extends expiry by 30 days from now.
+     * Attempts to consume one AI chat message for the given user.
+     * Returns the number of chats remaining AFTER this message, or -1 if limit exceeded.
      */
+    @Transactional
+    public int consumeAiChatMessage(User user) {
+        LocalDate today = LocalDate.now();
+
+        // Reset counter if it's a new day
+        if (user.getAiChatResetDate() == null || !user.getAiChatResetDate().equals(today)) {
+            user.setAiChatsUsedToday(0);
+            user.setAiChatResetDate(today);
+        }
+
+        int limit = user.getAiChatDailyLimit();
+        if (user.getAiChatsUsedToday() >= limit) {
+            log.warn("AI chat limit exceeded for user {} (tier: {})", user.getEmail(), user.getEffectiveTier());
+            return -1; // Limit exceeded
+        }
+
+        user.setAiChatsUsedToday(user.getAiChatsUsedToday() + 1);
+        userRepository.save(user);
+        return limit - user.getAiChatsUsedToday(); // remaining after this message
+    }
+
+    /**
+     * Returns remaining AI chats today without consuming one.
+     */
+    public int getAiChatsRemaining(User user) {
+        return user.getAiChatsRemainingToday();
+    }
+
+    // ── Subscription activation / renewal / cancellation ─────────────────────
+
     @Transactional
     public void activateSubscription(String email, String razorpayPaymentId) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
-
         Instant expiry = Instant.now().plus(30, ChronoUnit.DAYS);
         user.setSubscriptionStatus(SubscriptionStatus.ACTIVE);
         user.setSubscriptionExpiresAt(expiry);
         user.setRazorpaySubscriptionId(razorpayPaymentId);
         userRepository.save(user);
-
-        log.info("Subscription ACTIVATED for user {} — expires {}", email, expiry);
+        log.info("Subscription ACTIVATED for {} — expires {}", email, expiry);
     }
 
-    /**
-     * Extends an existing subscription by 30 days (for renewals).
-     */
     @Transactional
     public void renewSubscription(String email, String razorpayPaymentId) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
-
         Instant base = (user.getSubscriptionExpiresAt() != null &&
                         user.getSubscriptionExpiresAt().isAfter(Instant.now()))
-                       ? user.getSubscriptionExpiresAt()
-                       : Instant.now();
-
+                       ? user.getSubscriptionExpiresAt() : Instant.now();
         Instant newExpiry = base.plus(30, ChronoUnit.DAYS);
         user.setSubscriptionStatus(SubscriptionStatus.ACTIVE);
         user.setSubscriptionExpiresAt(newExpiry);
         user.setRazorpaySubscriptionId(razorpayPaymentId);
         userRepository.save(user);
-
-        log.info("Subscription RENEWED for user {} — new expiry {}", email, newExpiry);
+        log.info("Subscription RENEWED for {} — new expiry {}", email, newExpiry);
     }
 
-    /**
-     * Marks subscription as cancelled. User retains access until expiry date.
-     */
     @Transactional
     public void cancelSubscription(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
-
         user.setSubscriptionStatus(SubscriptionStatus.CANCELLED);
         userRepository.save(user);
-        log.info("Subscription CANCELLED for user {}", email);
+        log.info("Subscription CANCELLED for {}", email);
     }
 
-    /**
-     * Marks trial as expired. Called by a @Scheduled job (optional).
-     */
     @Transactional
     public void expireTrialIfEnded(User user) {
         if (user.getSubscriptionStatus() == SubscriptionStatus.TRIAL
-                && !user.isSubscriptionActive()) {
+                && !user.hasPremiumAccess()) {
             user.setSubscriptionStatus(SubscriptionStatus.EXPIRED);
             userRepository.save(user);
-            log.info("Trial EXPIRED for user {}", user.getEmail());
+            log.info("Trial EXPIRED for {}", user.getEmail());
         }
     }
 }

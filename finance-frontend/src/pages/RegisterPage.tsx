@@ -1,19 +1,25 @@
+// PATH: finance-frontend/src/pages/RegisterPage.tsx
+
 import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
 interface AuthResponse {
-  token:     string
-  companyId: number
-  email:     string
+  token:              string
+  companyId:          number
+  email:              string
+  subscriptionStatus: string
+  trialDaysRemaining: number
+  aiChatsRemaining:   number
 }
 
 export default function RegisterPage() {
-  const { login }             = useAuth()
-  const navigate              = useNavigate()
+  const { login }   = useAuth()
+  const navigate    = useNavigate()
   const [email, setEmail]           = useState('')
   const [password, setPassword]     = useState('')
+  const [confirm, setConfirm]       = useState('')
   const [companyName, setCompany]   = useState('')
   const [error, setError]           = useState<string | null>(null)
   const [loading, setLoading]       = useState(false)
@@ -21,6 +27,8 @@ export default function RegisterPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+    if (password !== confirm) { setError('Passwords do not match'); return }
+    if (password.length < 8)  { setError('Password must be at least 8 characters'); return }
     setLoading(true)
 
     try {
@@ -28,14 +36,21 @@ export default function RegisterPage() {
         '/api/v1/auth/register',
         { email, password, companyName }
       )
-      login(res.data.token, res.data.companyId, res.data.email)
+      login(
+        res.data.token,
+        res.data.companyId,
+        res.data.email,
+        res.data.subscriptionStatus,
+        res.data.trialDaysRemaining,
+        res.data.aiChatsRemaining
+      )
       navigate('/', { replace: true })
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const msg = (err.response?.data as { error?: string })?.error
-        setError(msg ?? 'Registration failed')
+        setError(msg ?? 'Registration failed. Please try again.')
       } else {
-        setError('Could not connect to server. Make sure Spring Boot is running.')
+        setError('Could not connect to server.')
       }
     } finally {
       setLoading(false)
@@ -43,191 +58,95 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-
-        {/* Brand */}
-        <div style={styles.brand}>
-          <div style={styles.brandIcon}>💼</div>
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="auth-brand-icon">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <path d="M4 16l5-10 5 8 3-5 5 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
           <div>
-            <h1 style={styles.brandTitle}>Finance Assistant</h1>
-            <p style={styles.brandSub}>AI-Powered Financial Intelligence</p>
+            <div className="auth-brand-name">FinanceAI</div>
+            <div className="auth-brand-tag">AI-Powered Financial Intelligence</div>
           </div>
         </div>
 
-        <h2 style={styles.heading}>Create your account</h2>
+        <h1 className="auth-heading">Create your account</h1>
+        <p className="auth-subheading">Start free — no credit card required</p>
 
-        {error && (
-          <div style={styles.errorBox}>⚠️ {error}</div>
-        )}
+        {error && <div className="error-box">⚠️ {error}</div>}
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="form-field">
+            <label className="input-label">Company / Business Name</label>
+            <input
+              type="text"
+              value={companyName}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Acme Pvt Ltd"
+              required
+              autoFocus
+              className="input-field"
+            />
+          </div>
+
+          <div className="form-field">
+            <label className="input-label">Email address</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
-              autoFocus
-              style={styles.input}
+              className="input-field"
             />
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
+          <div className="form-field">
+            <label className="input-label">Password</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Min. 6 characters"
+              placeholder="Min. 8 characters"
               required
-              minLength={6}
-              style={styles.input}
+              className="input-field"
             />
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Company Name</label>
+          <div className="form-field">
+            <label className="input-label">Confirm Password</label>
             <input
-              type="text"
-              value={companyName}
-              onChange={e => setCompany(e.target.value)}
-              placeholder="Acme Ltd"
+              type="password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              placeholder="Repeat your password"
               required
-              style={styles.input}
+              className="input-field"
             />
+          </div>
+
+          <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+            ✅ <strong style={{ color: 'var(--text-primary)' }}>Free tier forever</strong> — basic features with no time limit<br/>
+            ⭐ <strong style={{ color: 'var(--text-primary)' }}>5-day Premium Trial</strong> — unlock anytime from your dashboard
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{ ...styles.btn, opacity: loading ? 0.7 : 1 }}
+            className="btn-gradient"
+            style={{ marginTop: '4px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {loading ? '⏳ Creating account…' : 'Create Account →'}
+            {loading ? <><span className="spinner" style={{width:16,height:16}} /> Creating account…</> : 'Create Free Account →'}
           </button>
         </form>
 
-        <p style={styles.footer}>
+        <p className="auth-footer">
           Already have an account?{' '}
-          <Link to="/login" style={styles.link}>Sign in</Link>
+          <Link to="/login" className="auth-link">Sign in</Link>
         </p>
-
       </div>
     </div>
   )
-}
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight:      '100vh',
-    display:        'flex',
-    alignItems:     'center',
-    justifyContent: 'center',
-    background:     '#0a0f1e',
-    padding:        '24px',
-  },
-  card: {
-    width:          '100%',
-    maxWidth:       '420px',
-    background:     '#0d1526',
-    border:         '1px solid #1a2744',
-    borderRadius:   '16px',
-    padding:        '40px 36px',
-    boxShadow:      '0 24px 64px rgba(0,0,0,0.5)',
-  },
-  brand: {
-    display:        'flex',
-    alignItems:     'center',
-    gap:            '14px',
-    marginBottom:   '32px',
-  },
-  brandIcon: {
-    fontSize:       '36px',
-    background:     'rgba(59,130,246,0.15)',
-    borderRadius:   '12px',
-    padding:        '10px',
-    border:         '1px solid rgba(59,130,246,0.3)',
-  },
-  brandTitle: {
-    fontSize:       '18px',
-    fontWeight:     700,
-    color:          '#e2e8f0',
-    margin:         0,
-  },
-  brandSub: {
-    fontSize:       '12px',
-    color:          '#4a5a7a',
-    margin:         0,
-  },
-  heading: {
-    fontSize:       '20px',
-    fontWeight:     700,
-    color:          '#e2e8f0',
-    marginBottom:   '24px',
-    marginTop:      0,
-  },
-  errorBox: {
-    background:     'rgba(239,68,68,0.1)',
-    border:         '1px solid rgba(239,68,68,0.3)',
-    color:          '#f87171',
-    borderRadius:   '8px',
-    padding:        '12px 16px',
-    fontSize:       '13px',
-    marginBottom:   '20px',
-  },
-  form: {
-    display:        'flex',
-    flexDirection:  'column',
-    gap:            '18px',
-  },
-  field: {
-    display:        'flex',
-    flexDirection:  'column',
-    gap:            '6px',
-  },
-  label: {
-    fontSize:       '12px',
-    fontWeight:     600,
-    color:          '#8b9ec7',
-    textTransform:  'uppercase',
-    letterSpacing:  '0.6px',
-  },
-  input: {
-    background:     '#0a1428',
-    border:         '1px solid #1a2744',
-    borderRadius:   '8px',
-    padding:        '11px 14px',
-    color:          '#e2e8f0',
-    fontSize:       '14px',
-    outline:        'none',
-    fontFamily:     'Inter, sans-serif',
-  },
-  btn: {
-    marginTop:      '8px',
-    padding:        '13px',
-    background:     '#3b82f6',
-    color:          '#fff',
-    border:         'none',
-    borderRadius:   '8px',
-    fontSize:       '14px',
-    fontWeight:     600,
-    cursor:         'pointer',
-    fontFamily:     'Inter, sans-serif',
-    boxShadow:      '0 2px 12px rgba(59,130,246,0.35)',
-  },
-  footer: {
-    marginTop:      '24px',
-    textAlign:      'center',
-    fontSize:       '13px',
-    color:          '#4a5a7a',
-  },
-  link: {
-    color:          '#60a5fa',
-    textDecoration: 'none',
-    fontWeight:     600,
-  },
 }

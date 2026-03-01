@@ -1,80 +1,117 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+// CHANGES:
+//  - Added subscriptionTier, trialDaysRemaining, aiChatsRemaining to UserInfo
+//  - Added updateSubscription() so components can refresh tier after start-trial
+//  - isPremium / isFree / isTrial computed helpers
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { createContext, useContext, useState, type ReactNode } from 'react'
 
-interface AuthUser {
-  email:     string
-  companyId: number
+interface UserInfo {
+  token:              string
+  companyId:          number
+  email:              string
+  subscriptionTier:   'FREE' | 'TRIAL' | 'ACTIVE'
+  trialDaysRemaining: number
+  aiChatsRemaining:   number
 }
 
 interface AuthContextType {
-  token:           string | null
-  user:            AuthUser | null
-  isAuthenticated: boolean
-  login:           (token: string, companyId: number, email: string) => void
-  logout:          () => void
+  user:             UserInfo | null
+  isAuthenticated:  boolean
+  isPremium:        boolean
+  isFree:           boolean
+  isTrial:          boolean
+  login:            (token: string, companyId: number, email: string,
+                     subscriptionStatus: string, trialDaysRemaining: number,
+                     aiChatsRemaining: number) => void
+  logout:           () => void
+  updateSubscription: (tier: string, daysRemaining: number, aiChatsRemaining: number) => void
+  updateAiChats:    (remaining: number) => void
 }
-
-// ── Context ───────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-// ── Provider ──────────────────────────────────────────────────────────────────
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem('token')
-  )
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const email     = localStorage.getItem('email')
-    const companyId = localStorage.getItem('companyId')
-    if (email && companyId) {
-      return { email, companyId: Number(companyId) }
+  const [user, setUser] = useState<UserInfo | null>(() => {
+    try {
+      const stored = localStorage.getItem('auth_user')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
     }
-    return null
   })
 
-  // Keep localStorage in sync whenever token changes
-  useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token)
-    } else {
-      localStorage.removeItem('token')
-      localStorage.removeItem('email')
-      localStorage.removeItem('companyId')
-    }
-  }, [token])
+  const login = (
+    token: string,
+    companyId: number,
+    email: string,
+    subscriptionStatus: string,
+    trialDaysRemaining: number,
+    aiChatsRemaining: number
+  ) => {
+    const tier = (subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIAL')
+      ? subscriptionStatus as 'ACTIVE' | 'TRIAL'
+      : 'FREE'
 
-  const login = (newToken: string, companyId: number, email: string) => {
-    localStorage.setItem('token',     newToken)
-    localStorage.setItem('email',     email)
-    localStorage.setItem('companyId', String(companyId))
-    setToken(newToken)
-    setUser({ email, companyId })
+    const userInfo: UserInfo = {
+      token,
+      companyId,
+      email,
+      subscriptionTier:   tier,
+      trialDaysRemaining,
+      aiChatsRemaining,
+    }
+    setUser(userInfo)
+    localStorage.setItem('auth_user', JSON.stringify(userInfo))
   }
 
   const logout = () => {
-    setToken(null)
     setUser(null)
+    localStorage.removeItem('auth_user')
   }
+
+  const updateSubscription = (tier: string, daysRemaining: number, aiChatsRemaining: number) => {
+    if (!user) return
+    const normalizedTier = (tier === 'ACTIVE' || tier === 'TRIAL') ? tier as 'ACTIVE' | 'TRIAL' : 'FREE'
+    const updated = {
+      ...user,
+      subscriptionTier:   normalizedTier,
+      trialDaysRemaining: daysRemaining,
+      aiChatsRemaining,
+    }
+    setUser(updated)
+    localStorage.setItem('auth_user', JSON.stringify(updated))
+  }
+
+  const updateAiChats = (remaining: number) => {
+    if (!user) return
+    const updated = { ...user, aiChatsRemaining: remaining }
+    setUser(updated)
+    localStorage.setItem('auth_user', JSON.stringify(updated))
+  }
+
+  const isPremium = user?.subscriptionTier === 'ACTIVE' || user?.subscriptionTier === 'TRIAL'
+  const isFree    = !isPremium
+  const isTrial   = user?.subscriptionTier === 'TRIAL'
 
   return (
     <AuthContext.Provider value={{
-      token,
       user,
-      isAuthenticated: !!token,
+      isAuthenticated: !!user,
+      isPremium,
+      isFree,
+      isTrial,
       login,
       logout,
+      updateSubscription,
+      updateAiChats,
     }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-// ── Hook ──────────────────────────────────────────────────────────────────────
-
-export function useAuth(): AuthContextType {
+export function useAuth() {
   const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>')
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
   return ctx
 }
