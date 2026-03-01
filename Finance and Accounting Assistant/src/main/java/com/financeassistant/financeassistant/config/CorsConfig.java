@@ -45,11 +45,13 @@ public class CorsConfig {
     @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
     private String[] allowedOrigins;
 
-    @Autowired @Lazy
-    private JwtAuthFilter jwtAuthFilter;
+    private final JwtAuthFilter jwtAuthFilter;
+    private final SubscriptionFilter subscriptionFilter;
 
-    @Autowired @Lazy
-    private SubscriptionFilter subscriptionFilter;
+    public CorsConfig(JwtAuthFilter jwtAuthFilter, SubscriptionFilter subscriptionFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+        this.subscriptionFilter = subscriptionFilter;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -77,10 +79,8 @@ public class CorsConfig {
             )
 
             // ── Filter chain order ────────────────────────────────────────
-            // 1. JWT filter runs first: validates token, sets SecurityContext
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            // 2. Subscription filter runs second: blocks expired users
-            .addFilterAfter(subscriptionFilter, JwtAuthFilter.class)
+            .addFilterBefore(subscriptionFilter, UsernamePasswordAuthenticationFilter.class)
 
             // ── Security response headers ─────────────────────────────────
             .headers(headers -> headers

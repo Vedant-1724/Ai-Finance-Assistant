@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @Slf4j
 @RestController
@@ -28,6 +29,7 @@ public class ReportingController {
      * transaction is saved via TransactionService.
      */
     @GetMapping("/pnl")
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<PnLReport> getPnLReport(
             @PathVariable Long companyId,
             @RequestParam(defaultValue = "month") String period) {
@@ -44,6 +46,7 @@ public class ReportingController {
      * in one call — useful for a full dashboard summary page.
      */
     @GetMapping("/summary")
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
     public ResponseEntity<ReportingSummary> getSummary(@PathVariable Long companyId) {
         log.info("GET /reports/summary companyId={}", companyId);
 
