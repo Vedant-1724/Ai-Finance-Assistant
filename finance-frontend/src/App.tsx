@@ -1,3 +1,6 @@
+// PATH: finance-frontend/src/App.tsx
+// UPDATED: Added Budget, Charts, Tax, Health Score, Audit, Team, Settings tabs
+
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
@@ -7,25 +10,42 @@ import StatusBanner from './components/StatusBanner'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import SubscriptionPage from './pages/SubscriptionPage'
+import BudgetPlanner from './components/BudgetPlanner'
+import ChartsSection from './components/ChartsSection'
+import TaxPage from './pages/TaxPage'
+import HealthScorePage from './pages/HealthScorePage'
+import AuditLogPage from './pages/AuditLogPage'
+import TeamPage from './pages/TeamPage'
+import SettingsPage from './pages/SettingsPage'
 import { useAuth } from './context/AuthContext'
 import StatementImport from './components/StatementImport'
 import './App.css'
 
-type Tab = 'dashboard' | 'chat' | 'invoices' | 'import'
+type Tab = 'dashboard' | 'charts' | 'budget' | 'chat' | 'invoices' | 'import' | 'tax' | 'health' | 'audit' | 'team' | 'settings'
 
 function ProtectedApp() {
   const { user, logout, isPremium, isFree } = useAuth()
-  const navigate                            = useNavigate()
-  const [activeTab, setTab]                 = useState<Tab>('dashboard')
-  const [sidebarOpen, setSidebarOpen]       = useState(false)
-  const companyId                           = user!.companyId
+  const navigate = useNavigate()
+  const [activeTab, setTab] = useState<Tab>('dashboard')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const companyId = user!.companyId
+
+  const navTo = (tab: Tab) => { setTab(tab); setSidebarOpen(false) }
+
+  const NavBtn = ({ tab, label, icon, locked = false }: {tab: Tab; label: string; icon: string; locked?: boolean}) => (
+    <button
+      className={`nav-btn ${activeTab === tab ? 'active' : ''} ${locked ? 'nav-locked' : ''}`}
+      onClick={() => navTo(tab)}
+    >
+      <span>{icon}</span> {label}
+      {locked && <span className="lock-icon">🔒</span>}
+    </button>
+  )
 
   return (
     <div className="app-shell">
-      {/* Status Banner */}
       <StatusBanner onUpgrade={() => navigate('/subscription')} />
 
-      {/* Header */}
       <header className="app-header">
         <div className="header-left">
           <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Menu">
@@ -38,8 +58,7 @@ function ProtectedApp() {
                 <path d="M8 18l4-8 4 6 2-4 2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <defs>
                   <linearGradient id="brandGrad" x1="0" y1="0" x2="28" y2="28">
-                    <stop stopColor="#3b82f6"/>
-                    <stop offset="1" stopColor="#8b5cf6"/>
+                    <stop stopColor="#3b82f6"/><stop offset="1" stopColor="#8b5cf6"/>
                   </linearGradient>
                 </defs>
               </svg>
@@ -52,103 +71,61 @@ function ProtectedApp() {
         </div>
 
         <nav className={`app-nav ${sidebarOpen ? 'open' : ''}`}>
-          <button
-            className={`nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => { setTab('dashboard'); setSidebarOpen(false) }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
-              <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
-            </svg>
-            Dashboard
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'chat' ? 'active' : ''}`}
-            onClick={() => { setTab('chat'); setSidebarOpen(false) }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M14 1H2a1 1 0 00-1 1v9a1 1 0 001 1h3l2 3 2-3h5a1 1 0 001-1V2a1 1 0 00-1-1z"/>
-            </svg>
-            AI Assistant
-            {isFree && <span className="nav-badge">3/day</span>}
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'invoices' ? 'active' : ''} ${isFree ? 'nav-locked' : ''}`}
-            onClick={() => { setTab('invoices'); setSidebarOpen(false) }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M10 1H3a1 1 0 00-1 1v12a1 1 0 001 1h10a1 1 0 001-1V5l-4-4zM9 2l3 3H9V2z"/>
-            </svg>
-            Invoices
-            {isFree && <span className="lock-icon">🔒</span>}
-          </button>
-          <button
-            className={`nav-btn ${activeTab === 'import' ? 'active' : ''}`}
-            onClick={() => { setTab('import'); setSidebarOpen(false) }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 1v9M4 6l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.5"
-                    strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            </svg>
-            Import
-          </button>
+          {/* Core */}
+          <div className="nav-section-label">Main</div>
+          <NavBtn tab="dashboard" label="Dashboard"   icon="📊" />
+          <NavBtn tab="charts"   label="Charts"       icon="📈" locked={isFree} />
+          <NavBtn tab="budget"   label="Budget"       icon="🎯" />
+          <NavBtn tab="chat"     label="AI Assistant" icon="🤖" />
+
+          {/* Finance tools */}
+          <div className="nav-section-label">Finance</div>
+          <NavBtn tab="invoices" label="Invoices"     icon="📄" locked={isFree} />
+          <NavBtn tab="import"   label="Import"       icon="⬆️" />
+          <NavBtn tab="tax"      label="Tax & GST"    icon="🧾" locked={isFree} />
+          <NavBtn tab="health"   label="Health Score" icon="💚" locked={isFree} />
+
+          {/* Pro features */}
+          <div className="nav-section-label">Pro</div>
+          <NavBtn tab="audit"    label="Audit Log"    icon="📋" locked={isFree} />
+          <NavBtn tab="team"     label="Team"         icon="👥" locked={isFree} />
+          <NavBtn tab="settings" label="Settings"     icon="⚙️" />
         </nav>
 
         <div className="header-right">
-          <div className="tier-badge" data-tier={user!.subscriptionTier}>
-            {user!.subscriptionTier === 'ACTIVE' && '⭐ Pro'}
-            {user!.subscriptionTier === 'TRIAL'  && `⏳ Trial · ${user!.trialDaysRemaining}d`}
-            {user!.subscriptionTier === 'FREE'   && '🆓 Free'}
-          </div>
-          {isFree && (
-            <button className="btn-upgrade-header" onClick={() => navigate('/subscription')}>
-              Upgrade
-            </button>
-          )}
-          <div className="user-menu">
-            <div className="user-avatar">{user!.email[0].toUpperCase()}</div>
-            <div className="user-info">
-              <span className="user-email">{user!.email}</span>
-            </div>
-            <button className="btn-logout" onClick={logout} title="Sign out">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6 2H2a1 1 0 00-1 1v10a1 1 0 001 1h4M11 11l3-3-3-3M14 8H6"/>
-              </svg>
-            </button>
-          </div>
+          <span className="user-email">{user?.email}</span>
+          <button className="btn-upgrade" onClick={() => navigate('/subscription')}>
+            {isFree ? '⬆️ Upgrade' : '💳 Plan'}
+          </button>
+          <button className="btn-logout" onClick={logout}>Logout</button>
         </div>
       </header>
 
-      {sidebarOpen && <div className="nav-overlay" onClick={() => setSidebarOpen(false)} />}
-
       <main className="app-main">
         {activeTab === 'dashboard' && <Dashboard companyId={companyId} />}
-        {activeTab === 'invoices'  && <InvoiceUpload companyId={companyId} />}
+        {activeTab === 'charts'    && <ChartsSection companyId={companyId} />}
+        {activeTab === 'budget'    && <BudgetPlanner companyId={companyId} />}
         {activeTab === 'chat'      && <ChatAssistant />}
-
-        {activeTab === 'import' && (
-          <StatementImport
-            companyId={companyId}
-            onImportSuccess={() => setTab('dashboard')}
-          />
-        )}
+        {activeTab === 'invoices'  && <InvoiceUpload />}
+        {activeTab === 'import'    && <StatementImport companyId={companyId} />}
+        {activeTab === 'tax'       && <TaxPage companyId={companyId} />}
+        {activeTab === 'health'    && <HealthScorePage companyId={companyId} />}
+        {activeTab === 'audit'     && <AuditLogPage companyId={companyId} />}
+        {activeTab === 'team'      && <TeamPage companyId={companyId} />}
+        {activeTab === 'settings'  && <SettingsPage />}
       </main>
     </div>
   )
 }
 
-function App() {
-  const { isAuthenticated } = useAuth()
-
+export default function App() {
+  const { user } = useAuth()
   return (
     <Routes>
-      <Route path="/login"        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/register"     element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />} />
-      <Route path="/subscription" element={isAuthenticated ? <SubscriptionPage /> : <Navigate to="/login" replace />} />
-      <Route path="/"             element={isAuthenticated ? <ProtectedApp /> : <Navigate to="/login" replace />} />
-      <Route path="*"             element={<Navigate to="/" replace />} />
+      <Route path="/login"        element={!user ? <LoginPage /> : <Navigate to="/" replace />} />
+      <Route path="/register"     element={!user ? <RegisterPage /> : <Navigate to="/" replace />} />
+      <Route path="/subscription" element={user  ? <SubscriptionPage /> : <Navigate to="/login" replace />} />
+      <Route path="/*"            element={user  ? <ProtectedApp /> : <Navigate to="/login" replace />} />
     </Routes>
   )
 }
-
-export default App

@@ -16,8 +16,8 @@
     <properties>
         <java.version>21</java.version>
     </properties>
-    <dependencies>
 
+    <dependencies>
         <!-- ── Spring Boot Starters ─────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -104,10 +104,7 @@
             <version>8.10.1</version>
         </dependency>
 
-        <!-- ── Razorpay Payment Gateway ───────────────────────────────────
-             ADDED: Required by PaymentController.java
-             Handles order creation, webhook signature verification
-        ──────────────────────────────────────────────────────────────────── -->
+        <!-- ── Razorpay Payment Gateway ───────────────────────────────────── -->
         <dependency>
             <groupId>com.razorpay</groupId>
             <artifactId>razorpay-java</artifactId>
@@ -119,6 +116,38 @@
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
             <version>20240303</version>
+        </dependency>
+
+        <!-- ── PDF Export (iText7) ───────────────────────────────────────── -->
+        <!-- NEW: Used by ExportService to generate branded PDF reports      -->
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>kernel</artifactId>
+            <version>8.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>layout</artifactId>
+            <version>8.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>io</artifactId>
+            <version>8.0.5</version>
+        </dependency>
+
+        <!-- ── CSV Export (Apache Commons CSV) ──────────────────────────── -->
+        <!-- NEW: Used by ExportService to generate CSV downloads            -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+
+        <!-- ── Jackson for JSON serialization ───────────────────────────── -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <!-- ── Tests ─────────────────────────────────────────────────────── -->
@@ -137,7 +166,6 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 
     <build>

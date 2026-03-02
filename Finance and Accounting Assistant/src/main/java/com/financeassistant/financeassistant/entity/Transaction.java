@@ -1,21 +1,16 @@
 package com.financeassistant.financeassistant.entity;
 
+// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/financeassistant/entity/Transaction.java
+// UPDATED: Added is_recurring, recurrence_interval, recurrence_end_date, parent_transaction_id
+
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * FIX: Added Lombok @Data, @NoArgsConstructor, @AllArgsConstructor.
- * Added 'source' field (MANUAL/PLAID/CSV) and 'createdAt' with @PrePersist.
- * These match the DB schema (V1 migration has source + created_at columns).
- * Without Lombok annotations and the source field, Spring will fail to persist
- * or will miss columns defined in the migration SQL.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -53,7 +48,20 @@ public class Transaction {
     private String description;
 
     @Column(nullable = false, length = 50)
-    private String source = "MANUAL";   // MANUAL | PLAID | CSV
+    private String source = "MANUAL";   // MANUAL | PLAID | CSV | BANK_SYNC
+
+    // ── Recurring transaction fields (NEW) ───────────────────────────────────
+    @Column(name = "is_recurring", nullable = false)
+    private boolean recurring = false;
+
+    @Column(name = "recurrence_interval", length = 20)
+    private String recurrenceInterval;  // DAILY / WEEKLY / MONTHLY / YEARLY
+
+    @Column(name = "recurrence_end_date")
+    private LocalDate recurrenceEndDate;
+
+    @Column(name = "parent_transaction_id")
+    private Long parentTransactionId;   // links child to the original series
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
