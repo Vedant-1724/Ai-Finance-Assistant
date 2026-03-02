@@ -344,6 +344,75 @@ def ocr_invoice():
         logger.error("OCR failed: %s", e)
         return jsonify({"error": "OCR processing failed. Please try a clearer image."}), 500
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  STATEMENT IMPORT  — Privacy-safe transaction extraction
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/parse-statement", methods=["POST"])
+def parse_statement_route():
+    """
+    POST /parse-statement
+    Upload a bank statement (CSV, PDF, or screenshot image).
+
+    PRIVACY: Account numbers, IFSC codes, card numbers, UPI IDs,
+    and mobile numbers are ALL redacted before returning.
+    Nothing sensitive is stored on the server.
+
+    Returns:
+      {
+        transactions: [{date, description, amount, source}],
+        total_found:  int,
+        skipped:      int,
+        source:       "CSV" | "PDF" | "UPI_SCREENSHOT" | ...,
+        warning?:     string
+      }
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+    if not file or file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Allowed types
+    allowed_extensions = {
+        'csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'
+    }
+    ext = file.filename.lower().rsplit('.', 1)[-1] if '.' in file.filename else ''
+    if ext not in allowed_extensions:
+        return jsonify({
+            "error": f"Unsupported file type '.{ext}'. "
+                     f"Supported: CSV, PDF, PNG, JPG, JPEG, WEBP, BMP, TIFF"
+        }), 400
+
+    # Cap file size at 10MB
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > 10 * 1024 * 1024:
+        return jsonify({"error": "File too large. Maximum 10MB allowed."}), 400
+
+    try:
+        from statement_parser import parse_statement
+        file_bytes = file.read()
+        result = parse_statement(file_bytes, file.filename)
+
+        # Never log or store raw file bytes
+        response = {
+            "transactions": result.get("transactions", []),
+            "total_found":  len(result.get("transactions", [])),
+            "skipped":      result.get("skipped", 0),
+            "source":       result.get("source", "UNKNOWN"),
+        }
+        if "error" in result:
+            response["warning"] = result["error"]
+
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error("Statement parse failed: %s", e)
+        return jsonify({"error": "Failed to parse statement. Please try a different file."}), 500
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  ENTRY POINT

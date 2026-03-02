@@ -1,5 +1,3 @@
-// PATH: finance-frontend/src/App.tsx
-
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
@@ -10,9 +8,10 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import { useAuth } from './context/AuthContext'
+import StatementImport from './components/StatementImport'
 import './App.css'
 
-type Tab = 'dashboard' | 'chat' | 'invoices'
+type Tab = 'dashboard' | 'chat' | 'invoices' | 'import'
 
 function ProtectedApp() {
   const { user, logout, isPremium, isFree } = useAuth()
@@ -83,6 +82,16 @@ function ProtectedApp() {
             Invoices
             {isFree && <span className="lock-icon">🔒</span>}
           </button>
+          <button
+            className={`nav-btn ${activeTab === 'import' ? 'active' : ''}`}
+            onClick={() => { setTab('import'); setSidebarOpen(false) }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1v9M4 6l4 4 4-4M2 13h12" stroke="currentColor" strokeWidth="1.5"
+                    strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            </svg>
+            Import
+          </button>
         </nav>
 
         <div className="header-right">
@@ -131,6 +140,12 @@ function App() {
       <Route path="/subscription" element={isAuthenticated ? <SubscriptionPage /> : <Navigate to="/login" replace />} />
       <Route path="/"             element={isAuthenticated ? <ProtectedApp /> : <Navigate to="/login" replace />} />
       <Route path="*"             element={<Navigate to="/" replace />} />
+      {activeTab === 'import' && (
+        <StatementImport
+          companyId={companyId}
+          onImportSuccess={() => setTab('dashboard')}
+        />
+      )}
     </Routes>
   )
 }
