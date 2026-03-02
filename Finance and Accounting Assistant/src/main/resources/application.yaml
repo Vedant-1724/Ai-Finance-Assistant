@@ -59,7 +59,7 @@ razorpay:
 # ── AI Service (Python Flask) ─────────────────────────────────────────────────
 ai:
   service:
-    url: ${AI_SERVICE_URL:http://localhost:5000}
+    url: ${AI_SERVICE_URL:http://localhost:5001}
 
 # ── App config ────────────────────────────────────────────────────────────────
 app:

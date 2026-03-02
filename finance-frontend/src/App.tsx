@@ -125,6 +125,13 @@ function ProtectedApp() {
         {activeTab === 'dashboard' && <Dashboard companyId={companyId} />}
         {activeTab === 'invoices'  && <InvoiceUpload companyId={companyId} />}
         {activeTab === 'chat'      && <ChatAssistant />}
+
+        {activeTab === 'import' && (
+          <StatementImport
+            companyId={companyId}
+            onImportSuccess={() => setTab('dashboard')}
+          />
+        )}
       </main>
     </div>
   )
@@ -140,12 +147,6 @@ function App() {
       <Route path="/subscription" element={isAuthenticated ? <SubscriptionPage /> : <Navigate to="/login" replace />} />
       <Route path="/"             element={isAuthenticated ? <ProtectedApp /> : <Navigate to="/login" replace />} />
       <Route path="*"             element={<Navigate to="/" replace />} />
-      {activeTab === 'import' && (
-        <StatementImport
-          companyId={companyId}
-          onImportSuccess={() => setTab('dashboard')}
-        />
-      )}
     </Routes>
   )
 }
