@@ -6,11 +6,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.client.RestTemplate;
 
-/**
- * Core application beans:
- *  - PasswordEncoder (BCrypt strength 12) — used by AuthService
- *  - RestTemplate — used by AiController to proxy requests to Python Flask
- */
 @Configuration
 public class AppConfig {
 

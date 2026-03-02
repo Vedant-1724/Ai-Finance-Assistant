@@ -1,3 +1,11 @@
+// PATH: finance-frontend/src/components/StatementImport.tsx
+//
+// FIX: parse-statement now calls /api/v1/{companyId}/parse-statement
+//      (Spring Boot proxy with JWT auth) instead of directly hitting
+//      http://localhost:5000/parse-statement (no auth, Python exposed).
+//
+// ADDED: Frontend file type + size validation before upload.
+
 import { useState, useRef } from 'react'
 import api from '../api'
 
@@ -7,7 +15,7 @@ interface ParsedTransaction {
   description: string
   amount:      number
   source:      string
-  selected:    boolean   // UI-only: user can deselect rows before importing
+  selected:    boolean
 }
 
 interface ParseResult {
@@ -24,6 +32,11 @@ interface StatementImportProps {
   onImportSuccess: () => void
 }
 
+// Allowed file types for frontend pre-check
+const ALLOWED_EXTENSIONS = new Set(['csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'])
+const MAX_FILE_SIZE_MB   = 10
+const MAX_FILE_SIZE      = MAX_FILE_SIZE_MB * 1024 * 1024
+
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function StatementImport({ companyId, onImportSuccess }: StatementImportProps) {
   const fileRef                                       = useRef<HTMLInputElement>(null)
@@ -36,9 +49,31 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   const [importResult, setImportResult]               = useState<{ imported: number } | null>(null)
   const [dragOver, setDragOver]                       = useState(false)
 
+  // ── Frontend validation ──────────────────────────────────────────────────────
+  const validateFile = (file: File): string | null => {
+    // Check size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File too large. Maximum ${MAX_FILE_SIZE_MB}MB allowed.`
+    }
+    // Check extension
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return `Unsupported file type ".${ext}". Please use CSV, PDF, PNG, or JPG.`
+    }
+    return null
+  }
+
   // ── Upload & Parse ───────────────────────────────────────────────────────────
   const handleFile = async (file: File) => {
     setParseError(null)
+
+    // Validate before uploading
+    const validationError = validateFile(file)
+    if (validationError) {
+      setParseError(validationError)
+      return
+    }
+
     setParsing(true)
     setStep('upload')
 
@@ -46,14 +81,27 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     formData.append('file', file)
 
     try {
-      const res = await fetch('http://localhost:5000/parse-statement', {
-        method: 'POST',
-        body: formData,
-      })
-      const data: ParseResult = await res.json()
+      // FIX: Route through Spring Boot (JWT-authenticated proxy)
+      // instead of calling Python directly on port 5000.
+      const res = await api.post(
+        `/api/v1/${companyId}/parse-statement`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      const data: ParseResult = res.data
 
       if (data.error) {
         setParseError(data.error)
+        return
+      }
+
+      if (!data.transactions || data.transactions.length === 0) {
+        setParseError(
+          data.warning
+            ? `No transactions found. ${data.warning}`
+            : 'No transactions could be detected in this file. ' +
+              'Please check the format or try a different file.'
+        )
         return
       }
 
@@ -65,8 +113,18 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       setParseResult(data)
       setTransactions(withSelection)
       setStep('preview')
-    } catch {
-      setParseError('Could not connect to AI service. Make sure Python is running on port 5000.')
+
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) {
+        setParseError('Authentication error. Please log in again.')
+      } else if (status === 503) {
+        setParseError('AI service is unavailable. Please ensure the Python service is running.')
+      } else {
+        const msg = (err as { response?: { data?: { error?: string } } })
+          ?.response?.data?.error
+        setParseError(msg ?? 'Failed to parse statement. Please try a different file.')
+      }
     } finally {
       setParsing(false)
     }
@@ -87,8 +145,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   // ── Selection helpers ────────────────────────────────────────────────────────
   const toggleRow     = (i: number) =>
     setTransactions(prev => prev.map((t, idx) => idx === i ? { ...t, selected: !t.selected } : t))
-
-  const selectAll     = () => setTransactions(prev => prev.map(t => ({ ...t, selected: true  })))
+  const selectAll     = () => setTransactions(prev => prev.map(t => ({ ...t, selected: true })))
   const deselectAll   = () => setTransactions(prev => prev.map(t => ({ ...t, selected: false })))
   const selectedCount = transactions.filter(t => t.selected).length
 
@@ -135,12 +192,10 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       <div className="import-header">
         <h2>📥 Import Bank Statement</h2>
         <p className="import-subtitle">
-          Upload your UPI history, bank statement CSV, or screenshot.
-          <strong> Sensitive information (account numbers, IFSC, card numbers) is
+          Upload your UPI history, bank statement CSV, or screenshot.{' '}
+          <strong>Sensitive information (account numbers, IFSC, card numbers) is
           automatically removed — only transaction details are kept.</strong>
         </p>
-
-        {/* Privacy Badge */}
         <div className="privacy-badge">
           <span className="privacy-icon">🔒</span>
           <span>Privacy Protected: Account numbers, IFSC codes, and card numbers
@@ -153,7 +208,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
         <div className="upload-section">
           <div
             className={`dropzone ${dragOver ? 'drag-over' : ''}`}
-            onDragOver={e => { e.preventDefault(); setDragOver(true)  }}
+            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
@@ -167,7 +222,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
               <>
                 <div className="dropzone-icon">📂</div>
                 <p className="dropzone-title">Drop your statement here, or click to browse</p>
-                <p className="dropzone-hint">Supports CSV, PDF, PNG, JPG · Max 10MB</p>
+                <p className="dropzone-hint">Supports CSV, PDF, PNG, JPG · Max {MAX_FILE_SIZE_MB}MB</p>
                 <div className="supported-sources">
                   <span className="source-tag">🏦 HDFC</span>
                   <span className="source-tag">🏦 SBI</span>
@@ -193,52 +248,25 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             <div className="parse-error">❌ {parseError}</div>
           )}
 
-          {/* What gets redacted info box */}
           <div className="redaction-info">
             <h4>🛡️ What We Automatically Remove</h4>
             <div className="redaction-grid">
-              <div className="redaction-item">
-                <span className="redact-icon">🚫</span>
-                <div>
-                  <strong>Account Numbers</strong>
-                  <p>Shown as XXXX1234</p>
+              {[
+                ['Account Numbers', 'Shown as XXXX1234'],
+                ['Card Numbers',    'Shown as XXXX XXXX XXXX 5678'],
+                ['IFSC Codes',      'Completely removed'],
+                ['Personal UPI IDs','Phone-based UPIs redacted'],
+                ['Mobile Numbers',  'Shown as XXXXXX1234'],
+                ['PAN Numbers',     'Completely removed'],
+              ].map(([title, desc]) => (
+                <div className="redaction-item" key={title}>
+                  <span className="redact-icon">🚫</span>
+                  <div>
+                    <strong>{title}</strong>
+                    <p>{desc}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="redaction-item">
-                <span className="redact-icon">🚫</span>
-                <div>
-                  <strong>Card Numbers</strong>
-                  <p>Shown as XXXX XXXX XXXX 5678</p>
-                </div>
-              </div>
-              <div className="redaction-item">
-                <span className="redact-icon">🚫</span>
-                <div>
-                  <strong>IFSC Codes</strong>
-                  <p>Completely removed</p>
-                </div>
-              </div>
-              <div className="redaction-item">
-                <span className="redact-icon">🚫</span>
-                <div>
-                  <strong>Personal UPI IDs</strong>
-                  <p>Phone-based UPIs redacted</p>
-                </div>
-              </div>
-              <div className="redaction-item">
-                <span className="redact-icon">🚫</span>
-                <div>
-                  <strong>Mobile Numbers</strong>
-                  <p>Shown as XXXXXX1234</p>
-                </div>
-              </div>
-              <div className="redaction-item">
-                <span className="redact-icon">🚫</span>
-                <div>
-                  <strong>PAN Numbers</strong>
-                  <p>Completely removed</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -247,7 +275,6 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       {/* ── Step 2: Preview ── */}
       {step === 'preview' && parseResult && (
         <div className="preview-section">
-          {/* Parse summary */}
           <div className="parse-summary">
             <div className="summary-stat">
               <span className="stat-num">{parseResult.total_found}</span>
@@ -275,11 +302,10 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             ✅ All sensitive data has been redacted. Only transaction details shown below.
           </div>
 
-          {/* Bulk selection controls */}
           <div className="preview-controls">
             <div className="select-controls">
-              <button className="btn-select-all"   onClick={selectAll}>   ☑ Select All   </button>
-              <button className="btn-deselect-all" onClick={deselectAll}> ☐ Deselect All </button>
+              <button className="btn-select-all"   onClick={selectAll}>☑ Select All</button>
+              <button className="btn-deselect-all" onClick={deselectAll}>☐ Deselect All</button>
             </div>
             <div className="import-actions">
               <button className="btn-cancel-import" onClick={reset}>← Back</button>
@@ -295,7 +321,6 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             </div>
           </div>
 
-          {/* Transactions table */}
           <div className="preview-table-wrapper">
             <table className="preview-table">
               <thead>

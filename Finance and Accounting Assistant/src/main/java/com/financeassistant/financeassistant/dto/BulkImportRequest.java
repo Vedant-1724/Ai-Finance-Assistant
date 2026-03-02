@@ -1,20 +1,16 @@
+// FIX: Added @DecimalMin / @DecimalMax on amount so Spring's @Valid
+//      catches bad amounts at the HTTP boundary, not just in the service.
+
 package com.financeassistant.financeassistant.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * Request body for bulk-importing transactions parsed from bank statements.
- * Each item contains ONLY analysis-safe data — no account numbers, IFSC,
- * card numbers, or mobile numbers (those are redacted by the Python parser).
- */
 @Data
 public class BulkImportRequest {
 
@@ -28,24 +24,33 @@ public class BulkImportRequest {
     public static class ImportItem {
 
         @NotNull(message = "Date is required")
+        @PastOrPresent(message = "Transaction date cannot be in the future")
         private LocalDate date;
 
         @NotNull(message = "Description is required")
+        @NotBlank(message = "Description cannot be blank")
         @Size(max = 512, message = "Description too long")
         private String description;
 
         /**
          * Positive = income, Negative = expense.
-         * Max cap prevents financial manipulation.
+         * FIX: @DecimalMin/@DecimalMax added so HTTP layer validates this,
+         *      not just the service layer.
          */
         @NotNull(message = "Amount is required")
+        @DecimalMin(value = "-10000000.00", message = "Amount below minimum (-₹1 crore)")
+        @DecimalMax(value = "10000000.00",  message = "Amount exceeds maximum (₹1 crore)")
         private BigDecimal amount;
 
         /**
-         * Where this transaction came from: CSV_IMPORT, PDF, UPI_SCREENSHOT, etc.
-         * Stored for audit trail — never contains sensitive info.
+         * Source of the transaction: CSV_IMPORT, PDF, UPI_SCREENSHOT, etc.
+         * Stored for audit trail only.
          */
         @Size(max = 50)
+        @Pattern(
+                regexp = "^(CSV_IMPORT|PDF|UPI_SCREENSHOT|IMAGE|TEXT|IMPORT)?$",
+                message = "Invalid source value"
+        )
         private String source;
     }
 }

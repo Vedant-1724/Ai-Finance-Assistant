@@ -1,8 +1,14 @@
+# PATH: Finance and Accounting Assistant/src/main/resources/application.yaml
+#
+# FIX: DB password now reads from env variable DB_PASSWORD,
+#      falling back to 'vedant' for local dev only.
+#      Add DB_PASSWORD=yourpassword to your .env or system environment for production.
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/financedb
-    username: postgres
-    password: vedant
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:vedant}        # <── FIX: never commit real passwords
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -20,14 +26,14 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
 
   cache:
     type: redis
@@ -55,7 +61,7 @@ ai:
   service:
     url: ${AI_SERVICE_URL:http://localhost:5000}
 
-# ── App config (single app: block — no duplicates!) ───────────────────────────
+# ── App config ────────────────────────────────────────────────────────────────
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
