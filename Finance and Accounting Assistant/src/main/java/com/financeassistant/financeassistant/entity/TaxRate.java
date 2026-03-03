@@ -2,16 +2,15 @@ package com.financeassistant.financeassistant.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "categories")
+@Table(name = "tax_rates")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Category {
+public class TaxRate {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,19 +23,12 @@ public class Category {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Enumerated(EnumType.STRING)
-    private CategoryType type;
-
-    @Column(length = 255)
-    private String description;
+    @Column(name = "gst_rate", nullable = false, precision = 5, scale = 2)
+    private BigDecimal gstRate;
 
     @Column(name = "is_default")
     private boolean isDefault;
 
-    @Column(name = "gst_rate", precision = 5, scale = 2)
-    private BigDecimal gstRate;
-
-    public enum CategoryType {
-        INCOME, EXPENSE
-    }
+    @Column(name = "is_active")
+    private boolean active;
 }

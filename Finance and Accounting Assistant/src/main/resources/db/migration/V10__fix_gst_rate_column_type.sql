@@ -1,0 +1,2 @@
+ALTER TABLE categories
+ALTER COLUMN gst_rate TYPE NUMERIC(5,2) USING gst_rate::NUMERIC;

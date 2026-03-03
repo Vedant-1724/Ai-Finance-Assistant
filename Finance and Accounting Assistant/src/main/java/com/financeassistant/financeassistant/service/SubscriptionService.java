@@ -13,7 +13,6 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 /**
- * PATH: finance-backend/src/main/java/com/financeassistant/financeassistant/service/SubscriptionService.java
  *
  * CHANGES:
  *  - startTrial() is now an explicit user action (not auto-called on register)

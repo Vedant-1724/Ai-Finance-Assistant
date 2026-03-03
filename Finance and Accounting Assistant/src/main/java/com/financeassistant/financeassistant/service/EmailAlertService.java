@@ -1,7 +1,5 @@
 package com.financeassistant.financeassistant.service;
 
-// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/financeassistant/service/EmailAlertService.java
-
 import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.entity.UserEmailPrefs;
 import com.financeassistant.financeassistant.repository.UserEmailPrefsRepository;

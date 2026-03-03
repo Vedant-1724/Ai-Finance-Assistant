@@ -2,6 +2,7 @@ package com.financeassistant.financeassistant.service;
 
 import com.financeassistant.financeassistant.entity.Anomaly;
 import com.financeassistant.financeassistant.repository.AnomalyRepository;
+import com.financeassistant.financeassistant.entity.Transaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -84,7 +85,15 @@ public class AnomalyResultListener {
             // ── Send one email summarising all detected anomalies ──────────────
             // Runs async — never blocks the consumer thread
             if (emailAlertService != null) {
-                emailAlertService.sendAnomalyAlert(companyId, savedAnomalies);
+                // Extract the Transaction object from the payload map
+                Transaction anomaly = (Transaction) payload.get("transaction");
+                if (anomaly != null && anomaly.getUser() != null) {
+                    emailAlertService.sendAnomalyAlert(
+                            anomaly.getUser(),
+                            anomaly.getAmount(),
+                            anomaly.getDescription()
+                    );
+                }
             }
 
         } catch (Exception e) {

@@ -1,25 +1,19 @@
 package com.financeassistant.financeassistant.entity;
 
-// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/financeassistant/entity/Transaction.java
-// UPDATED: Added is_recurring, recurrence_interval, recurrence_end_date, parent_transaction_id
-
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "transactions")
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "transactions",
-        indexes = {
-                @Index(name = "idx_txn_company", columnList = "company_id"),
-                @Index(name = "idx_txn_date",    columnList = "company_id, date")
-        })
 public class Transaction {
 
     @Id
@@ -31,44 +25,71 @@ public class Transaction {
     private Company company;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "account_id")
-    private Account account;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal amount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TransactionType type;
 
     @Column(nullable = false)
     private LocalDate date;
 
-    @Column(nullable = false, precision = 19, scale = 4)
-    private BigDecimal amount;
-
-    @Column(nullable = false, length = 512)
+    @Column(length = 500)
     private String description;
 
-    @Column(nullable = false, length = 50)
-    private String source = "MANUAL";   // MANUAL | PLAID | CSV | BANK_SYNC
+    @Column(length = 100)
+    private String source;
 
-    // ── Recurring transaction fields (NEW) ───────────────────────────────────
-    @Column(name = "is_recurring", nullable = false)
-    private boolean recurring = false;
+    @Column(length = 100)
+    private String referenceNumber;
 
-    @Column(name = "recurrence_interval", length = 20)
-    private String recurrenceInterval;  // DAILY / WEEKLY / MONTHLY / YEARLY
+    @Column(name = "is_recurring")
+    private boolean recurring;
+
+    @Column(name = "recurring_interval")
+    private String recurringInterval;
+
+    @Column(name = "ai_categorized")
+    private boolean aiCategorized;
+
+    @Column(name = "ai_confidence")
+    private Double aiConfidence;
+
+    @Column(name = "is_anomaly")
+    private boolean anomaly;
+
+    @Column(name = "anomaly_reason", length = 255)
+    private String anomalyReason;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "recurrence_interval", length = 50)
+    private String recurrenceInterval;
 
     @Column(name = "recurrence_end_date")
     private LocalDate recurrenceEndDate;
 
     @Column(name = "parent_transaction_id")
-    private Long parentTransactionId;   // links child to the original series
+    private Long parentTransactionId;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "account", length = 100)
+    private String account;
 
-    @PrePersist
-    protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        if (this.source == null) this.source = "MANUAL";
+    public enum TransactionType {
+        INCOME, EXPENSE
     }
 }

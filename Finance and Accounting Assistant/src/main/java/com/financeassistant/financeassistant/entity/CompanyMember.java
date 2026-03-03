@@ -1,38 +1,45 @@
 package com.financeassistant.financeassistant.entity;
 
-// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/financeassistant/entity/CompanyMember.java
-
 import jakarta.persistence.*;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
-@Data
-@NoArgsConstructor
 @Entity
 @Table(name = "company_members")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class CompanyMember {
-
-    public enum Role { OWNER, EDITOR, VIEWER }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Stored as a plain column so setCompanyId(Long) works directly
     @Column(name = "company_id", nullable = false)
     private Long companyId;
 
-    @Column(name = "user_id")
-    private Long userId;   // null until invite accepted
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id", insertable = false, updatable = false)
+    private Company company;
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "user_id")
+    private Long userId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    private User user;
+
     @Enumerated(EnumType.STRING)
-    private Role role = Role.VIEWER;
+    @Column(nullable = false)
+    private Role role;
 
     @Column(name = "invite_email", length = 255)
     private String inviteEmail;
 
-    @Column(name = "invite_token", length = 100, unique = true)
+    @Column(name = "invite_token", length = 255)
     private String inviteToken;
 
     @Column(name = "invite_expires_at")
@@ -41,9 +48,11 @@ public class CompanyMember {
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @PrePersist
-    protected void onCreate() { this.createdAt = LocalDateTime.now(); }
+    public enum Role {
+        OWNER, ADMIN, ACCOUNTANT, VIEWER
+    }
 }

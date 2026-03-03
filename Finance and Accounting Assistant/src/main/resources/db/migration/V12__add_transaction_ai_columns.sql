@@ -1,0 +1,9 @@
+ALTER TABLE transactions
+    ADD COLUMN IF NOT EXISTS ai_categorized     BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS ai_confidence      DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS is_anomaly         BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS anomaly_reason     VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS account            VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS reference_number   VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS source             VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS updated_at         TIMESTAMP;

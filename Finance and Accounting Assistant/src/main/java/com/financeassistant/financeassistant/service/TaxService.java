@@ -40,13 +40,16 @@ public class TaxService {
 
         for (Transaction tx : txns) {
             if (tx.getAmount().compareTo(BigDecimal.ZERO) < 0) continue; // skip expenses
-            int rate = tx.getCategory() != null ? tx.getCategory().getGstRate() : 18;
+            BigDecimal rate = tx.getCategory() != null
+                    ? tx.getCategory().getGstRate()
+                    : BigDecimal.valueOf(18);
             BigDecimal taxableAmt = tx.getAmount();
-            BigDecimal gstAmt = taxableAmt.multiply(BigDecimal.valueOf(rate))
-                    .divide(BigDecimal.valueOf(100 + rate), 4, RoundingMode.HALF_UP);
+            BigDecimal gstAmt = taxableAmt.multiply(rate)
+                    .divide(BigDecimal.valueOf(100).add(rate), 4, RoundingMode.HALF_UP);
 
-            GstSlab slab = slabs.get(rate);
-            slabs.put(rate, new GstSlab(rate,
+            int rateKey = rate.intValue();
+            GstSlab slab = slabs.getOrDefault(rateKey, new GstSlab(rateKey, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+            slabs.put(rateKey, new GstSlab(rateKey,
                     slab.taxableAmount().add(taxableAmt),
                     slab.cgst().add(gstAmt.divide(BigDecimal.TWO, 4, RoundingMode.HALF_UP)),
                     slab.sgst().add(gstAmt.divide(BigDecimal.TWO, 4, RoundingMode.HALF_UP))));
