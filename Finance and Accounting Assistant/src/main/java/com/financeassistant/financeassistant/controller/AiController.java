@@ -20,9 +20,10 @@ import java.util.Map;
 public class AiController {
 
     private final SubscriptionService subscriptionService;
-    private final RestTemplate        restTemplate;
+    private final RestTemplate restTemplate;
 
-    @Value("${ai.service.url:http://localhost:5000}")
+    // AI service port: must match finance-ai/app.py PORT (default 5001)
+    @Value("${ai.service.url:http://localhost:5001}")
     private String aiServiceUrl;
 
     /**
@@ -40,12 +41,11 @@ public class AiController {
         if (remaining == -1) {
             int limit = user.getAiChatDailyLimit();
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
-                    "error",      "DAILY_LIMIT_EXCEEDED",
-                    "message",    "You've used all " + limit + " AI chats for today. Resets at midnight.",
-                    "tier",       user.getEffectiveTier(),
+                    "error", "DAILY_LIMIT_EXCEEDED",
+                    "message", "You've used all " + limit + " AI chats for today. Resets at midnight.",
+                    "tier", user.getEffectiveTier(),
                     "dailyLimit", limit,
-                    "upgradeUrl", "/subscription"
-            ));
+                    "upgradeUrl", "/subscription"));
         }
 
         // Forward to Python AI service
@@ -59,8 +59,7 @@ public class AiController {
                     aiServiceUrl + "/chat",
                     HttpMethod.POST,
                     requestEntity,
-                    Map.class
-            );
+                    Map.class);
 
             Map<String, Object> responseBody = new HashMap<>();
             if (aiResponse.getBody() != null) {
@@ -74,9 +73,8 @@ public class AiController {
         } catch (Exception e) {
             log.error("AI service error for user {}: {}", user.getEmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
-                    "error",   "AI_SERVICE_UNAVAILABLE",
-                    "message", "The AI assistant is temporarily unavailable. Please try again shortly."
-            ));
+                    "error", "AI_SERVICE_UNAVAILABLE",
+                    "message", "The AI assistant is temporarily unavailable. Please try again shortly."));
         }
     }
 }

@@ -11,11 +11,12 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 /**
- * PATH: finance-backend/src/main/java/com/financeassistant/financeassistant/controller/SubscriptionController.java
+ * PATH:
+ * finance-backend/src/main/java/com/financeassistant/financeassistant/controller/SubscriptionController.java
  *
  * NEW FILE — handles subscription management endpoints:
- *  POST /api/v1/subscription/start-trial  — explicitly start the 5-day trial
- *  GET  /api/v1/subscription/status       — get current tier + AI chat remaining
+ * POST /api/v1/subscription/start-trial — explicitly start the 5-day trial
+ * GET /api/v1/subscription/status — get current tier + AI chat remaining
  */
 @Slf4j
 @RestController
@@ -36,15 +37,13 @@ public class SubscriptionController {
         if (!started) {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "TRIAL_ALREADY_USED",
-                    "message", "Your free trial has already been used. Please upgrade to Pro."
-            ));
+                    "message", "Your free trial has already been used. Please upgrade to Pro."));
         }
         return ResponseEntity.ok(Map.of(
-                "message",          "Your 5-day free trial has started!",
-                "tier",             "TRIAL",
+                "message", "Your 5-day free trial has started!",
+                "tier", "TRIAL",
                 "trialDaysRemaining", 5,
-                "aiChatsRemaining", user.getAiChatDailyLimit()
-        ));
+                "aiChatsRemaining", user.getAiChatDailyLimit()));
     }
 
     /**
@@ -54,13 +53,29 @@ public class SubscriptionController {
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(Map.of(
-                "tier",             user.getEffectiveTier(),
-                "status",           user.getSubscriptionStatus().name(),
+                "tier", user.getEffectiveTier(),
+                "status", user.getSubscriptionStatus().name(),
                 "trialDaysRemaining", user.trialDaysRemaining(),
                 "aiChatsRemaining", user.getAiChatsRemainingToday(),
                 "aiChatDailyLimit", user.getAiChatDailyLimit(),
                 "hasPremiumAccess", user.hasPremiumAccess(),
-                "trialAlreadyUsed", user.getTrialStartedAt() != null
-        ));
+                "trialAlreadyUsed", user.getTrialStartedAt() != null));
+    }
+
+    /**
+     * POST /api/v1/subscription/cancel
+     * Cancels the current subscription, reverts to FREE tier.
+     */
+    @PostMapping("/cancel")
+    public ResponseEntity<?> cancelSubscription(@AuthenticationPrincipal User user) {
+        if (user.getSubscriptionStatus() == User.SubscriptionStatus.FREE) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "NO_ACTIVE_SUBSCRIPTION",
+                    "message", "You don't have an active subscription to cancel."));
+        }
+        subscriptionService.cancelSubscription(user.getEmail());
+        return ResponseEntity.ok(Map.of(
+                "message", "Your subscription has been cancelled. You've been moved to the Free tier.",
+                "tier", "FREE"));
     }
 }

@@ -1,175 +1,269 @@
-import { useState } from 'react'
-import api from '../api'                          // ← JWT-aware instance
+// PATH: finance-frontend/src/components/AddTransactionModal.tsx
+// Supports both creating new transactions and editing existing ones.
 
-interface AddTransactionModalProps {
-  companyId: number
-  onClose:   () => void
-  onSuccess: () => void
-}
+import { useState, useEffect, type FormEvent } from 'react'
+import api from '../api'
 
-interface FormData {
-  date:        string
+interface Transaction {
+  id: number
+  date: string
+  amount: number
   description: string
-  amount:      string
-  type:        'income' | 'expense'
+  categoryName: string | null
 }
 
-interface FormErrors {
-  date?:        string
-  description?: string
-  amount?:      string
+interface Props {
+  companyId: number
+  onClose: () => void
+  onSuccess: () => void
+  editingTxn?: Transaction | null  // If provided, modal is in edit mode
 }
 
-function AddTransactionModal({ companyId, onClose, onSuccess }: AddTransactionModalProps) {
-  const today = new Date().toISOString().split('T')[0]
+interface CategoryOption {
+  id: number
+  name: string
+  type: string
+}
 
-  const [form, setForm] = useState<FormData>({
-    date:        today,
-    description: '',
-    amount:      '',
-    type:        'income',
-  })
+export default function AddTransactionModal({ companyId, onClose, onSuccess, editingTxn }: Props) {
+  const isEdit = !!editingTxn
 
-  const [errors,      setErrors]      = useState<FormErrors>({})
-  const [loading,     setLoading]     = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [date, setDate] = useState(
+    editingTxn ? editingTxn.date : new Date().toISOString().split('T')[0]
+  )
+  const [description, setDescription] = useState(editingTxn?.description ?? '')
+  const [amount, setAmount] = useState(
+    editingTxn ? String(Math.abs(editingTxn.amount)) : ''
+  )
+  const [type, setType] = useState<'income' | 'expense'>(
+    editingTxn ? (editingTxn.amount >= 0 ? 'income' : 'expense') : 'expense'
+  )
+  const [categoryId, setCategoryId] = useState<string>('')
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [catLoading, setCatLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [aiSuggested, setAiSuggested] = useState<string | null>(null)
 
-  const validate = (): boolean => {
-    const newErrors: FormErrors = {}
-    if (!form.date) {
-      newErrors.date = 'Date is required'
+  // ── Load categories ────────────────────────────────────────────────────────
+  useEffect(() => {
+    api.get<CategoryOption[]>(`/api/v1/${companyId}/categories`)
+      .then(r => setCategories(r.data))
+      .catch(() => setCategories([]))
+  }, [companyId])
+
+  // ── AI auto-categorise after user finishes typing description ─────────────
+  useEffect(() => {
+    if (description.length < 5) return
+    const timer = setTimeout(async () => {
+      setCatLoading(true)
+      try {
+        const res = await api.post<{ category: string; confidence: number }>(
+          `/api/v1/${companyId}/transactions/categorize`,
+          { description }
+        )
+        if (res.data?.category && res.data.confidence > 0.4) {
+          setAiSuggested(res.data.category)
+          const match = categories.find(
+            c => c.name.toLowerCase() === res.data.category.toLowerCase()
+          )
+          if (match) setCategoryId(String(match.id))
+        }
+      } catch {
+        // AI categorize is optional — fail silently
+      } finally {
+        setCatLoading(false)
+      }
+    }, 700)
+    return () => clearTimeout(timer)
+  }, [description, categories, companyId])
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!date) { setError('Please select a date.'); return }
+    if (!description) { setError('Description is required.'); return }
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      setError('Enter a valid positive amount.'); return
     }
-    if (!form.description.trim()) {
-      newErrors.description = 'Description is required'
-    } else if (form.description.trim().length < 3) {
-      newErrors.description = 'Description must be at least 3 characters'
-    }
-    if (!form.amount) {
-      newErrors.amount = 'Amount is required'
-    } else if (isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
-      newErrors.amount = 'Enter a valid positive amount'
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
 
-  const handleSubmit = async () => {
-    if (!validate()) return
+    const finalAmount = type === 'expense'
+      ? -Math.abs(parseFloat(amount))
+      : Math.abs(parseFloat(amount))
+
     setLoading(true)
-    setSubmitError(null)
-
-    const finalAmount =
-      form.type === 'expense'
-        ? -Math.abs(Number(form.amount))
-        :  Math.abs(Number(form.amount))
-
     try {
-      await api.post(`/api/v1/${companyId}/transactions`, {
-        date:        form.date,
-        amount:      finalAmount,
-        description: form.description.trim(),
-      })
+      if (isEdit) {
+        // UPDATE existing transaction
+        await api.put(`/api/v1/${companyId}/transactions/${editingTxn!.id}`, {
+          date,
+          description: description.trim(),
+          amount: finalAmount,
+          categoryId: categoryId ? parseInt(categoryId) : null,
+        })
+      } else {
+        // CREATE new transaction
+        await api.post(`/api/v1/${companyId}/transactions`, {
+          date,
+          description: description.trim(),
+          amount: finalAmount,
+          categoryId: categoryId ? parseInt(categoryId) : null,
+        })
+      }
       onSuccess()
       onClose()
-    } catch {
-      setSubmitError('Failed to save transaction. Make sure Spring Boot is running on port 8080.')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })
+        ?.response?.data?.error
+      setError(msg ?? `Failed to ${isEdit ? 'update' : 'save'} transaction. Please try again.`)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) onClose()
-  }
-
-  const handleChange = (field: keyof FormData, value: string) => {
-    setForm(prev => ({ ...prev, [field]: value }))
-    if (errors[field as keyof FormErrors]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }))
-    }
-  }
+  const filteredCategories = categories.filter(c =>
+    type === 'income' ? c.type === 'INCOME' : c.type === 'EXPENSE'
+  )
 
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal-box">
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal-box" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Transaction' : 'Add Transaction'}>
 
+        {/* Header */}
         <div className="modal-header">
-          <h3>➕ Add Transaction</h3>
-          <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
+          <h2 className="modal-title">{isEdit ? '✏️ Edit Transaction' : '➕ Add Transaction'}</h2>
+          <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
 
-        <div className="modal-type-toggle">
-          <button
-            className={`toggle-btn income-btn ${form.type === 'income' ? 'active' : ''}`}
-            onClick={() => handleChange('type', 'income')}
-          >
-            📈 Income
-          </button>
-          <button
-            className={`toggle-btn expense-btn ${form.type === 'expense' ? 'active' : ''}`}
-            onClick={() => handleChange('type', 'expense')}
-          >
-            📉 Expense
-          </button>
-        </div>
+        {error && <div className="auth-error" style={{ marginBottom: 16 }}>{error}</div>}
 
-        <div className="modal-body">
+        <form onSubmit={handleSubmit}>
 
-          <div className="form-field">
-            <label>Date</label>
+          {/* Type toggle */}
+          <div className="form-group">
+            <label>Type</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['expense', 'income'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => { setType(t); setCategoryId('') }}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: 8, border: '1px solid',
+                    cursor: 'pointer', fontWeight: 600, fontSize: 14, transition: 'all 0.15s',
+                    background: type === t
+                      ? t === 'expense' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)'
+                      : 'rgba(255,255,255,0.04)',
+                    borderColor: type === t
+                      ? t === 'expense' ? 'rgba(239,68,68,0.5)' : 'rgba(34,197,94,0.5)'
+                      : 'rgba(255,255,255,0.1)',
+                    color: type === t
+                      ? t === 'expense' ? '#f87171' : '#4ade80'
+                      : '#94a3b8',
+                  }}
+                >
+                  {t === 'expense' ? '📉 Expense' : '📈 Income'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date */}
+          <div className="form-group">
+            <label htmlFor="txn-date">Date</label>
             <input
+              id="txn-date"
               type="date"
-              value={form.date}
-              onChange={e => handleChange('date', e.target.value)}
-              className={errors.date ? 'input-error' : ''}
+              className="form-input"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              required
             />
-            {errors.date && <span className="field-error">{errors.date}</span>}
           </div>
 
-          <div className="form-field">
-            <label>Description</label>
+          {/* Description */}
+          <div className="form-group">
+            <label htmlFor="txn-desc">
+              Description
+              {catLoading && (
+                <span style={{ color: '#60a5fa', fontSize: 11, marginLeft: 8 }}>
+                  🤖 AI categorising…
+                </span>
+              )}
+              {aiSuggested && !catLoading && (
+                <span style={{ color: '#4ade80', fontSize: 11, marginLeft: 8 }}>
+                  ✓ AI: {aiSuggested}
+                </span>
+              )}
+            </label>
             <input
+              id="txn-desc"
               type="text"
-              value={form.description}
-              onChange={e => handleChange('description', e.target.value)}
-              placeholder="e.g. Client payment, Office supplies"
-              className={errors.description ? 'input-error' : ''}
+              className="form-input"
+              placeholder="e.g. Office supplies from Staples"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              maxLength={512}
+              required
             />
-            {errors.description && <span className="field-error">{errors.description}</span>}
           </div>
 
-          <div className="form-field">
-            <label>Amount (₹)</label>
-            <input
-              type="number"
-              value={form.amount}
-              onChange={e => handleChange('amount', e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className={errors.amount ? 'input-error' : ''}
-            />
-            {errors.amount && <span className="field-error">{errors.amount}</span>}
+          {/* Amount */}
+          <div className="form-group">
+            <label htmlFor="txn-amount">Amount (₹)</label>
+            <div className="input-wrapper">
+              <span style={{
+                position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                color: '#475569', fontWeight: 600, pointerEvents: 'none'
+              }}>₹</span>
+              <input
+                id="txn-amount"
+                type="number"
+                className="form-input"
+                style={{ paddingLeft: 28 }}
+                placeholder="0.00"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                min="0.01"
+                step="0.01"
+                required
+              />
+            </div>
           </div>
 
-          {submitError && (
-            <div className="submit-error">⚠️ {submitError}</div>
-          )}
+          {/* Category */}
+          <div className="form-group">
+            <label htmlFor="txn-cat">Category (optional)</label>
+            <select
+              id="txn-cat"
+              className="form-select"
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+            >
+              <option value="">— Select category —</option>
+              {filteredCategories.map(c => (
+                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              ))}
+            </select>
+          </div>
 
-        </div>
+          {/* Footer */}
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading
+                ? '⏳ Saving…'
+                : isEdit ? '✏️ Update Transaction' : '💾 Save Transaction'}
+            </button>
+          </div>
 
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose} disabled={loading}>
-            Cancel
-          </button>
-          <button className="btn-save" onClick={handleSubmit} disabled={loading}>
-            {loading ? '⏳ Saving...' : '💾 Save Transaction'}
-          </button>
-        </div>
-
+        </form>
       </div>
     </div>
   )
 }
-
-export default AddTransactionModal

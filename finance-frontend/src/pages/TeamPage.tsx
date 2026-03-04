@@ -1,135 +1,253 @@
 // PATH: finance-frontend/src/pages/TeamPage.tsx
+// Team management — invite members, assign roles, remove members.
+// Calls:
+//   GET    /api/v1/{companyId}/team          → list members
+//   POST   /api/v1/{companyId}/team/invite   → invite by email
+//   DELETE /api/v1/{companyId}/team/{memberId} → remove member
+
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
+type Role = 'OWNER' | 'EDITOR' | 'VIEWER'
+
 interface Member {
-  id: number; companyId: number; userId: number | null; role: string;
-  inviteEmail: string | null; acceptedAt: string | null; createdAt: string
+  id:          number
+  email:       string
+  role:        Role
+  acceptedAt:  string | null
+  inviteEmail: string | null
+  createdAt:   string
+}
+
+const ROLE_LABELS: Record<Role, { label: string; color: string; desc: string }> = {
+  OWNER:  { label: 'Owner',  color: '#60a5fa', desc: 'Full access, billing, invite' },
+  EDITOR: { label: 'Editor', color: '#4ade80', desc: 'Add/edit transactions, view reports' },
+  VIEWER: { label: 'Viewer', color: '#94a3b8', desc: 'Read-only access to dashboard' },
 }
 
 export default function TeamPage({ companyId }: { companyId: number }) {
-  const { user } = useAuth()
-  const [members, setMembers]   = useState<Member[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState<string | null>(null)
-  const [showInvite, setShowInvite] = useState(false)
-  const [email, setEmail]       = useState('')
-  const [role, setRole]         = useState('VIEWER')
+  const { user, isFree } = useAuth()
+  const [members, setMembers] = useState<Member[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+  const [invEmail, setInvEmail] = useState('')
+  const [invRole,  setInvRole]  = useState<Role>('VIEWER')
   const [inviting, setInviting] = useState(false)
-  const [msg, setMsg]           = useState<string | null>(null)
+  const [invMsg,   setInvMsg]   = useState<string | null>(null)
+  const [invErr,   setInvErr]   = useState<string | null>(null)
+  const [removing, setRemoving] = useState<number | null>(null)
 
   const headers = { Authorization: `Bearer ${user?.token}` }
 
   const load = useCallback(async () => {
-    setLoading(true)
+    setLoading(true); setError(null)
     try {
       const res = await api.get<Member[]>(`/api/v1/${companyId}/team`, { headers })
       setMembers(res.data)
-    } catch (e: any) {
-      if (e?.response?.status === 402) setError('UPGRADE_REQUIRED')
-      else setError('Failed to load team')
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status
+      if (status === 402) setError('UPGRADE_REQUIRED')
+      else                setError('Failed to load team members.')
     } finally { setLoading(false) }
   }, [companyId, user?.token])
 
   useEffect(() => { void load() }, [load])
 
   const handleInvite = async () => {
-    if (!email) return
-    setInviting(true)
+    if (!invEmail.trim()) { setInvErr('Email is required.'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invEmail)) {
+      setInvErr('Enter a valid email address.'); return
+    }
+    setInviting(true); setInvErr(null); setInvMsg(null)
     try {
-      await api.post(`/api/v1/${companyId}/team/invite`, { email, role }, { headers })
-      setMsg('✅ Invite sent to ' + email)
-      setEmail(''); setShowInvite(false)
+      await api.post(
+        `/api/v1/${companyId}/team/invite`,
+        { email: invEmail.trim(), role: invRole },
+        { headers }
+      )
+      setInvMsg(`✅ Invitation sent to ${invEmail.trim()}`)
+      setInvEmail('')
       void load()
-    } catch { setMsg('❌ Failed to send invite') } finally { setInviting(false) }
-    setTimeout(() => setMsg(null), 3000)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setInvErr(msg ?? 'Failed to send invitation.')
+    } finally { setInviting(false) }
   }
 
-  const handleRemove = async (id: number) => {
-    if (!confirm('Remove this team member?')) return
-    await api.delete(`/api/v1/${companyId}/team/${id}`, { headers })
-    void load()
+  const handleRemove = async (memberId: number, email: string) => {
+    if (!confirm(`Remove ${email} from the team?`)) return
+    setRemoving(memberId)
+    try {
+      await api.delete(`/api/v1/${companyId}/team/${memberId}`, { headers })
+      setMembers(prev => prev.filter(m => m.id !== memberId))
+    } catch {
+      alert('Failed to remove member. Please try again.')
+    } finally { setRemoving(null) }
   }
 
-  if (loading) return <div className="loading">⏳ Loading team...</div>
-  if (error === 'UPGRADE_REQUIRED') return (
+  if (isFree) return (
     <div className="upgrade-gate">
-      <div style={{fontSize:48}}>👥</div>
-      <h2>Team Access requires Pro</h2>
-      <p>Invite your accountant or team members to view your financial dashboard.</p>
-      <a href="/subscription" className="btn-primary">Upgrade to Pro</a>
+      <div style={{ fontSize: 56 }}>👥</div>
+      <h2>Team Management requires Trial or Pro</h2>
+      <p>Invite team members with EDITOR or VIEWER roles to collaborate on your company finances.</p>
+      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
     </div>
   )
 
-  const roleColor = (r: string) => r === 'OWNER' ? '#10b981' : r === 'EDITOR' ? '#3b82f6' : '#94a3b8'
+  if (loading) return <div className="loading">⏳ Loading team members…</div>
+  if (error === 'UPGRADE_REQUIRED') return (
+    <div className="upgrade-gate">
+      <div style={{ fontSize: 56 }}>👥</div>
+      <h2>Team Management requires Trial or Pro</h2>
+      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+    </div>
+  )
+  if (error) return <div className="error">❌ {error}</div>
 
   return (
     <div className="team-page">
       <div className="page-header">
-        <div>
-          <h1 className="page-title">👥 Team Access</h1>
-          <p className="page-subtitle">Invite accountants or team members to your dashboard</p>
-        </div>
-        <button className="btn-primary" onClick={() => setShowInvite(true)}>+ Invite Member</button>
+        <h1 className="page-title">👥 Team</h1>
+        <span style={{ fontSize: 13, color: '#475569' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
       </div>
 
-      {msg && <div className="success-toast">{msg}</div>}
-
-      {showInvite && (
-        <div className="modal-overlay" onClick={() => setShowInvite(false)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <h2>Invite Team Member</h2>
-            <div className="form-group">
-              <label>Email Address</label>
-              <input className="form-input" type="email" placeholder="accountant@firm.com"
-                     value={email} onChange={e => setEmail(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Role</label>
-              <select className="form-input" value={role} onChange={e => setRole(e.target.value)}>
-                <option value="VIEWER">Viewer — read-only access</option>
-                <option value="EDITOR">Editor — can add/edit transactions</option>
-              </select>
-            </div>
-            <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
-              <button className="btn-secondary" onClick={() => setShowInvite(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleInvite} disabled={inviting || !email}>
-                {inviting ? 'Sending...' : 'Send Invite'}
-              </button>
-            </div>
+      {/* ── Role legend ─────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {(Object.entries(ROLE_LABELS) as [Role, typeof ROLE_LABELS[Role]][]).map(([role, info]) => (
+          <div key={role} style={{
+            padding: '8px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)', fontSize: 12
+          }}>
+            <span style={{ color: info.color, fontWeight: 700 }}>{info.label}</span>
+            <span style={{ color: '#475569', marginLeft: 8 }}>{info.desc}</span>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      <div className="card">
+      {/* ── Members list ────────────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+          <span className="card-title">Current Members</span>
+        </div>
         {members.length === 0 ? (
-          <div className="empty-state" style={{padding:32}}>
-            <p>No team members yet. Invite your accountant to get started.</p>
+          <div className="empty-state">
+            <div className="empty-icon">👥</div>
+            <p className="empty-title">No team members yet</p>
+            <p className="empty-sub">Invite a colleague below to collaborate</p>
           </div>
         ) : (
-          <table className="data-table">
-            <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
-            <tbody>
-              {members.map(m => (
-                <tr key={m.id}>
-                  <td style={{color:'#e2e8f0'}}>{m.inviteEmail || 'Unknown'}</td>
-                  <td><span className="badge" style={{color: roleColor(m.role), background: roleColor(m.role)+'20'}}>{m.role}</span></td>
-                  <td><span className="badge" style={{color: m.acceptedAt ? '#10b981' : '#f59e0b', background: m.acceptedAt ? '#052e16' : '#451a03'}}>
-                    {m.acceptedAt ? '✅ Active' : '⏳ Pending'}
-                  </span></td>
-                  <td style={{color:'#64748b', fontSize:12}}>{new Date(m.createdAt).toLocaleDateString('en-IN')}</td>
-                  <td>
-                    {m.role !== 'OWNER' && (
-                      <button style={{background:'none', border:'none', color:'#ef4444', cursor:'pointer'}}
-                              onClick={() => handleRemove(m.id)}>Remove</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {members.map(m => {
+              const roleInfo = ROLE_LABELS[m.role] ?? ROLE_LABELS.VIEWER
+              const initials = (m.email || m.inviteEmail || '?')[0].toUpperCase()
+              const isPending = !m.acceptedAt
+              const isCurrentUser = m.email === user?.email
+
+              return (
+                <div key={m.id} className="team-member-card" style={{
+                  borderRadius: 0, border: 'none',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                }}>
+                  {/* Avatar */}
+                  <div className="team-avatar">{initials}</div>
+
+                  {/* Info */}
+                  <div className="team-member-info">
+                    <div className="team-member-email">
+                      {m.email || m.inviteEmail}
+                      {isCurrentUser && (
+                        <span style={{
+                          marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px',
+                          borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#60a5fa'
+                        }}>YOU</span>
+                      )}
+                      {isPending && (
+                        <span style={{
+                          marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px',
+                          borderRadius: 10, background: 'rgba(245,158,11,0.12)', color: '#fcd34d'
+                        }}>PENDING</span>
+                      )}
+                    </div>
+                    <div className="team-member-role">
+                      {isPending ? 'Invitation sent' : `Joined ${new Date(m.acceptedAt!).toLocaleDateString('en-IN')}`}
+                    </div>
+                  </div>
+
+                  {/* Role badge */}
+                  <span style={{
+                    padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+                    background: `${roleInfo.color}18`, color: roleInfo.color,
+                    border: `1px solid ${roleInfo.color}40`,
+                  }}>
+                    {roleInfo.label}
+                  </span>
+
+                  {/* Remove (not for self, not for owner) */}
+                  {!isCurrentUser && m.role !== 'OWNER' && (
+                    <button
+                      className="btn-danger"
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                      onClick={() => handleRemove(m.id, m.email || m.inviteEmail || 'member')}
+                      disabled={removing === m.id}
+                      title="Remove from team"
+                    >
+                      {removing === m.id ? '⏳' : '✕ Remove'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         )}
+      </div>
+
+      {/* ── Invite form ─────────────────────────────────────────────────────── */}
+      <div className="invite-form">
+        <div style={{ marginBottom: 16 }}>
+          <div className="card-title">Invite a Team Member</div>
+          <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>
+            They'll receive an email invitation to join your company workspace.
+          </div>
+        </div>
+
+        {invMsg && <div className="success-toast" style={{ marginBottom: 12 }}>{invMsg}</div>}
+        {invErr && <div className="auth-error" style={{ marginBottom: 12 }}>{invErr}</div>}
+
+        <div className="invite-form-row">
+          <div className="form-group">
+            <label>Email address</label>
+            <input
+              type="email"
+              className="form-input"
+              placeholder="colleague@company.com"
+              value={invEmail}
+              onChange={e => setInvEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleInvite()}
+            />
+          </div>
+          <div className="form-group" style={{ minWidth: 140 }}>
+            <label>Role</label>
+            <select
+              className="form-select"
+              value={invRole}
+              onChange={e => setInvRole(e.target.value as Role)}
+            >
+              <option value="VIEWER">Viewer</option>
+              <option value="EDITOR">Editor</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ justifyContent: 'flex-end', minWidth: 120 }}>
+            <label style={{ visibility: 'hidden' }}>Send</label>
+            <button
+              className="btn-primary"
+              onClick={handleInvite}
+              disabled={inviting}
+            >
+              {inviting ? '⏳ Sending…' : '✉️ Send Invite'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

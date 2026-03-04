@@ -1,14 +1,83 @@
 <!doctype html>
+<!-- PATH: finance-frontend/index.html -->
+<!-- FIX 1: Added Inter font from Google Fonts (premium UI requires it) -->
+<!-- FIX 2: Added Razorpay Checkout JS SDK (SubscriptionPage.tsx uses window.Razorpay) -->
+<!-- FIX 3: Added full security meta tags + PWA manifest link -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- ── Viewport ──────────────────────────────────────────────────────── -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>finance-frontend</title>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>  ← ADD THIS
+
+    <!-- ── Security headers (additional layer on top of server headers) ──── -->
+    <!-- Prevents clickjacking -->
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <!-- Prevents MIME-type sniffing -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <!-- Forces HTTPS in production -->
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains" />
+    <!-- Referrer policy — don't leak URL to third parties -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- ── SEO / Social ──────────────────────────────────────────────────── -->
+    <meta name="description"
+          content="AI-powered finance and accounting assistant for Indian SMBs. Track income, expenses, forecasts, and get AI insights." />
+    <meta name="keywords"
+          content="finance, accounting, AI, GST, bookkeeping, cash flow, India, SMB" />
+    <meta name="author" content="FinanceAI" />
+
+    <!-- Open Graph (for social sharing when you go live) -->
+    <meta property="og:title"       content="FinanceAI — Smart Finance for Indian Businesses" />
+    <meta property="og:description" content="AI-powered finance and accounting platform for SMBs." />
+    <meta property="og:type"        content="website" />
+    <meta property="og:image"       content="/og-image.png" />
+
+    <!-- ── Icons ─────────────────────────────────────────────────────────── -->
+    <link rel="icon"             type="image/svg+xml"  href="/vite.svg" />
+    <link rel="apple-touch-icon"                       href="/apple-touch-icon.png" />
+
+    <!-- ── PWA Manifest ──────────────────────────────────────────────────── -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#050c1a" />
+
+    <!-- ── FIX: Inter Font from Google Fonts ─────────────────────────────── -->
+    <!-- Preconnect for faster font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Inter weights used in App.css: 300, 400, 500, 600, 700, 800 -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ── FIX: Razorpay Checkout SDK ─────────────────────────────────────── -->
+    <!--
+      Required by SubscriptionPage.tsx which calls:
+        new window.Razorpay({ key: ..., ... }).open()
+      Without this script, the payment button throws "Razorpay is not defined".
+      Loading it here (blocking) ensures it's ready before React mounts.
+    -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <title>FinanceAI — Smart Finance Assistant</title>
   </head>
+
   <body>
+    <!-- React mounts here -->
     <div id="root"></div>
+
+    <!-- ── Vite entry point ───────────────────────────────────────────────── -->
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- ── No-script fallback ────────────────────────────────────────────── -->
+    <noscript>
+      <style>
+        body { background: #050c1a; color: #e2e8f0; font-family: sans-serif;
+               display: flex; align-items: center; justify-content: center;
+               min-height: 100vh; text-align: center; padding: 24px; }
+      </style>
+      <p>FinanceAI requires JavaScript to run.<br/>Please enable JavaScript in your browser.</p>
+    </noscript>
   </body>
 </html>

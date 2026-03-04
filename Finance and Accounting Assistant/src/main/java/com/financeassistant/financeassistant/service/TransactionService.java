@@ -1,17 +1,14 @@
 package com.financeassistant.financeassistant.service;
 
-// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/financeassistant/service/TransactionService.java
-// UPDATED: Added audit logging, recurring transaction fields
-
 import com.financeassistant.financeassistant.dto.CreateTransactionRequest;
 import com.financeassistant.financeassistant.dto.TransactionDTO;
+import com.financeassistant.financeassistant.entity.Category;
 import com.financeassistant.financeassistant.entity.Company;
 import com.financeassistant.financeassistant.entity.Transaction;
 import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.repository.TransactionRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -26,11 +23,16 @@ import java.util.stream.Collectors;
 @Service
 public class TransactionService {
 
-    @Autowired private TransactionRepository repo;
-    @Autowired private TransactionEventPublisher eventPublisher;
-    @Autowired private ReportingService reportingService;
-    @Autowired private AuditService auditService;
-    @PersistenceContext private EntityManager em;
+    @Autowired
+    private TransactionRepository repo;
+    @Autowired
+    private TransactionEventPublisher eventPublisher;
+    @Autowired
+    private ReportingService reportingService;
+    @Autowired
+    private AuditService auditService;
+    @PersistenceContext
+    private EntityManager em;
 
     public List<TransactionDTO> getTransactions(Long companyId) {
         return repo.findByCompanyIdOrderByDateDesc(companyId)
@@ -39,12 +41,25 @@ public class TransactionService {
 
     @Transactional
     public TransactionDTO createTransaction(Long companyId, CreateTransactionRequest req,
-                                             User currentUser, String ipAddress) {
+            User currentUser, String ipAddress) {
         Transaction tx = new Transaction();
         tx.setCompany(em.getReference(Company.class, companyId));
         tx.setDate(req.getDate());
         tx.setAmount(req.getAmount());
         tx.setDescription(req.getDescription());
+
+        // Set category if provided
+        if (req.getCategoryId() != null) {
+            tx.setCategory(em.getReference(Category.class, req.getCategoryId()));
+        }
+
+        // Set transaction type based on amount sign
+        tx.setType(req.getAmount().signum() >= 0
+                ? Transaction.TransactionType.INCOME
+                : Transaction.TransactionType.EXPENSE);
+
+        // Source defaults to MANUAL
+        tx.setSource("MANUAL");
 
         // Recurring support
         if (req.getRecurring() != null && req.getRecurring()) {
@@ -74,8 +89,53 @@ public class TransactionService {
     }
 
     @Transactional
+    public TransactionDTO updateTransaction(Long companyId, Long transactionId,
+            CreateTransactionRequest req,
+            User currentUser, String ipAddress) {
+        Transaction tx = repo.findById(transactionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
+
+        if (!tx.getCompany().getId().equals(companyId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        }
+
+        String oldValue = "amount=" + tx.getAmount() + " desc=" + tx.getDescription();
+
+        tx.setDate(req.getDate());
+        tx.setAmount(req.getAmount());
+        tx.setDescription(req.getDescription());
+
+        // Update category
+        if (req.getCategoryId() != null) {
+            tx.setCategory(em.getReference(Category.class, req.getCategoryId()));
+        }
+
+        // Update type based on amount
+        tx.setType(req.getAmount().signum() >= 0
+                ? Transaction.TransactionType.INCOME
+                : Transaction.TransactionType.EXPENSE);
+
+        // Recurring updates
+        if (req.getRecurring() != null) {
+            tx.setRecurring(req.getRecurring());
+            tx.setRecurrenceInterval(req.getRecurrenceInterval());
+            tx.setRecurrenceEndDate(req.getRecurrenceEndDate());
+        }
+
+        Transaction saved = repo.save(tx);
+        reportingService.evictPnLCache(companyId);
+
+        String newValue = "amount=" + req.getAmount() + " desc=" + req.getDescription();
+        auditService.log(currentUser != null ? currentUser.getId() : null, companyId,
+                AuditService.UPDATE_TRANSACTION, "Transaction", transactionId,
+                oldValue, newValue, ipAddress);
+
+        return toDTO(saved);
+    }
+
+    @Transactional
     public void deleteTransaction(Long companyId, Long transactionId,
-                                   User currentUser, String ipAddress) {
+            User currentUser, String ipAddress) {
         Transaction tx = repo.findById(transactionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
 

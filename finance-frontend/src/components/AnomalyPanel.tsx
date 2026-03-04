@@ -1,4 +1,6 @@
-import api from '../api'                          // ← JWT-aware instance
+// PATH: finance-frontend/src/components/AnomalyPanel.tsx
+// Displays ML-detected anomalous transactions as dismissible alert cards.
+// Shown at the top of the Dashboard when anomalies exist.
 
 interface AnomalyAlert {
   id:            number
@@ -8,75 +10,77 @@ interface AnomalyAlert {
   detectedAt:    string
 }
 
-interface AnomalyPanelProps {
+interface Props {
   companyId: number
   anomalies: AnomalyAlert[]
   onDismiss: (id: number) => void
 }
 
-function formatDateTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch {
-    return iso
-  }
-}
-
-function AnomalyPanel({ companyId, anomalies, onDismiss }: AnomalyPanelProps) {
+export default function AnomalyPanel({ anomalies, onDismiss }: Props) {
   if (anomalies.length === 0) return null
 
-  const handleDismiss = async (id: number): Promise<void> => {
+  const formatDate = (iso: string) => {
     try {
-      await api.delete(`/api/v1/${companyId}/anomalies/${id}`)
-      onDismiss(id)
-    } catch {
-      // silent — alert reappears on next 30 s poll if delete failed
-    }
+      return new Date(iso).toLocaleDateString('en-IN', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      })
+    } catch { return iso }
   }
 
   return (
-    <div className="anomaly-section">
-      <div className="anomaly-header">
-        <h3>
-          ⚠️ AI Anomaly Alerts
-          <span className="anomaly-badge">{anomalies.length}</span>
-        </h3>
-        <span className="anomaly-subtitle">
-          Unusual transactions detected by AI — review and dismiss when resolved
+    <div className="anomaly-panel">
+      <div className="anomaly-title">
+        <span>🚨</span>
+        <span>
+          {anomalies.length} Anomal{anomalies.length === 1 ? 'y' : 'ies'} Detected
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 400, color: '#fcd34d', marginLeft: 4 }}>
+          — Unusual transactions flagged by AI
         </span>
       </div>
 
-      <div className="anomaly-list">
-        {anomalies.map(a => (
-          <div key={a.id} className="anomaly-card">
-            <div className="anomaly-icon">🚨</div>
-            <div className="anomaly-details">
-              <div className="anomaly-amount">
-                ₹{Math.abs(a.amount).toLocaleString('en-IN')}
-                <span className="anomaly-type">
-                  {a.amount >= 0 ? ' income' : ' expense'}
-                </span>
-              </div>
-              <div className="anomaly-meta">
-                {a.transactionId !== null && <span>Txn #{a.transactionId} · </span>}
-                <span>Detected {formatDateTime(a.detectedAt)}</span>
-              </div>
-            </div>
+      {anomalies.map(a => (
+        <div key={a.id} className="anomaly-item">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span className="anomaly-amount">
+              {a.amount >= 0 ? '+' : '−'}₹{Math.abs(a.amount).toLocaleString('en-IN')}
+            </span>
+            {a.transactionId && (
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                Transaction #{a.transactionId}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
+            <span className="anomaly-date">{formatDate(a.detectedAt)}</span>
+            <span style={{
+              padding: '2px 8px', borderRadius: 5, background: 'rgba(245,158,11,0.12)',
+              color: '#fcd34d', fontSize: 10, fontWeight: 700, border: '1px solid rgba(245,158,11,0.3)'
+            }}>
+              ANOMALY
+            </span>
             <button
-              className="anomaly-dismiss"
-              onClick={() => { void handleDismiss(a.id) }}
-              title="Dismiss this alert"
+              className="btn-dismiss"
+              onClick={() => onDismiss(a.id)}
+              title="Dismiss alert"
+              aria-label="Dismiss anomaly alert"
             >
               ✕
             </button>
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
+
+      <p style={{
+        fontSize: 11, color: '#78716c', marginTop: 10, marginBottom: 0,
+        display: 'flex', alignItems: 'center', gap: 6
+      }}>
+        <span>ℹ️</span>
+        These transactions were flagged by the Isolation Forest ML model as statistical outliers.
+        Review them manually — dismiss if expected.
+      </p>
     </div>
   )
 }
-
-export default AnomalyPanel

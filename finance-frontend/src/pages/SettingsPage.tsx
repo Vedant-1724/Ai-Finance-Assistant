@@ -1,36 +1,144 @@
 // PATH: finance-frontend/src/pages/SettingsPage.tsx
-import { useState } from 'react'
+// Account settings — profile, email notifications, security, data export, danger zone.
+// Calls:
+//   GET  /api/v1/settings          → load preferences
+//   POST /api/v1/settings          → save preferences
+//   POST /api/v1/auth/change-password
+//   GET  /api/v1/{companyId}/transactions/export?format=csv
+
+import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
+interface EmailPrefs {
+  anomalyAlerts:  boolean
+  forecastAlerts: boolean
+  budgetAlerts:   boolean
+  weeklySummary:  boolean
+  trialReminders: boolean
+}
+
+interface UserSettings {
+  email:       string
+  companyName: string
+  currency:    string
+  emailPrefs:  EmailPrefs
+}
+
+const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
+
 export default function SettingsPage() {
-  const { user } = useAuth()
-  const [exporting, setExporting]   = useState<'pdf'|'csv'|null>(null)
-  const [exportMsg, setExportMsg]   = useState<string|null>(null)
-  const companyId = user?.companyId
+  const { user, logout } = useAuth()
+  const [settings,   setSettings]   = useState<UserSettings | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [saving,     setSaving]     = useState(false)
+  const [saveMsg,    setSaveMsg]    = useState<string | null>(null)
+  const [saveErr,    setSaveErr]    = useState<string | null>(null)
+
+  // Password change
+  const [pwCurrent,  setPwCurrent]  = useState('')
+  const [pwNew,      setPwNew]      = useState('')
+  const [pwConfirm,  setPwConfirm]  = useState('')
+  const [pwSaving,   setPwSaving]   = useState(false)
+  const [pwMsg,      setPwMsg]      = useState<string | null>(null)
+  const [pwErr,      setPwErr]      = useState<string | null>(null)
+  const [showPw,     setShowPw]     = useState(false)
+
+  // Export
+  const [exporting,  setExporting]  = useState(false)
 
   const headers = { Authorization: `Bearer ${user?.token}` }
 
-  const handleExport = async (type: 'pdf' | 'csv') => {
-    setExporting(type); setExportMsg(null)
+  // ── Load ──────────────────────────────────────────────────────────────────
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
-      const res = await api.get(`/api/v1/${companyId}/export/${type}`, {
-        headers, responseType: 'blob'
+      const res = await api.get<UserSettings>('/api/v1/settings', { headers })
+      setSettings(res.data)
+    } catch {
+      // Fallback defaults so page always renders
+      setSettings({
+        email:       user?.email ?? '',
+        companyName: 'My Company',
+        currency:    'INR',
+        emailPrefs: {
+          anomalyAlerts:  true,
+          forecastAlerts: true,
+          budgetAlerts:   true,
+          weeklySummary:  true,
+          trialReminders: true,
+        },
       })
-      const url  = URL.createObjectURL(new Blob([res.data]))
+    } finally { setLoading(false) }
+  }, [user?.token, user?.email])
+
+  useEffect(() => { void load() }, [load])
+
+  // ── Save settings ─────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!settings) return
+    setSaving(true); setSaveErr(null); setSaveMsg(null)
+    try {
+      await api.post('/api/v1/settings', settings, { headers })
+      setSaveMsg('✅ Settings saved successfully.')
+      setTimeout(() => setSaveMsg(null), 3500)
+    } catch {
+      setSaveErr('Failed to save settings. Please try again.')
+    } finally { setSaving(false) }
+  }
+
+  // ── Change password ───────────────────────────────────────────────────────
+  const handleChangePassword = async () => {
+    setPwErr(null); setPwMsg(null)
+    if (!pwCurrent)              { setPwErr('Enter your current password.');   return }
+    if (pwNew.length < 8)        { setPwErr('New password must be ≥ 8 characters.'); return }
+    if (pwNew !== pwConfirm)     { setPwErr('New passwords do not match.');    return }
+    if (pwNew === pwCurrent)     { setPwErr('New password must differ from current.'); return }
+
+    setPwSaving(true)
+    try {
+      await api.post('/api/v1/auth/change-password',
+        { currentPassword: pwCurrent, newPassword: pwNew },
+        { headers }
+      )
+      setPwMsg('✅ Password changed. You will need to log in again.')
+      setPwCurrent(''); setPwNew(''); setPwConfirm('')
+      setTimeout(() => logout(), 2500)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setPwErr(msg ?? 'Failed to change password.')
+    } finally { setPwSaving(false) }
+  }
+
+  // ── Export CSV ────────────────────────────────────────────────────────────
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await api.get(
+        `/api/v1/${user?.companyId}/transactions/export?format=csv`,
+        { headers, responseType: 'blob' }
+      )
+      const url  = URL.createObjectURL(new Blob([res.data as BlobPart]))
       const link = document.createElement('a')
-      const date = new Date().toISOString().slice(0,10)
-      link.href = url
-      link.download = `transactions-${date}.${type}`
+      link.href  = url
+      link.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`
       link.click()
       URL.revokeObjectURL(url)
-      setExportMsg(`✅ ${type.toUpperCase()} downloaded successfully`)
-    } catch (e: any) {
-      if (e?.response?.status === 402) setExportMsg('⚠️ PDF export requires Trial or Pro. CSV is free.')
-      else setExportMsg('❌ Export failed. Please try again.')
-    } finally { setExporting(null) }
-    setTimeout(() => setExportMsg(null), 4000)
+    } catch {
+      alert('Export failed. Please try again.')
+    } finally { setExporting(false) }
   }
+
+  const togglePref = (key: keyof EmailPrefs) => {
+    if (!settings) return
+    setSettings(prev => prev ? {
+      ...prev,
+      emailPrefs: { ...prev.emailPrefs, [key]: !prev.emailPrefs[key] }
+    } : prev)
+  }
+
+  if (loading) return <div className="loading">⏳ Loading settings…</div>
+  if (!settings) return null
 
   return (
     <div className="settings-page">
@@ -38,50 +146,212 @@ export default function SettingsPage() {
         <h1 className="page-title">⚙️ Settings</h1>
       </div>
 
-      {/* Export Section */}
-      <div className="card" style={{marginBottom:24}}>
-        <h3 style={{marginTop:0, color:'#e2e8f0'}}>📥 Export Your Data</h3>
-        <p style={{color:'#94a3b8', marginBottom:16}}>Download all your transactions for backup or your accountant.</p>
-        {exportMsg && <div className="success-toast" style={{marginBottom:12}}>{exportMsg}</div>}
-        <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
-          <button className="btn-secondary" onClick={() => handleExport('csv')} disabled={exporting !== null}
-                  style={{display:'flex', alignItems:'center', gap:8}}>
-            {exporting === 'csv' ? '⏳ Exporting...' : '📊 Export CSV'} <span style={{color:'#10b981', fontSize:11}}>FREE</span>
-          </button>
-          <button className="btn-primary" onClick={() => handleExport('pdf')} disabled={exporting !== null}
-                  style={{display:'flex', alignItems:'center', gap:8}}>
-            {exporting === 'pdf' ? '⏳ Generating PDF...' : '📄 Export PDF'} <span style={{color:'#a78bfa', fontSize:11}}>PRO</span>
+      {saveMsg && <div className="success-toast">{saveMsg}</div>}
+      {saveErr && <div className="error" style={{ marginBottom: 12 }}>{saveErr}</div>}
+
+      {/* ── Profile ──────────────────────────────────────────────────────── */}
+      <div className="settings-section">
+        <div className="settings-section-title">👤 Profile</div>
+        <div className="settings-section-desc">Your account and company information.</div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Email address</label>
+            <input
+              type="email" className="form-input"
+              value={settings.email}
+              onChange={e => setSettings(prev => prev ? { ...prev, email: e.target.value } : prev)}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Company name</label>
+            <input
+              type="text" className="form-input"
+              value={settings.companyName}
+              onChange={e => setSettings(prev => prev ? { ...prev, companyName: e.target.value } : prev)}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Default currency</label>
+            <select
+              className="form-select"
+              value={settings.currency}
+              onChange={e => setSettings(prev => prev ? { ...prev, currency: e.target.value } : prev)}
+            >
+              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? '⏳ Saving…' : '💾 Save Changes'}
           </button>
         </div>
       </div>
 
-      {/* Account Info */}
-      <div className="card" style={{marginBottom:24}}>
-        <h3 style={{marginTop:0, color:'#e2e8f0'}}>👤 Account</h3>
-        <div style={{color:'#94a3b8'}}>
-          <div style={{marginBottom:8}}><strong style={{color:'#e2e8f0'}}>Email:</strong> {user?.email}</div>
-          <div style={{marginBottom:8}}><strong style={{color:'#e2e8f0'}}>Plan:</strong> {' '}
-            <span style={{color: user?.subscriptionTier === 'ACTIVE' ? '#10b981' : '#f59e0b'}}>
-              {user?.subscriptionTier || 'FREE'}
+      {/* ── Email Notifications ───────────────────────────────────────────── */}
+      <div className="settings-section">
+        <div className="settings-section-title">🔔 Email Notifications</div>
+        <div className="settings-section-desc">
+          Control which emails FinanceAI sends to {settings.email}.
+        </div>
+
+        {(
+          [
+            { key: 'anomalyAlerts',  label: 'Anomaly Alerts',  desc: 'Email when unusual transactions are detected' },
+            { key: 'forecastAlerts', label: 'Forecast Alerts',  desc: 'Weekly cash flow forecast summary' },
+            { key: 'budgetAlerts',   label: 'Budget Alerts',    desc: 'Alert when spending exceeds budget limits' },
+            { key: 'weeklySummary',  label: 'Weekly Summary',   desc: 'Monday morning P&L and health score digest' },
+            { key: 'trialReminders', label: 'Trial Reminders',  desc: 'Reminder emails before your trial expires' },
+          ] as { key: keyof EmailPrefs; label: string; desc: string }[]
+        ).map(({ key, label, desc }) => (
+          <div key={key} className="settings-row">
+            <div>
+              <div className="settings-row-label">{label}</div>
+              <div className="settings-row-desc">{desc}</div>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={settings.emailPrefs[key]}
+                onChange={() => togglePref(key)}
+              />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+        ))}
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? '⏳ Saving…' : '💾 Save Preferences'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Security ──────────────────────────────────────────────────────── */}
+      <div className="settings-section">
+        <div className="settings-section-title">🔐 Security</div>
+        <div className="settings-section-desc">Change your password. You'll be logged out after a successful change.</div>
+
+        {pwMsg && <div className="success-toast" style={{ marginBottom: 12 }}>{pwMsg}</div>}
+        {pwErr && <div className="auth-error" style={{ marginBottom: 12 }}>{pwErr}</div>}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Current password</label>
+            <div className="input-wrapper">
+              <input
+                type={showPw ? 'text' : 'password'}
+                className="form-input"
+                placeholder="Enter current password"
+                value={pwCurrent}
+                onChange={e => setPwCurrent(e.target.value)}
+              />
+              <button className="input-icon" type="button" onClick={() => setShowPw(p => !p)}>
+                {showPw ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>New password</label>
+            <input
+              type={showPw ? 'text' : 'password'}
+              className="form-input"
+              placeholder="Min. 8 characters"
+              value={pwNew}
+              onChange={e => setPwNew(e.target.value)}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Confirm new password</label>
+            <input
+              type={showPw ? 'text' : 'password'}
+              className="form-input"
+              placeholder="Repeat new password"
+              value={pwConfirm}
+              onChange={e => setPwConfirm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Password strength indicator */}
+        {pwNew && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 4, height: 4, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 4, transition: 'width 0.3s',
+                width: `${Math.min(100, pwNew.length * 8)}%`,
+                background: pwNew.length < 8 ? '#ef4444' : pwNew.length < 12 ? '#f59e0b' : '#22c55e'
+              }} />
+            </div>
+            <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, display: 'block' }}>
+              {pwNew.length < 8 ? 'Too short' : pwNew.length < 12 ? 'Good' : 'Strong'} password
             </span>
           </div>
-          <div><strong style={{color:'#e2e8f0'}}>AI Chats Today:</strong> {user?.aiChatsRemaining} remaining</div>
+        )}
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={handleChangePassword} disabled={pwSaving}>
+            {pwSaving ? '⏳ Changing…' : '🔐 Change Password'}
+          </button>
         </div>
       </div>
 
-      {/* Email Notification Preferences */}
-      <div className="card">
-        <h3 style={{marginTop:0, color:'#e2e8f0'}}>🔔 Email Notifications</h3>
-        <p style={{color:'#64748b', fontSize:13}}>
-          Email notifications are sent automatically. To manage preferences, update your profile.
-          Currently configured via <code style={{color:'#3b82f6'}}>application.yaml → app.mail.enabled</code>.
-        </p>
-        <div style={{color:'#94a3b8', fontSize:13, lineHeight:1.8}}>
-          ✅ Anomaly detection alerts<br/>
-          ✅ Cash flow warnings<br/>
-          ✅ Budget threshold alerts (90%+)<br/>
-          ✅ Trial expiry reminders<br/>
-          ✅ Monthly financial health score
+      {/* ── Data Export ───────────────────────────────────────────────────── */}
+      <div className="settings-section">
+        <div className="settings-section-title">📦 Data Export</div>
+        <div className="settings-section-desc">Download your data at any time. CSV includes all transactions.</div>
+
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-label">Export Transactions</div>
+            <div className="settings-row-desc">Download all transactions as a CSV file</div>
+          </div>
+          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
+            {exporting ? '⏳ Exporting…' : '⬇️ Download CSV'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Danger Zone ───────────────────────────────────────────────────── */}
+      <div className="settings-section danger-zone">
+        <div className="settings-section-title">⚠️ Danger Zone</div>
+        <div className="settings-section-desc">Irreversible actions. Proceed with caution.</div>
+
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-label">Log Out</div>
+            <div className="settings-row-desc">Sign out of your account on this device</div>
+          </div>
+          <button className="btn-secondary" onClick={logout}>
+            🚪 Log Out
+          </button>
+        </div>
+
+        <div className="settings-row">
+          <div>
+            <div className="settings-row-label" style={{ color: '#f87171' }}>Delete Account</div>
+            <div className="settings-row-desc">
+              Permanently deletes all data. This cannot be undone.
+            </div>
+          </div>
+          <button
+            className="btn-danger"
+            onClick={() => {
+              if (confirm(
+                'Are you absolutely sure you want to delete your account?\n\n' +
+                'This will permanently delete ALL your transactions, reports, ' +
+                'invoices, and company data. This action CANNOT be undone.'
+              )) {
+                api.delete('/api/v1/account', { headers })
+                  .then(() => logout())
+                  .catch(() => alert('Account deletion failed. Please contact support.'))
+              }
+            }}
+          >
+            🗑️ Delete Account
+          </button>
         </div>
       </div>
     </div>

@@ -1,8 +1,6 @@
-// WHY: Proxies /parse-statement through Spring Boot so:
-//  1. JWT auth is enforced before the file ever reaches Python
-//  2. Python port 5000 never needs to be publicly accessible
-//  3. Company ownership is verified before parsing
-//  4. File size/type is validated at the Java layer too
+// PATH: finance-backend/src/main/java/com/financeassistant/financeassistant/controller/AiProxyController.java
+// FIX: Default AI service URL changed from http://localhost:5000 → http://localhost:5001
+//      to match finance-ai/app.py PORT default and Dockerfile EXPOSE 5001.
 
 package com.financeassistant.financeassistant.controller;
 
@@ -21,32 +19,54 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.Set;
 
+/**
+ * Authenticated proxy — routes file uploads from the React frontend
+ * to the internal Python AI service.
+ *
+ * Security:
+ *  - JWT authentication enforced via Spring Security before this controller runs
+ *  - @PreAuthorize ensures only the company owner can call these endpoints
+ *  - Server-side file size + MIME type validation (defense-in-depth on top of frontend checks)
+ *  - Python service port is NEVER exposed publicly — all traffic goes through here
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/{companyId}")
 @RequiredArgsConstructor
 public class AiProxyController {
 
-    @Value("${ai.service.url:http://localhost:5000}")
+    // FIX: default changed from http://localhost:5000 → http://localhost:5001
+    // Set AI_SERVICE_URL env var in production (e.g. http://finance-ai:5001 in Docker Compose)
+    @Value("${ai.service.url:http://localhost:5001}")
     private String aiServiceUrl;
 
     private final RestTemplate restTemplate;
 
-    // Allowed MIME types — server-side whitelist
-    private static final Set<String> ALLOWED_TYPES = Set.of(
-            "text/csv", "application/csv",
+    // ── Server-side allow-list for uploaded file MIME types ───────────────────
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "text/csv",
+            "application/csv",
             "application/pdf",
-            "image/png", "image/jpeg", "image/webp", "image/bmp", "image/tiff"
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/bmp",
+            "image/tiff"
     );
 
-    private static final long MAX_FILE_SIZE = 10L * 1024 * 1024; // 10MB
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
+            "csv", "pdf", "png", "jpg", "jpeg", "webp", "bmp", "tiff"
+    );
 
+    private static final long MAX_FILE_BYTES = 10L * 1024 * 1024; // 10 MB
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/v1/{companyId}/parse-statement
+    // ─────────────────────────────────────────────────────────────────────────
     /**
-     * POST /api/v1/{companyId}/parse-statement
-     *
-     * Authenticated proxy to the Python parse-statement endpoint.
-     * The user must own the company. File is validated here, then forwarded
-     * to Python internally (Python is NOT publicly exposed).
+     * Authenticated proxy: validates the uploaded statement file,
+     * then forwards it to Python /parse-statement.
+     * Python returns a list of redacted transactions for the user to review.
      */
     @PostMapping("/parse-statement")
     @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
@@ -54,72 +74,131 @@ public class AiProxyController {
             @PathVariable Long companyId,
             @RequestParam("file") MultipartFile file) throws IOException {
 
-        // Validate file is present
+        // 1. Null / empty check
         if (file == null || file.isEmpty()) {
-            return ResponseEntity.badRequest().body("{\"error\":\"No file uploaded\"}");
+            return badRequest("No file uploaded.");
         }
 
-        // Server-side file size check
-        if (file.getSize() > MAX_FILE_SIZE) {
-            return ResponseEntity.badRequest()
-                    .body("{\"error\":\"File too large. Maximum 10MB allowed.\"}");
+        // 2. Size check
+        if (file.getSize() > MAX_FILE_BYTES) {
+            return badRequest("File too large. Maximum 10 MB allowed.");
         }
 
-        // Server-side MIME type check (defense-in-depth)
+        // 3. MIME type check
         String contentType = file.getContentType() != null
                 ? file.getContentType().toLowerCase().split(";")[0].trim()
                 : "";
-        if (!ALLOWED_TYPES.contains(contentType)) {
-            // Some browsers send wrong MIME for CSV — also check extension
-            String filename = file.getOriginalFilename() != null
-                    ? file.getOriginalFilename().toLowerCase() : "";
-            boolean isCsv = filename.endsWith(".csv");
-            if (!isCsv) {
-                log.warn("Rejected file type: {} for company={}", contentType, companyId);
-                return ResponseEntity.badRequest()
-                        .body("{\"error\":\"Unsupported file type. Use CSV, PDF, PNG, or JPG.\"}");
-            }
+
+        String filename  = file.getOriginalFilename() != null ? file.getOriginalFilename() : "";
+        String extension = filename.contains(".")
+                ? filename.substring(filename.lastIndexOf('.') + 1).toLowerCase()
+                : "";
+
+        boolean mimeOk = ALLOWED_CONTENT_TYPES.contains(contentType);
+        boolean extOk  = ALLOWED_EXTENSIONS.contains(extension);
+
+        // Accept if either MIME or extension matches (browsers send wrong MIME for CSV)
+        if (!mimeOk && !extOk) {
+            log.warn("Rejected file upload: contentType='{}', extension='{}', company={}",
+                    contentType, extension, companyId);
+            return badRequest(
+                    "Unsupported file type. Allowed: CSV, PDF, PNG, JPG, WEBP, BMP, TIFF."
+            );
         }
 
-        // Sanitize filename — prevent path traversal
-        String safeFilename = file.getOriginalFilename() != null
-                ? file.getOriginalFilename().replaceAll("[^a-zA-Z0-9._\\-]", "_")
-                : "upload.bin";
+        // 4. Forward to Python AI service
+        log.info("Forwarding parse-statement: company={}, file='{}', size={}B, type='{}'",
+                companyId, filename, file.getSize(), contentType);
 
-        log.info("Proxying parse-statement for company={}, file={}, size={}",
-                companyId, safeFilename, file.getSize());
-
-        // Forward to Python AI service (internal network only)
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-            ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
-                @Override
-                public String getFilename() { return safeFilename; }
-            };
-
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", resource);
+            body.add("file", new ByteArrayResource(file.getBytes()) {
+                @Override public String getFilename() { return filename; }
+            });
 
-            HttpEntity<MultiValueMap<String, Object>> requestEntity =
-                    new HttpEntity<>(body, headers);
+            HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
 
+            // FIX: aiServiceUrl now defaults to http://localhost:5001
             ResponseEntity<String> response = restTemplate.exchange(
                     aiServiceUrl + "/parse-statement",
                     HttpMethod.POST,
-                    requestEntity,
+                    request,
                     String.class
             );
 
-            return ResponseEntity.status(response.getStatusCode())
+            return ResponseEntity
+                    .status(response.getStatusCode())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(response.getBody());
 
         } catch (Exception e) {
-            log.error("AI service unreachable for company={}: {}", companyId, e.getMessage());
+            log.error("AI parse-statement error for company {}: {}", companyId, e.getMessage());
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body("{\"error\":\"AI service is unavailable. Please ensure Python is running.\"}");
+                    .body("{\"error\":\"AI service is unavailable. "
+                            + "Ensure the Python service is running on port 5001.\"}");
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/v1/{companyId}/ocr
+    // ─────────────────────────────────────────────────────────────────────────
+    /**
+     * Authenticated proxy: forwards invoice image to Python /ocr endpoint.
+     */
+    @PostMapping("/ocr")
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    public ResponseEntity<String> ocrInvoice(
+            @PathVariable Long companyId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        if (file == null || file.isEmpty()) {
+            return badRequest("No file uploaded.");
+        }
+        if (file.getSize() > MAX_FILE_BYTES) {
+            return badRequest("File too large. Maximum 10 MB allowed.");
+        }
+
+        log.info("Forwarding OCR: company={}, file='{}', size={}B",
+                companyId, file.getOriginalFilename(), file.getSize());
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "invoice";
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new ByteArrayResource(file.getBytes()) {
+                @Override public String getFilename() { return filename; }
+            });
+
+            HttpEntity<MultiValueMap<String, Object>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    aiServiceUrl + "/ocr",
+                    HttpMethod.POST,
+                    request,
+                    String.class
+            );
+
+            return ResponseEntity
+                    .status(response.getStatusCode())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(response.getBody());
+
+        } catch (Exception e) {
+            log.error("OCR error for company {}: {}", companyId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("{\"error\":\"OCR service is unavailable.\"}");
+        }
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────
+    private static ResponseEntity<String> badRequest(String message) {
+        return ResponseEntity.badRequest()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\":\"" + message.replace("\"", "'") + "\"}");
     }
 }

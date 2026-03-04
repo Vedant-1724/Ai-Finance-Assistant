@@ -15,32 +15,33 @@ declare global {
 }
 
 interface SubStatus {
-  tier:             string
-  status:           string
+  tier: string
+  status: string
   trialDaysRemaining: number
   aiChatsRemaining: number
   trialAlreadyUsed: boolean
 }
 
-const FREE_FEATURES    = ['10 transactions visible', '3 AI chats / day', 'Basic dashboard', 'Add up to 20 transactions']
-const FREE_LOCKED      = ['Cash flow forecast', 'Anomaly detection', 'Invoice OCR', 'P&L reports', 'Advanced charts']
-const TRIAL_FEATURES   = ['All premium features for 5 days', '10 AI chats / day', 'Cash flow forecast (30 days)', 'Anomaly detection', 'Invoice OCR parsing', 'Full P&L reports', 'Unlimited transactions']
-const PRO_FEATURES     = ['Everything in Trial', '50 AI chats / day', 'Priority support', 'Export to PDF/CSV (soon)', 'Email alerts (soon)', 'Bank sync via Plaid (soon)']
+const FREE_FEATURES = ['10 transactions visible', '3 AI chats / day', 'Basic dashboard', 'Add up to 20 transactions']
+const FREE_LOCKED = ['Cash flow forecast', 'Anomaly detection', 'Invoice OCR', 'P&L reports', 'Advanced charts']
+const TRIAL_FEATURES = ['All premium features for 5 days', '10 AI chats / day', 'Cash flow forecast (30 days)', 'Anomaly detection', 'Invoice OCR parsing', 'Full P&L reports', 'Unlimited transactions']
+const PRO_FEATURES = ['Everything in Trial', '50 AI chats / day', 'Priority support', 'Export to PDF/CSV (soon)', 'Email alerts (soon)', 'Bank sync via Plaid (soon)']
 
 export default function SubscriptionPage() {
   const { user, updateSubscription } = useAuth()
-  const navigate    = useNavigate()
+  const navigate = useNavigate()
   const [subStatus, setSubStatus] = useState<SubStatus | null>(null)
-  const [loading, setLoading]     = useState(false)
+  const [loading, setLoading] = useState(false)
   const [trialLoading, setTrialLoading] = useState(false)
-  const [error, setError]         = useState<string | null>(null)
-  const [msg, setMsg]             = useState<string | null>(null)
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
     axios.get('/api/v1/subscription/status', {
       headers: { Authorization: `Bearer ${user.token}` }
-    }).then(r => setSubStatus(r.data)).catch(() => {})
+    }).then(r => setSubStatus(r.data)).catch(() => { })
   }, [user])
 
   const handleStartTrial = async () => {
@@ -67,6 +68,25 @@ export default function SubscriptionPage() {
     }
   }
 
+  const handleCancelSubscription = async () => {
+    if (!user) return
+    if (!window.confirm('Are you sure you want to cancel your subscription? You will be moved to the Free tier.')) return
+    setCancelLoading(true)
+    setError(null)
+    try {
+      await axios.post('/api/v1/subscription/cancel', {}, {
+        headers: { Authorization: `Bearer ${user.token}` }
+      })
+      updateSubscription('FREE', 0, 3)
+      setMsg('Your subscription has been cancelled. You are now on the Free tier.')
+      setSubStatus(prev => prev ? { ...prev, tier: 'FREE', status: 'CANCELLED' } : null)
+    } catch {
+      setError('Failed to cancel subscription. Please try again.')
+    } finally {
+      setCancelLoading(false)
+    }
+  }
+
   const handleSubscribe = async () => {
     if (!user) return
     setLoading(true)
@@ -79,14 +99,14 @@ export default function SubscriptionPage() {
       )
       const order = orderRes.data as any
       const options = {
-        key:          order.keyId,
-        amount:       order.amount,
-        currency:     order.currency,
-        name:         'FinanceAI',
-        description:  'Pro Subscription — ₹499/month',
-        order_id:     order.id,
-        prefill:      { email: user.email },
-        theme:        { color: '#3b82f6' },
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'FinanceAI',
+        description: 'Pro Subscription — ₹499/month',
+        order_id: order.id,
+        prefill: { email: user.email },
+        theme: { color: '#3b82f6' },
         handler: async (res: any) => {
           await axios.post('/api/v1/payment/verify', res, {
             headers: { Authorization: `Bearer ${user.token}` }
@@ -112,9 +132,9 @@ export default function SubscriptionPage() {
   }
 
   const currentTier = subStatus?.tier ?? user?.subscriptionTier ?? 'FREE'
-  const isActive    = currentTier === 'ACTIVE'
-  const isTrial     = currentTier === 'TRIAL'
-  const isFree      = !isActive && !isTrial
+  const isActive = currentTier === 'ACTIVE'
+  const isTrial = currentTier === 'TRIAL'
+  const isFree = !isActive && !isTrial
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
@@ -130,11 +150,11 @@ export default function SubscriptionPage() {
         <h1 className="page-title" style={{ fontSize: 28, marginBottom: 8 }}>Choose your plan</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
           {isActive ? '✅ You are on the Pro plan — thank you for subscribing!'
-          : isTrial ? `⏳ Free trial active — ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining`
-          : 'Start free, upgrade when you need more power'}
+            : isTrial ? `⏳ Free trial active — ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining`
+              : 'Start free, upgrade when you need more power'}
         </p>
-        {msg   && <div className="success-box" style={{ marginTop: 16, textAlign: 'left', maxWidth: 500, margin: '16px auto 0' }}>{msg}</div>}
-        {error && <div className="error-box"   style={{ marginTop: 16, textAlign: 'left', maxWidth: 500, margin: '16px auto 0' }}>⚠️ {error}</div>}
+        {msg && <div className="success-box" style={{ marginTop: 16, textAlign: 'left', maxWidth: 500, margin: '16px auto 0' }}>{msg}</div>}
+        {error && <div className="error-box" style={{ marginTop: 16, textAlign: 'left', maxWidth: 500, margin: '16px auto 0' }}>⚠️ {error}</div>}
       </div>
 
       <div className="plans-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px,1fr))' }}>
@@ -216,8 +236,22 @@ export default function SubscriptionPage() {
             onClick={handleSubscribe}
             disabled={loading || isActive}
           >
-            {loading  ? '⏳ Opening payment…' : isActive ? '✅ Subscribed' : '💳 Subscribe — ₹499/mo'}
+            {loading ? '⏳ Opening payment…' : isActive ? '✅ Subscribed' : '💳 Subscribe — ₹499/mo'}
           </button>
+          {(isActive || isTrial) && (
+            <button
+              onClick={handleCancelSubscription}
+              disabled={cancelLoading}
+              style={{
+                width: '100%', marginTop: 8, padding: '10px', borderRadius: 8,
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                color: '#f87171', cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                transition: 'all 0.15s',
+              }}
+            >
+              {cancelLoading ? '⏳ Cancelling…' : '✕ Cancel Subscription'}
+            </button>
+          )}
           <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
             🔒 Secured by Razorpay · No hidden charges
           </p>

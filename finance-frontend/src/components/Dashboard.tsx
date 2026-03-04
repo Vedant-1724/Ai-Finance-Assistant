@@ -6,35 +6,35 @@ import AnomalyPanel from './AnomalyPanel'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface Transaction {
-  id:           number
-  date:         string
-  amount:       number
-  description:  string
+  id: number
+  date: string
+  amount: number
+  description: string
   categoryName: string | null
 }
 
 interface CategoryBreakdown {
   categoryName: string | null
-  amount:       number
-  type:         'INCOME' | 'EXPENSE' | null
+  amount: number
+  type: 'INCOME' | 'EXPENSE' | null
 }
 
 interface PnLReport {
-  period:       string
-  startDate:    string
-  endDate:      string
-  totalIncome:  number
+  period: string
+  startDate: string
+  endDate: string
+  totalIncome: number
   totalExpense: number
-  netProfit:    number
-  breakdown:    CategoryBreakdown[]
+  netProfit: number
+  breakdown: CategoryBreakdown[]
 }
 
 interface AnomalyAlert {
-  id:            number
-  companyId:     number
+  id: number
+  companyId: number
   transactionId: number | null
-  amount:        number
-  detectedAt:    string
+  amount: number
+  detectedAt: string
 }
 
 interface DashboardProps {
@@ -46,17 +46,19 @@ type Period = 'month' | 'quarter' | 'year'
 // ── Component ─────────────────────────────────────────────────────────────────
 function Dashboard({ companyId }: DashboardProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [txnLoading,   setTxnLoading]   = useState(true)
-  const [txnError,     setTxnError]     = useState<string | null>(null)
+  const [txnLoading, setTxnLoading] = useState(true)
+  const [txnError, setTxnError] = useState<string | null>(null)
 
-  const [pnl,          setPnl]          = useState<PnLReport | null>(null)
-  const [pnlLoading,   setPnlLoading]   = useState(true)
-  const [pnlError,     setPnlError]     = useState<string | null>(null)
+  const [pnl, setPnl] = useState<PnLReport | null>(null)
+  const [pnlLoading, setPnlLoading] = useState(true)
+  const [pnlError, setPnlError] = useState<string | null>(null)
   const [activePeriod, setActivePeriod] = useState<Period>('month')
 
-  const [showModal,  setShowModal]  = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [editingTxn, setEditingTxn] = useState<Transaction | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [anomalies,  setAnomalies]  = useState<AnomalyAlert[]>([])
+  const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([])
+  const [deleteConfirm, setDeleteConfirm] = useState<Transaction | null>(null)
 
   // ── Fetch transactions ─────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
@@ -110,14 +112,35 @@ function Dashboard({ companyId }: DashboardProps) {
     void fetchTransactions()
     void fetchPnL(activePeriod)
     setTimeout(() => { void fetchAnomalies() }, 5000)
-    setSuccessMsg('Transaction added successfully!')
+    setSuccessMsg(editingTxn ? 'Transaction updated successfully!' : 'Transaction added successfully!')
+    setEditingTxn(null)
     setTimeout(() => setSuccessMsg(null), 3500)
   }
 
+  // ── Delete handler ────────────────────────────────────────────────────────
+  const handleDelete = async (tx: Transaction) => {
+    try {
+      await api.delete(`/api/v1/${companyId}/transactions/${tx.id}`)
+      setDeleteConfirm(null)
+      setSuccessMsg('Transaction deleted successfully!')
+      setTimeout(() => setSuccessMsg(null), 3500)
+      void fetchTransactions()
+      void fetchPnL(activePeriod)
+    } catch {
+      setSuccessMsg(null)
+    }
+  }
+
+  // ── Edit handler ──────────────────────────────────────────────────────────
+  const handleEdit = (tx: Transaction) => {
+    setEditingTxn(tx)
+    setShowModal(true)
+  }
+
   // ── Derived metrics ────────────────────────────────────────────────────────
-  const liveIncome  = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const liveIncome = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const liveExpense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
-  const liveNet     = liveIncome - liveExpense
+  const liveNet = liveIncome - liveExpense
 
   const periodLabel: Record<Period, string> = {
     month: 'This Month', quarter: 'This Quarter', year: 'This Year',
@@ -270,7 +293,7 @@ function Dashboard({ companyId }: DashboardProps) {
             <button className="btn-refresh" onClick={() => { void fetchTransactions() }}>
               ↻ Refresh
             </button>
-            <button className="btn-add-txn" onClick={() => setShowModal(true)}>
+            <button className="btn-add-txn" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
               ＋ Add Transaction
             </button>
           </div>
@@ -283,7 +306,7 @@ function Dashboard({ companyId }: DashboardProps) {
             <div className="empty-icon">📂</div>
             <p className="empty-title">No transactions yet</p>
             <p className="empty-sub">Click "Add Transaction" to record your first entry</p>
-            <button className="btn-add-txn-empty" onClick={() => setShowModal(true)}>
+            <button className="btn-add-txn-empty" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
               ＋ Add Your First Transaction
             </button>
           </div>
@@ -295,6 +318,7 @@ function Dashboard({ companyId }: DashboardProps) {
                 <th>Description</th>
                 <th>Category</th>
                 <th>Amount</th>
+                <th style={{ width: 100, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -308,6 +332,44 @@ function Dashboard({ companyId }: DashboardProps) {
                   <td className={tx.amount >= 0 ? 'positive' : 'negative'}>
                     {tx.amount >= 0 ? '+' : '−'}₹{Math.abs(tx.amount).toLocaleString('en-IN')}
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                      <button
+                        className="btn-icon"
+                        title="Edit"
+                        onClick={() => handleEdit(tx)}
+                        style={{
+                          background: 'rgba(59,130,246,0.12)',
+                          border: '1px solid rgba(59,130,246,0.25)',
+                          color: '#60a5fa',
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="btn-icon"
+                        title="Delete"
+                        onClick={() => setDeleteConfirm(tx)}
+                        style={{
+                          background: 'rgba(239,68,68,0.12)',
+                          border: '1px solid rgba(239,68,68,0.25)',
+                          color: '#f87171',
+                          borderRadius: 6,
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -315,12 +377,44 @@ function Dashboard({ companyId }: DashboardProps) {
         )}
       </div>
 
+      {/* ── Add/Edit Transaction Modal ── */}
       {showModal && (
         <AddTransactionModal
           companyId={companyId}
-          onClose={() => setShowModal(false)}
+          onClose={() => { setShowModal(false); setEditingTxn(null) }}
           onSuccess={handleTransactionAdded}
+          editingTxn={editingTxn}
         />
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteConfirm && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDeleteConfirm(null) }}>
+          <div className="modal-box" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">🗑️ Delete Transaction</h2>
+              <button className="modal-close" onClick={() => setDeleteConfirm(null)}>×</button>
+            </div>
+            <p style={{ margin: '16px 0', color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>
+              Are you sure you want to delete "<strong>{deleteConfirm.description}</strong>"
+              ({deleteConfirm.amount >= 0 ? '+' : '−'}₹{Math.abs(deleteConfirm.amount).toLocaleString('en-IN')})?
+              <br /><br />
+              <span style={{ color: '#f87171', fontSize: 12 }}>⚠️ This action cannot be undone.</span>
+            </p>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setDeleteConfirm(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                style={{ background: '#ef4444' }}
+                onClick={() => void handleDelete(deleteConfirm)}
+              >
+                🗑️ Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

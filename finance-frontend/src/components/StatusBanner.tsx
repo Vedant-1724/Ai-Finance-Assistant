@@ -1,83 +1,75 @@
 // PATH: finance-frontend/src/components/StatusBanner.tsx
-// Replaces TrialBanner.tsx — handles FREE, TRIAL, ACTIVE, EXPIRED states
+// Shows a contextual top banner based on subscription tier:
+//   FREE  → prompt to start trial
+//   TRIAL → countdown of days remaining
+//   ACTIVE→ thank-you / renewal date (silent — no banner clutter)
 
-import axios from 'axios'
-import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-interface Props { onUpgrade: () => void }
+interface StatusBannerProps {
+  onUpgrade: () => void
+}
 
-export default function StatusBanner({ onUpgrade }: Props) {
-  const { user, isFree, isTrial, updateSubscription } = useAuth()
-  const [starting, setStarting] = useState(false)
-  const [trialStarted, setTrialStarted] = useState(false)
-
-  // Check if trial was already used
-  const trialAlreadyUsed = false // We rely on the server to tell us
+export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
+  const { user, isPremium, isFree, isTrial } = useAuth()
 
   if (!user) return null
 
-  const handleStartTrial = async () => {
-    setStarting(true)
-    try {
-      const token = user.token
-      const res = await axios.post(
-        '/api/v1/subscription/start-trial', {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      const data = res.data as { tier: string; trialDaysRemaining: number; aiChatsRemaining: number }
-      updateSubscription(data.tier, data.trialDaysRemaining, data.aiChatsRemaining)
-      setTrialStarted(true)
-    } catch (err: any) {
-      const errCode = err?.response?.data?.error
-      if (errCode === 'TRIAL_ALREADY_USED') {
-        onUpgrade() // Redirect to subscription page
-      }
-    } finally {
-      setStarting(false)
-    }
-  }
-
-  if (trialStarted) {
+  // ── Active paid subscriber — no intrusive banner ───────────────────────────
+  if (isPremium && !isTrial) {
     return (
-      <div className="status-banner banner-trial">
-        <span className="banner-text">🎉 Your 5-day free trial has started! Enjoy all premium features.</span>
+      <div className="status-banner banner-active">
+        <span className="banner-text">
+          ✅ <strong>Pro Plan</strong> — All features unlocked. {
+            user.aiChatsRemaining > 0
+              ? `${user.aiChatsRemaining} AI chats remaining today.`
+              : 'Daily AI chat limit reached — resets at midnight.'
+          }
+        </span>
       </div>
     )
   }
 
+  // ── Trial user ─────────────────────────────────────────────────────────────
   if (isTrial) {
+    const days = user.trialDaysRemaining ?? 0
+    const urgent = days <= 1
+
     return (
       <div className="status-banner banner-trial">
         <span className="banner-text">
-          ⏳ <strong>Free Trial</strong> — {user.trialDaysRemaining} day{user.trialDaysRemaining !== 1 ? 's' : ''} remaining. Upgrade before it ends to keep premium access.
+          {urgent ? '⚠️' : '🎉'}{' '}
+          <strong>Free Trial</strong> —{' '}
+          {days <= 0
+            ? 'Your trial has expired.'
+            : days === 1
+            ? 'Last day of your trial!'
+            : `${days} days remaining.`}{' '}
+          {user.aiChatsRemaining > 0
+            ? `${user.aiChatsRemaining} AI chats left today.`
+            : 'Daily AI chat limit reached.'}
         </span>
-        <button className="banner-cta" onClick={onUpgrade}>Upgrade to Pro</button>
+        <button className="banner-cta" onClick={onUpgrade}>
+          Upgrade to Pro →
+        </button>
       </div>
     )
   }
 
+  // ── Free tier ──────────────────────────────────────────────────────────────
   if (isFree) {
     return (
       <div className="status-banner banner-free">
         <span className="banner-text">
-          🆓 You're on the <strong>Free plan</strong> — limited features. Try 5 days of premium for free.
+          🔓 <strong>Free Plan</strong> — Limited to 10 transactions &amp; 3 AI chats/day.
+          Unlock forecasts, charts, invoices, tax tools &amp; more.
         </span>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="banner-cta" onClick={handleStartTrial} disabled={starting}>
-            {starting ? '⏳' : '🚀 Start Free Trial'}
-          </button>
-          <button
-            onClick={onUpgrade}
-            style={{ padding: '5px 12px', background: 'none', border: '1px solid rgba(59,130,246,0.3)', color: 'var(--text-accent)', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
-          >
-            View Plans
-          </button>
-        </div>
+        <button className="banner-cta" onClick={onUpgrade}>
+          Start Free Trial →
+        </button>
       </div>
     )
   }
 
-  // ACTIVE — no banner needed (or optional success message)
   return null
 }
