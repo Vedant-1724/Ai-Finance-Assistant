@@ -97,13 +97,15 @@ services:
     container_name: finance-ai
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "5001:5001"
     environment:
       BACKEND_URL: http://backend:8080
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-your-gemini-key-here}
+      PORT: 5001
+      # ── PASTE YOUR GOOGLE API KEY BELOW ──
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-AIzaSyAW_SsLSkOBwtfZq35oahlMdUrDxTTtX0E}
     depends_on:
       - backend
       - rabbitmq
