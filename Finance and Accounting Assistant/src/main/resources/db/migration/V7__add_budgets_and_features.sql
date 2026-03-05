@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS budgets (
     amount      NUMERIC(19,4) NOT NULL,
     created_at  TIMESTAMP     NOT NULL DEFAULT NOW()
 );
+-- Backfill month column if table was pre-created without it
+ALTER TABLE budgets ADD COLUMN IF NOT EXISTS month DATE;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_company_category_month
     ON budgets(company_id, COALESCE(category_id, 0), month);
 CREATE INDEX IF NOT EXISTS idx_budget_company_month ON budgets(company_id, month);
