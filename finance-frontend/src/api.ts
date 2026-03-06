@@ -14,9 +14,16 @@ const api = axios.create({
 
 // ── Attach JWT to every request ───────────────────────────────────────────────
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  try {
+    const stored = localStorage.getItem('auth_user')
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (parsed?.token) {
+        config.headers.Authorization = `Bearer ${parsed.token}`
+      }
+    }
+  } catch {
+    // ignore parse errors
   }
   return config
 })
@@ -29,9 +36,7 @@ api.interceptors.response.use(
 
     if (status === 401) {
       // Token expired or invalid → force login
-      localStorage.removeItem('token')
-      localStorage.removeItem('email')
-      localStorage.removeItem('companyId')
+      localStorage.removeItem('auth_user')
       window.location.href = '/login'
     }
 
