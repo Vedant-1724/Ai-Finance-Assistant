@@ -77,7 +77,12 @@ jobs:
             echo "  Attempt $i/30 — status=$STATUS, retrying in 5s..."
             sleep 5
           done
-          curl -sf http://localhost:8080/actuator/health | python3 -m json.tool
+          if [ "$STATUS" = "200" ]; then
+            curl -s http://localhost:8080/actuator/health | python3 -m json.tool || echo "Could not parse JSON response"
+          else
+            echo "❌ Spring Boot failed to become healthy. Final status: $STATUS"
+            exit 1
+          fi
 
       - name: Smoke test — Python AI Service health
         run: |
@@ -91,7 +96,13 @@ jobs:
             echo "  Attempt $i/20 — status=$STATUS, retrying in 5s..."
             sleep 5
           done
-          curl -sf http://localhost:5001/health | python3 -m json.tool
+          # Fetch the final result and only parse as JSON if it's a 200 OK
+          if [ "$STATUS" = "200" ]; then
+            curl -s http://localhost:5001/health | python3 -m json.tool || echo "Could not parse JSON response"
+          else
+            echo "❌ AI Service failed to become healthy. Final status: $STATUS"
+            exit 1
+          fi
 
       - name: Smoke test — React Frontend (Nginx)
         run: |
