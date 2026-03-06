@@ -92,10 +92,11 @@ services:
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-dummy}                        
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-dummy}                
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-dummy} 
-      MAIL_HOST: smtp.gmail.com
-      MAIL_PORT: 587
-      MAIL_USERNAME: ""
-      MAIL_PASSWORD: ""
+      MAIL_HOST: localhost
+      MAIL_PORT: 2525
+      MAIL_USERNAME: dummy
+      MAIL_PASSWORD: dummy
+      MAIL_ENABLED: "false"
       AI_SERVICE_URL: http://ai-service:5001
     depends_on:
       postgres:
