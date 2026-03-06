@@ -1,19 +1,35 @@
-# Java
-target/
-*.class
+# Global ignores
+.DS_Store
+*.log
+.vscode/
 .idea/
 
-# Node
-node_modules/
-dist/
-build/
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+secret*
+*.pem
+*.key
+
+# Java / Spring Boot
+Finance and Accounting Assistant/target/
+*.class
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
 
 # Python
-__pycache__/
-*.pyc
-venv/
-.env
+finance-ai/__pycache__/
+finance-ai/*.py[cod]
+finance-ai/*$py.class
+finance-ai/venv/
+finance-ai/.venv/
+finance-ai/env/
 
-# OS
-.DS_Store
-Thumbs.db
+# Node / React
+finance-frontend/node_modules/
+finance-frontend/dist/
+finance-frontend/dist-ssr/
+finance-frontend/*.local
+finance-frontend/.npm/

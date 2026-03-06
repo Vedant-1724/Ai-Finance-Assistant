@@ -23,7 +23,7 @@ CORS(app, origins=os.getenv('ALLOWED_ORIGINS', '*').split(','))
 # ──────────────────────────────────────────────────────────────────────────────
 # GOOGLE GEMINI API KEY — Paste your key here or set as environment variable
 # ──────────────────────────────────────────────────────────────────────────────
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "AIzaSyAW_SsLSkOBwtfZq35oahlMdUrDxTTtX0E")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Initialize Gemini
 gemini_model = None
