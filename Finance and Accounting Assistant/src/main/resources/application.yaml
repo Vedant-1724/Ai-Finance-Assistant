@@ -106,6 +106,12 @@ security:
 
 # ── Actuator ──────────────────────────────────────────────────────────────────
 management:
+  health:
+    mail:
+      enabled: false
+  endpoint:
+    health:
+      show-details: always
   endpoints:
     web:
       exposure:
