@@ -30,14 +30,13 @@ export default function ChartsSection({ companyId }: { companyId: number }) {
   const fetchData = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await api.get<ChartData>(`/api/v1/${companyId}/charts?months=${months}`,
-        { headers: { Authorization: `Bearer ${user?.token}` } })
+      const res = await api.get<ChartData>(`/api/v1/${companyId}/charts?months=${months}`)
       setData(res.data)
     } catch (e: any) {
       if (e?.response?.status === 402) setError('UPGRADE_REQUIRED')
       else setError('Failed to load chart data')
     } finally { setLoading(false) }
-  }, [companyId, months, user?.token])
+  }, [companyId, months])
 
   useEffect(() => { void fetchData() }, [fetchData])
 
@@ -165,3 +164,4 @@ export default function ChartsSection({ companyId }: { companyId: number }) {
     </div>
   )
 }
+

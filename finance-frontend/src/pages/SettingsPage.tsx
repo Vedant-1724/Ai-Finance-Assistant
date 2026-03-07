@@ -47,8 +47,6 @@ export default function SettingsPage() {
   // Export
   const [exporting,  setExporting]  = useState(false)
 
-  const headers = { Authorization: `Bearer ${user?.token}` }
-
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
@@ -70,7 +68,7 @@ export default function SettingsPage() {
         },
       })
     } finally { setLoading(false) }
-  }, [user?.token, user?.email])
+  }, [user?.email])
 
   useEffect(() => { void load() }, [load])
 

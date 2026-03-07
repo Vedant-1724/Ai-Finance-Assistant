@@ -12,19 +12,11 @@ const api = axios.create({
   timeout: 30000,
 })
 
+// ── Send cookies with every request ──────────────────────────────────────────
+api.defaults.withCredentials = true;
+
 // ── Attach JWT to every request ───────────────────────────────────────────────
 api.interceptors.request.use(config => {
-  try {
-    const stored = localStorage.getItem('auth_user')
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      if (parsed?.token) {
-        config.headers.Authorization = `Bearer ${parsed.token}`
-      }
-    }
-  } catch {
-    // ignore parse errors
-  }
   return config
 })
 

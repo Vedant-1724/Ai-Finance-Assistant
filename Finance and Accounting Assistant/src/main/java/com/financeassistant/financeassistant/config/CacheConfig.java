@@ -14,9 +14,9 @@ import org.springframework.context.annotation.Configuration;
  * application.yml sets spring.cache.type=simple for this mode.
  *
  * To upgrade to Redis (when you reach that stage):
- *   1. Install Redis and start it.
- *   2. Change application.yml: spring.cache.type: redis
- *   3. Uncomment the RedisCacheManager bean below.
+ * 1. Install Redis and start it.
+ * 2. Change application.yml: spring.cache.type: redis
+ * 3. Uncomment the RedisCacheManager bean below.
  */
 @EnableCaching
 @Configuration
@@ -25,17 +25,21 @@ public class CacheConfig {
     // No additional bean needed for development mode.
 
     // ── Upgrade to Redis later ────────────────────────────────────────────────
-    // @Bean
-    // public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
-    //     RedisCacheConfiguration config = RedisCacheConfiguration
-    //             .defaultCacheConfig()
-    //             .entryTtl(Duration.ofMinutes(5))
-    //             .serializeKeysWith(SerializationPair.fromSerializer(new StringRedisSerializer()))
-    //             .serializeValuesWith(SerializationPair.fromSerializer(
-    //                     new GenericJackson2JsonRedisSerializer()))
-    //             .disableCachingNullValues();
-    //     return RedisCacheManager.builder(factory)
-    //             .cacheDefaults(config)
-    //             .build();
-    // }
+    @org.springframework.context.annotation.Bean
+    public org.springframework.data.redis.cache.RedisCacheManager cacheManager(
+            org.springframework.data.redis.connection.RedisConnectionFactory factory) {
+        org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration
+                .defaultCacheConfig()
+                .entryTtl(java.time.Duration.ofMinutes(5))
+                .serializeKeysWith(org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
+                        .fromSerializer(new org.springframework.data.redis.serializer.StringRedisSerializer()))
+                .serializeValuesWith(
+                        org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
+                                .fromSerializer(
+                                        new org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer()))
+                .disableCachingNullValues();
+        return org.springframework.data.redis.cache.RedisCacheManager.builder(factory)
+                .cacheDefaults(config)
+                .build();
+    }
 }

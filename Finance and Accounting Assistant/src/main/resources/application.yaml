@@ -90,7 +90,7 @@ ai:
 # ── App config ────────────────────────────────────────────────────────────────
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   free-tier:
     max-transactions: 20
     max-transactions-view: 10
@@ -111,8 +111,8 @@ management:
       enabled: false
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info

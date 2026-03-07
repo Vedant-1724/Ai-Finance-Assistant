@@ -21,7 +21,11 @@ app = Flask(__name__)
 CORS(app, origins=os.getenv('ALLOWED_ORIGINS', '*').split(','))
 
 # ──────────────────────────────────────────────────────────────────────────────
-INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev_finance_secret_key_123")
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
+if not INTERNAL_API_KEY:
+    log.error("CRITICAL: INTERNAL_API_KEY environment variable is missing. Halting startup.")
+    import sys
+    sys.exit(1)
 
 @app.before_request
 def require_api_key():

@@ -26,7 +26,7 @@ public class AiController {
     @Value("${ai.service.url:http://localhost:5001}")
     private String aiServiceUrl;
 
-    @Value("${ai.service.api.key:dev_finance_secret_key_123}")
+    @Value("${ai.service.api.key}")
     private String aiServiceApiKey;
 
     /**

@@ -22,8 +22,6 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
   const [saving, setSaving]         = useState(false)
   const [msg, setMsg]               = useState<string | null>(null)
 
-  const headers = { Authorization: `Bearer ${user?.token}` }
-
   const fetchVariances = useCallback(async () => {
     setLoading(true)
     try {
@@ -31,7 +29,7 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
         `/api/v1/${companyId}/budgets/variance?year=${form.year}&month=${form.month}`, { headers })
       setVariances(res.data)
     } catch { setVariances([]) } finally { setLoading(false) }
-  }, [companyId, form.year, form.month, user?.token])
+  }, [companyId, form.year, form.month])
 
   useEffect(() => { void fetchVariances() }, [fetchVariances])
 
@@ -154,3 +152,4 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
     </div>
   )
 }
+

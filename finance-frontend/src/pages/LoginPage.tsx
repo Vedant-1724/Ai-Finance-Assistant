@@ -4,22 +4,22 @@ import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 
 interface AuthResponse {
-  token:              string
-  companyId:          number
-  email:              string
+  token: string
+  companyId: number
+  email: string
   subscriptionStatus: string
   trialDaysRemaining: number
-  aiChatsRemaining:   number
+  aiChatsRemaining: number
 }
 
 export default function LoginPage() {
-  const { login }   = useAuth()
-  const navigate    = useNavigate()
-  const [email, setEmail]       = useState('')
+  const { login } = useAuth()
+  const navigate = useNavigate()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError]       = useState<string | null>(null)
-  const [loading, setLoading]   = useState(false)
-  const [showPwd, setShowPwd]   = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [showPwd, setShowPwd] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -29,7 +29,6 @@ export default function LoginPage() {
     try {
       const res = await axios.post<AuthResponse>('/api/v1/auth/login', { email, password })
       login(
-        res.data.token,
         res.data.companyId,
         res.data.email,
         res.data.subscriptionStatus,
@@ -55,7 +54,7 @@ export default function LoginPage() {
         <div className="auth-brand">
           <div className="auth-brand-icon">
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-              <path d="M4 16l5-10 5 8 3-5 5 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 16l5-10 5 8 3-5 5 7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <div>
@@ -107,7 +106,7 @@ export default function LoginPage() {
             className="btn-gradient"
             style={{ marginTop: '4px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {loading ? <><span className="spinner" style={{width:16,height:16}} /> Signing in…</> : 'Sign In →'}
+            {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</> : 'Sign In →'}
           </button>
         </form>
 

@@ -17,25 +17,25 @@ import java.util.Map;
 
 /**
  * PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/
- *       financeassistant/controller/PaymentController.java
+ * financeassistant/controller/PaymentController.java
  *
  * NEW FILE — Razorpay payment integration.
  *
  * Flow:
- *  1. React calls POST /create-order  → gets orderId + keyId
- *  2. React opens Razorpay checkout   → user pays ₹499
- *  3. Razorpay calls POST /webhook    → we verify signature + activate subscription
- *  4. React calls GET  /status        → shows trial/active/expired state in UI
+ * 1. React calls POST /create-order → gets orderId + keyId
+ * 2. React opens Razorpay checkout → user pays ₹499
+ * 3. Razorpay calls POST /webhook → we verify signature + activate subscription
+ * 4. React calls GET /status → shows trial/active/expired state in UI
  *
  * Security:
- *  - /webhook is public but ALWAYS verifies HMAC-SHA256 signature
- *  - /create-order and /status require valid JWT
- *  - Razorpay key-id and key-secret are env-var only (never in source)
+ * - /webhook is public but ALWAYS verifies HMAC-SHA256 signature
+ * - /create-order and /status require valid JWT
+ * - Razorpay key-id and key-secret are env-var only (never in source)
  *
  * Required dependency in pom.xml:
- *   <groupId>com.razorpay</groupId>
- *   <artifactId>razorpay-java</artifactId>
- *   <version>1.4.5</version>
+ * <groupId>com.razorpay</groupId>
+ * <artifactId>razorpay-java</artifactId>
+ * <version>1.4.5</version>
  */
 @Slf4j
 @RestController
@@ -68,21 +68,20 @@ public class PaymentController {
             RazorpayClient client = new RazorpayClient(keyId, keySecret);
 
             JSONObject opts = new JSONObject();
-            opts.put("amount",   49900);          // ₹499.00 in paise (1 rupee = 100 paise)
+            opts.put("amount", 49900); // ₹499.00 in paise (1 rupee = 100 paise)
             opts.put("currency", "INR");
-            opts.put("receipt",  "rcpt_" + System.currentTimeMillis());
-            opts.put("notes",    new JSONObject().put("email", user.getEmail()));
+            opts.put("receipt", "rcpt_" + System.currentTimeMillis());
+            opts.put("notes", new JSONObject().put("email", user.getEmail()));
 
             Order order = client.orders.create(opts);
             log.info("Razorpay order created: {} for user {}", order.get("id"), user.getEmail());
 
             return ResponseEntity.ok(Map.of(
-                "orderId",  order.get("id"),
-                "amount",   order.get("amount"),
-                "currency", order.get("currency"),
-                "keyId",    keyId,
-                "email",    user.getEmail()
-            ));
+                    "orderId", order.get("id"),
+                    "amount", order.get("amount"),
+                    "currency", order.get("currency"),
+                    "keyId", keyId,
+                    "email", user.getEmail()));
 
         } catch (Exception e) {
             log.error("Failed to create Razorpay order for {}: {}", user.getEmail(), e.getMessage());
@@ -99,9 +98,9 @@ public class PaymentController {
      * CRITICAL: Always verify X-Razorpay-Signature before trusting the payload.
      *
      * Register this URL in your Razorpay Dashboard:
-     *   Settings → Webhooks → Add New Webhook
-     *   URL: https://yourdomain.com/api/v1/payment/webhook
-     *   Events: payment.captured, subscription.activated
+     * Settings → Webhooks → Add New Webhook
+     * URL: https://yourdomain.com/api/v1/payment/webhook
+     * Events: payment.captured, subscription.activated
      */
     @PostMapping("/webhook")
     public ResponseEntity<?> handleWebhook(
@@ -128,8 +127,8 @@ public class PaymentController {
 
         // 3. Process the verified event
         try {
-            JSONObject json  = new JSONObject(payload);
-            String    event  = json.getString("event");
+            JSONObject json = new JSONObject(payload);
+            String event = json.getString("event");
             log.info("Razorpay webhook event: {}", event);
 
             if ("payment.captured".equals(event)) {
@@ -138,7 +137,7 @@ public class PaymentController {
                         .getJSONObject("payment")
                         .getJSONObject("entity");
 
-                String email     = paymentEntity.getJSONObject("notes").optString("email", "");
+                String email = paymentEntity.getJSONObject("notes").optString("email", "");
                 String paymentId = paymentEntity.getString("id");
 
                 if (!email.isBlank()) {
@@ -158,7 +157,48 @@ public class PaymentController {
         }
     }
 
-    // ── 3. Subscription status ───────────────────────────────────────────────
+    // ── 3. Handle Synchronous React Checkout Verification ────────────────────
+
+    /**
+     * POST /api/v1/payment/verify
+     * Called by React after a successful Razorpay checkout popup.
+     * Instantly activates the subscription without waiting for webhook.
+     */
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyPayment(
+            @AuthenticationPrincipal User user,
+            @RequestBody Map<String, String> payload) {
+        try {
+            String razorpayPaymentId = payload.get("razorpay_payment_id");
+            String razorpayOrderId = payload.get("razorpay_order_id");
+            String razorpaySignature = payload.get("razorpay_signature");
+
+            if (razorpayPaymentId == null || razorpayOrderId == null || razorpaySignature == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing payment verification parameters"));
+            }
+
+            JSONObject options = new JSONObject();
+            options.put("razorpay_payment_id", razorpayPaymentId);
+            options.put("razorpay_order_id", razorpayOrderId);
+            options.put("razorpay_signature", razorpaySignature);
+
+            boolean isValid = Utils.verifyPaymentSignature(options, keySecret);
+
+            if (isValid) {
+                subscriptionService.activateSubscription(user.getEmail(), razorpayPaymentId);
+                log.info("Subscription activated via frontend verify for email={}", user.getEmail());
+                return ResponseEntity.ok(Map.of("status", "success"));
+            } else {
+                log.warn("Invalid payment signature during verify for {}", user.getEmail());
+                return ResponseEntity.badRequest().body(Map.of("error", "Invalid payment signature"));
+            }
+        } catch (Exception e) {
+            log.error("Payment verification failed for {}: {}", user.getEmail(), e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", "Verification failed"));
+        }
+    }
+
+    // ── 4. Subscription status ───────────────────────────────────────────────
 
     /**
      * GET /api/v1/payment/status
@@ -168,12 +208,12 @@ public class PaymentController {
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(Map.of(
-                "status",           user.getSubscriptionStatus().name(),
-                "tier",             user.getEffectiveTier(),
+                "status", user.getSubscriptionStatus().name(),
+                "tier", user.getEffectiveTier(),
                 "trialDaysRemaining", subscriptionService.trialDaysRemaining(user),
                 "hasPremiumAccess", subscriptionService.hasPremiumAccess(user),
-                "expiresAt",        user.getSubscriptionExpiresAt() != null
-                        ? user.getSubscriptionExpiresAt().toString() : ""
-        ));
+                "expiresAt", user.getSubscriptionExpiresAt() != null
+                        ? user.getSubscriptionExpiresAt().toString()
+                        : ""));
     }
 }

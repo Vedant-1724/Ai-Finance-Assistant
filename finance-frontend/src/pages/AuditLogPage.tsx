@@ -16,8 +16,6 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
 
-  const headers = { Authorization: `Bearer ${user?.token}` }
-
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -27,7 +25,7 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
       if (e?.response?.status === 402) setError('UPGRADE_REQUIRED')
       else setError('Failed to load audit log')
     } finally { setLoading(false) }
-  }, [companyId, page, user?.token])
+  }, [companyId, page])
 
   useEffect(() => { void load() }, [load])
 
@@ -82,3 +80,4 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
     </div>
   )
 }
+

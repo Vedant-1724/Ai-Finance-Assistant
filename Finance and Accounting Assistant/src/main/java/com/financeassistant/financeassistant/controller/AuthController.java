@@ -9,6 +9,7 @@ import com.financeassistant.financeassistant.security.LoginRateLimiter;
 import com.financeassistant.financeassistant.security.TokenBlacklistService;
 import com.financeassistant.financeassistant.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,16 +18,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import java.util.Map;
 
 /**
  * Authentication controller — hardened for production.
  *
  * Security features:
- *  - Rate limiting: 5 logins/min, 3 registers/10min per IP
- *  - Logout blacklists JWT in Redis
- *  - Never reveals whether email exists (prevents enumeration)
- *  - Input validated via @Valid annotations
+ * - Rate limiting: 5 logins/min, 3 registers/10min per IP
+ * - Logout blacklists JWT in Redis
+ * - Never reveals whether email exists (prevents enumeration)
+ * - Input validated via @Valid annotations
  */
 @Slf4j
 @RestController
@@ -34,10 +37,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService           authService;
-    private final LoginRateLimiter      rateLimiter;
+    private final AuthService authService;
+    private final LoginRateLimiter rateLimiter;
     private final TokenBlacklistService blacklistService;
-    private final JwtUtil               jwtUtil;
+    private final JwtUtil jwtUtil;
 
     /**
      * POST /api/v1/auth/login
@@ -45,7 +48,8 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(
             @Valid @RequestBody LoginRequest req,
-            HttpServletRequest httpReq) {
+            HttpServletRequest httpReq,
+            HttpServletResponse httpResp) {
 
         String ip = getClientIp(httpReq);
 
@@ -58,16 +62,26 @@ public class AuthController {
         try {
             AuthResponse response = authService.login(req);
             log.info("Login success: {} from IP: {}", req.getEmail(), ip);
+
+            ResponseCookie cookie = ResponseCookie.from("jwt_token", response.getToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .sameSite("Lax")
+                    .maxAge(30 * 24 * 60 * 60) // 30 days
+                    .build();
+            httpResp.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
             return ResponseEntity.ok(response);
         } catch (BadCredentialsException e) {
             // Generic message — don't reveal if email exists
             log.warn("Login failed for {} from IP: {}", req.getEmail(), ip);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Invalid email or password"));
+                    .body(Map.of("error", "Invalid email or password"));
         } catch (Exception e) {
             log.error("Login error for {}: {}", req.getEmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Invalid email or password"));
+                    .body(Map.of("error", "Invalid email or password"));
         }
     }
 
@@ -77,7 +91,8 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(
             @Valid @RequestBody RegisterRequest req,
-            HttpServletRequest httpReq) {
+            HttpServletRequest httpReq,
+            HttpServletResponse httpResp) {
 
         String ip = getClientIp(httpReq);
 
@@ -90,14 +105,24 @@ public class AuthController {
         try {
             AuthResponse response = authService.register(req);
             log.info("Registration success: {} from IP: {}", req.getEmail(), ip);
+
+            ResponseCookie cookie = ResponseCookie.from("jwt_token", response.getToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .sameSite("Lax")
+                    .maxAge(30 * 24 * 60 * 60)
+                    .build();
+            httpResp.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(Map.of("error", e.getMessage()));
+                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Register error for {}: {}", req.getEmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Registration failed. Please try again."));
+                    .body(Map.of("error", "Registration failed. Please try again."));
         }
     }
 
@@ -109,11 +134,12 @@ public class AuthController {
      * Critical for: subscription cancellation, account compromise response.
      */
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest httpReq) {
-        String authHeader = httpReq.getHeader("Authorization");
+    public ResponseEntity<?> logout(
+            @CookieValue(value = "jwt_token", required = false) String token,
+            HttpServletRequest httpReq,
+            HttpServletResponse httpResp) {
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        if (token != null && !token.isBlank()) {
             long expiryMs = jwtUtil.getExpiryMs(token) - System.currentTimeMillis();
 
             if (expiryMs > 0) {
@@ -123,6 +149,15 @@ public class AuthController {
             log.info("User logged out from IP: {}", getClientIp(httpReq));
         }
 
+        // Clear the cookie by setting maxAge to 0
+        ResponseCookie cookie = ResponseCookie.from("jwt_token", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0)
+                .build();
+        httpResp.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 
@@ -131,22 +166,19 @@ public class AuthController {
      * Returns current user info from JWT without hitting the database.
      */
     @GetMapping("/me")
-    public ResponseEntity<?> me(HttpServletRequest httpReq) {
-        String authHeader = httpReq.getHeader("Authorization");
+    public ResponseEntity<?> me(@CookieValue(value = "jwt_token", required = false) String token) {
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (token == null || token.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("error", "Not authenticated"));
+                    .body(Map.of("error", "Not authenticated"));
         }
 
-        String token = authHeader.substring(7);
-        String email     = jwtUtil.extractEmail(token);
-        Long   companyId = jwtUtil.extractCompanyId(token);
+        String email = jwtUtil.extractEmail(token);
+        Long companyId = jwtUtil.extractCompanyId(token);
 
         return ResponseEntity.ok(Map.of(
-            "email",     email != null ? email : "",
-            "companyId", companyId != null ? companyId : 0
-        ));
+                "email", email != null ? email : "",
+                "companyId", companyId != null ? companyId : 0));
     }
 
     // ── Helper: get real IP (works behind nginx reverse proxy) ───────────────

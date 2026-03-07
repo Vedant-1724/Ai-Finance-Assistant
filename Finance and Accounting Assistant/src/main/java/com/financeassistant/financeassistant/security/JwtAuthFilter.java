@@ -20,43 +20,46 @@ import java.io.IOException;
  * JWT authentication filter — runs once per request.
  *
  * Security hardening vs original:
- *  1. Checks token blacklist (Redis) — supports logout + subscription revocation
- *  2. Catches all exceptions silently — never exposes JWT internals
- *  3. Logs authentication events for audit trail
+ * 1. Checks token blacklist (Redis) — supports logout + subscription revocation
+ * 2. Catches all exceptions silently — never exposes JWT internals
+ * 3. Logs authentication events for audit trail
  */
 @Slf4j
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private static final String BEARER_PREFIX = "Bearer ";
-
-    private final JwtUtil               jwtUtil;
-    private final UserDetailsService    userDetailsService;
+    private final JwtUtil jwtUtil;
+    private final UserDetailsService userDetailsService;
     private final TokenBlacklistService blacklistService;
 
     public JwtAuthFilter(JwtUtil jwtUtil,
-                         UserDetailsService userDetailsService,
-                         TokenBlacklistService blacklistService) {
-        this.jwtUtil           = jwtUtil;
+            UserDetailsService userDetailsService,
+            TokenBlacklistService blacklistService) {
+        this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
-        this.blacklistService  = blacklistService;
+        this.blacklistService = blacklistService;
     }
 
     @Override
     protected void doFilterInternal(
-            @NonNull HttpServletRequest  request,
+            @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
-            @NonNull FilterChain         filterChain
-    ) throws ServletException, IOException {
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
+        String token = null;
+        if (request.getCookies() != null) {
+            for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+                if ("jwt_token".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
 
-        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
+        if (token == null || token.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        final String token = authHeader.substring(BEARER_PREFIX.length());
 
         // ── Check blacklist (logged-out or revoked tokens) ────────────────────
         if (blacklistService.isBlacklisted(token)) {
@@ -72,19 +75,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
                 if (jwtUtil.isTokenValid(token, userDetails.getUsername())) {
-                    UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities()
-                        );
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
+                            new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                     log.debug("Authenticated: {} → {}", email, request.getRequestURI());
                 }
             } catch (Exception e) {
                 log.warn("Auth failed for {} on {}: {}", email,
-                         request.getRequestURI(), e.getMessage());
+                        request.getRequestURI(), e.getMessage());
             }
         }
 

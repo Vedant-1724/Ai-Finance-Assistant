@@ -39,8 +39,7 @@ export default function ChatAssistant() {
     try {
       const res = await axios.post(
         '/api/v1/ai/chat',
-        { question: q },
-        { headers: { Authorization: `Bearer ${user?.token}` } }
+        { question: q }
       )
       const data = res.data as { answer?: string; aiChatsRemaining?: number }
 

@@ -6,7 +6,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
 interface UserInfo {
-  token: string
   companyId: number
   email: string
   subscriptionTier: 'FREE' | 'TRIAL' | 'ACTIVE'
@@ -20,7 +19,7 @@ interface AuthContextType {
   isPremium: boolean
   isFree: boolean
   isTrial: boolean
-  login: (token: string, companyId: number, email: string,
+  login: (companyId: number, email: string,
     subscriptionStatus: string, trialDaysRemaining: number,
     aiChatsRemaining: number) => void
   logout: () => void
@@ -41,7 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
 
   const login = (
-    token: string,
     companyId: number,
     email: string,
     subscriptionStatus: string,
@@ -53,7 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       : 'FREE'
 
     const userInfo: UserInfo = {
-      token,
       companyId,
       email,
       subscriptionTier: tier,

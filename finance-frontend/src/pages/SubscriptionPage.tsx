@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
 declare global {
@@ -39,9 +39,8 @@ export default function SubscriptionPage() {
 
   useEffect(() => {
     if (!user) return
-    axios.get('/api/v1/subscription/status', {
-      headers: { Authorization: `Bearer ${user.token}` }
-    }).then(r => setSubStatus(r.data)).catch(() => { })
+    api.get('/api/v1/subscription/status')
+      .then(r => setSubStatus(r.data)).catch(() => { })
   }, [user])
 
   const handleStartTrial = async () => {
@@ -49,9 +48,7 @@ export default function SubscriptionPage() {
     setTrialLoading(true)
     setError(null)
     try {
-      const res = await axios.post('/api/v1/subscription/start-trial', {}, {
-        headers: { Authorization: `Bearer ${user.token}` }
-      })
+      const res = await api.post('/api/v1/subscription/start-trial')
       const data = res.data as { tier: string; trialDaysRemaining: number; aiChatsRemaining: number }
       updateSubscription(data.tier, data.trialDaysRemaining, data.aiChatsRemaining)
       setMsg('🎉 Your 5-day free trial has started! Enjoy all premium features.')
@@ -74,9 +71,7 @@ export default function SubscriptionPage() {
     setCancelLoading(true)
     setError(null)
     try {
-      await axios.post('/api/v1/subscription/cancel', {}, {
-        headers: { Authorization: `Bearer ${user.token}` }
-      })
+      await api.post('/api/v1/subscription/cancel')
       updateSubscription('FREE', 0, 3)
       setMsg('Your subscription has been cancelled. You are now on the Free tier.')
       setSubStatus(prev => prev ? { ...prev, tier: 'FREE', status: 'CANCELLED' } : null)
@@ -92,10 +87,9 @@ export default function SubscriptionPage() {
     setLoading(true)
     setError(null)
     try {
-      const orderRes = await axios.post(
+      const orderRes = await api.post(
         '/api/v1/payment/create-order',
-        { amount: 49900, currency: 'INR', receipt: `receipt_${Date.now()}` },
-        { headers: { Authorization: `Bearer ${user.token}` } }
+        { amount: 49900, currency: 'INR', receipt: `receipt_${Date.now()}` }
       )
       const order = orderRes.data as any
       const options = {
@@ -108,9 +102,7 @@ export default function SubscriptionPage() {
         prefill: { email: user.email },
         theme: { color: '#3b82f6' },
         handler: async (res: any) => {
-          await axios.post('/api/v1/payment/verify', res, {
-            headers: { Authorization: `Bearer ${user.token}` }
-          })
+          await api.post('/api/v1/payment/verify', res)
           updateSubscription('ACTIVE', 0, 50)
           setMsg('🎉 Welcome to FinanceAI Pro! All features are now unlocked.')
           navigate('/')
@@ -119,6 +111,8 @@ export default function SubscriptionPage() {
       if (!window.Razorpay) {
         const script = document.createElement('script')
         script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+        script.crossOrigin = 'anonymous'
+        script.integrity = 'sha384-4NCTYeIch5r4uow7dwh6FYqbRlRFCPmldYDt6tK5365IBV+MCwUAVXq1I8EYefZT'
         script.onload = () => new window.Razorpay(options).open()
         document.body.appendChild(script)
       } else {

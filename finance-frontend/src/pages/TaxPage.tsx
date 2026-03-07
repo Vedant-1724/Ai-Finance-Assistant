@@ -53,8 +53,6 @@ export default function TaxPage({ companyId }: { companyId: number }) {
   const [error,       setError]      = useState<string | null>(null)
   const [checked,     setChecked]    = useState<Set<number>>(new Set())
 
-  const headers = { Authorization: `Bearer ${user?.token}` }
-
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
@@ -68,7 +66,7 @@ export default function TaxPage({ companyId }: { companyId: number }) {
       if (status === 402) setError('UPGRADE_REQUIRED')
       else                setError('Failed to load tax data.')
     } finally { setLoading(false) }
-  }, [companyId, year, quarter, user?.token])
+  }, [companyId, year, quarter])
 
   useEffect(() => { void load() }, [load])
 

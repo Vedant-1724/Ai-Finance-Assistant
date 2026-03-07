@@ -193,7 +193,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     try {
       // 1. Get consent URL (Mocked)
       const consentRes = await api.post(`/api/v1/${companyId}/setu/consent`)
-      const consentUrl = consentRes.data.consentUrl
+      const consentUrl = consentRes.data.consentUrl; console.log(consentUrl)
 
       // In a real flow, you would redirect the user to this URL and handle a callback
       // However, for this MVP we just immediately simulate the sync

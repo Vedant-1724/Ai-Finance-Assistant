@@ -38,8 +38,6 @@ export default function TeamPage({ companyId }: { companyId: number }) {
   const [invErr,   setInvErr]   = useState<string | null>(null)
   const [removing, setRemoving] = useState<number | null>(null)
 
-  const headers = { Authorization: `Bearer ${user?.token}` }
-
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
@@ -50,7 +48,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       if (status === 402) setError('UPGRADE_REQUIRED')
       else                setError('Failed to load team members.')
     } finally { setLoading(false) }
-  }, [companyId, user?.token])
+  }, [companyId])
 
   useEffect(() => { void load() }, [load])
 

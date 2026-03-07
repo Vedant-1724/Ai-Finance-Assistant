@@ -11,8 +11,6 @@ services:
       POSTGRES_DB: financedb
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -51,8 +49,6 @@ services:
     image: redis:7-alpine
     container_name: finance-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -137,8 +133,6 @@ services:
       dockerfile: Dockerfile
     container_name: finance-ai
     restart: unless-stopped
-    ports:
-      - "5001:5001"
     environment:
       BACKEND_URL: http://backend:8080
       RABBITMQ_HOST: rabbitmq
@@ -167,6 +161,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
     depends_on:
       - backend
       - ai-service
@@ -201,6 +198,14 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+
+  # ── Let's Encrypt Certbot ────────────────────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
 
 volumes:
   pgdata:

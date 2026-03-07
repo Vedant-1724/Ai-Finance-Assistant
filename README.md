@@ -276,8 +276,9 @@ CREATE TABLE invoices (
 );
 
 -- Seed initial data
+-- Password is 'password123' hashed with BCrypt
 INSERT INTO users (email, password, role)
-VALUES ('admin@finance.com', 'password123', 'ADMIN');
+VALUES ('admin@finance.com', '$2y$10$wB5V.LInM1sE37E4ZqGATuYV7M.kY.RjO0YOf8H1Z8B1fF/T3266O', 'ADMIN');
 
 INSERT INTO companies (owner_id, name, currency)
 VALUES (1, 'My Company', 'USD');

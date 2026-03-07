@@ -58,8 +58,7 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
     setLoading(true); setError(null)
     try {
       const res = await api.get<HealthScore>(
-        `/api/v1/${companyId}/health/score?month=${month}`,
-        { headers: { Authorization: `Bearer ${user?.token}` } }
+        `/api/v1/${companyId}/health/score?month=${month}`
       )
       setData(res.data)
     } catch (e: unknown) {
@@ -67,7 +66,7 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
       if (status === 402) setError('UPGRADE_REQUIRED')
       else setError('Failed to load health score.')
     } finally { setLoading(false) }
-  }, [companyId, month, user?.token])
+  }, [companyId, month])
 
   useEffect(() => { void load() }, [load])
 
