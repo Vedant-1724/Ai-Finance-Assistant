@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.io.Serializable;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +33,7 @@ public class ChartDataService {
                 .toList();
 
         // ── Monthly income vs expense ─────────────────────────────────────────
-        Map<String, BigDecimal> monthlyIncome  = new LinkedHashMap<>();
+        Map<String, BigDecimal> monthlyIncome = new LinkedHashMap<>();
         Map<String, BigDecimal> monthlyExpense = new LinkedHashMap<>();
 
         // Seed all months with zero
@@ -62,7 +63,8 @@ public class ChartDataService {
         // ── Category breakdown (expense only) ────────────────────────────────
         Map<String, BigDecimal> catTotals = new LinkedHashMap<>();
         for (Transaction t : txns) {
-            if (t.getAmount().compareTo(BigDecimal.ZERO) >= 0) continue;
+            if (t.getAmount().compareTo(BigDecimal.ZERO) >= 0)
+                continue;
             String cat = t.getCategory() != null ? t.getCategory().getName() : "Other";
             catTotals.merge(cat, t.getAmount().abs(), BigDecimal::add);
         }
@@ -71,9 +73,9 @@ public class ChartDataService {
                 .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
                 .limit(8)
                 .map(e -> new CategoryPie(e.getKey(), e.getValue(),
-                        totalExpense.compareTo(BigDecimal.ZERO) == 0 ? 0 :
-                        e.getValue().multiply(BigDecimal.valueOf(100))
-                                    .divide(totalExpense, 1, RoundingMode.HALF_UP).doubleValue()))
+                        totalExpense.compareTo(BigDecimal.ZERO) == 0 ? 0
+                                : e.getValue().multiply(BigDecimal.valueOf(100))
+                                        .divide(totalExpense, 1, RoundingMode.HALF_UP).doubleValue()))
                 .collect(Collectors.toList());
 
         // ── Daily running balance (last 60 days) ─────────────────────────────
@@ -103,8 +105,17 @@ public class ChartDataService {
     }
 
     // ── Response records ──────────────────────────────────────────────────────
-    public record MonthlyBar(String month, BigDecimal income, BigDecimal expense, BigDecimal net) {}
-    public record CategoryPie(String name, BigDecimal value, double percent) {}
-    public record DailyBalance(String date, BigDecimal balance) {}
-    public record ChartDataResponse(List<MonthlyBar> monthly, List<CategoryPie> categoryBreakdown, List<DailyBalance> dailyBalance) {}
+    public record MonthlyBar(String month, BigDecimal income, BigDecimal expense, BigDecimal net)
+            implements Serializable {
+    }
+
+    public record CategoryPie(String name, BigDecimal value, double percent) implements Serializable {
+    }
+
+    public record DailyBalance(String date, BigDecimal balance) implements Serializable {
+    }
+
+    public record ChartDataResponse(List<MonthlyBar> monthly, List<CategoryPie> categoryBreakdown,
+            List<DailyBalance> dailyBalance) implements Serializable {
+    }
 }

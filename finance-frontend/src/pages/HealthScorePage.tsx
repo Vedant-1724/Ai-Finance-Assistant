@@ -7,20 +7,20 @@ import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
 interface BreakdownItem {
-  label:  string
-  score:  number
+  label: string
+  score: number
   weight: number
   detail: string
 }
 
 interface HealthScore {
-  score:            number   // 0–100
-  grade:            string   // A, B, C, D, F
-  month:            string   // YYYY-MM
-  breakdown:        BreakdownItem[]
-  recommendations:  string   // AI-generated bullet points
-  previousScore:    number | null
-  change:           number | null
+  score: number   // 0–100
+  grade: string   // A, B, C, D, F
+  month: string   // YYYY-MM
+  breakdown: BreakdownItem[]
+  recommendations: string   // AI-generated bullet points
+  previousScore: number | null
+  change: number | null
 }
 
 const MONTHS: { value: string; label: string }[] = (() => {
@@ -49,23 +49,23 @@ function scoreColor(score: number) {
 
 export default function HealthScorePage({ companyId }: { companyId: number }) {
   const { user, isFree } = useAuth()
-  const [month,   setMonth]   = useState(MONTHS[0].value)
-  const [data,    setData]    = useState<HealthScore | null>(null)
+  const [month, setMonth] = useState(MONTHS[0].value)
+  const [data, setData] = useState<HealthScore | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
       const res = await api.get<HealthScore>(
-        `/api/v1/${companyId}/health-score?month=${month}`,
+        `/api/v1/${companyId}/health/score?month=${month}`,
         { headers: { Authorization: `Bearer ${user?.token}` } }
       )
       setData(res.data)
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')
-      else                setError('Failed to load health score.')
+      else setError('Failed to load health score.')
     } finally { setLoading(false) }
   }, [companyId, month, user?.token])
 
@@ -169,10 +169,10 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
                 {[
                   { range: '80–100', label: 'Excellent', color: '#22c55e' },
-                  { range: '60–79',  label: 'Good',      color: '#84cc16' },
-                  { range: '40–59',  label: 'Fair',       color: '#f59e0b' },
-                  { range: '20–39',  label: 'Poor',       color: '#f97316' },
-                  { range: '0–19',   label: 'Critical',   color: '#ef4444' },
+                  { range: '60–79', label: 'Good', color: '#84cc16' },
+                  { range: '40–59', label: 'Fair', color: '#f59e0b' },
+                  { range: '20–39', label: 'Poor', color: '#f97316' },
+                  { range: '0–19', label: 'Critical', color: '#ef4444' },
                 ].map(({ range, label, color }) => (
                   <div key={range} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                     <span style={{ color: '#475569' }}>{range}</span>
@@ -218,14 +218,14 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
             </div>
             {data.recommendations
               ? data.recommendations
-                  .split('\n')
-                  .filter(l => l.trim())
-                  .map((line, i) => (
-                    <div key={i} className="health-rec-item">
-                      <span className="health-rec-bullet">•</span>
-                      <span>{line.replace(/^[•\-*]\s*/, '')}</span>
-                    </div>
-                  ))
+                .split('\n')
+                .filter(l => l.trim())
+                .map((line, i) => (
+                  <div key={i} className="health-rec-item">
+                    <span className="health-rec-bullet">•</span>
+                    <span>{line.replace(/^[•\-*]\s*/, '')}</span>
+                  </div>
+                ))
               : (
                 <div style={{ color: '#475569', fontSize: 13, padding: '8px 0' }}>
                   No recommendations available. Add more transactions to generate insights.

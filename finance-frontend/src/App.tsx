@@ -4,36 +4,36 @@
 
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import Dashboard       from './components/Dashboard'
-import ChatAssistant   from './components/ChatAssistant'
-import InvoiceUpload   from './components/InvoiceUpload'
-import StatusBanner    from './components/StatusBanner'
+import Dashboard from './components/Dashboard'
+import ChatAssistant from './components/ChatAssistant'
+import InvoiceUpload from './components/InvoiceUpload'
+import StatusBanner from './components/StatusBanner'
 import StatementImport from './components/StatementImport'
-import BudgetPlanner   from './components/BudgetPlanner'
-import ChartsSection   from './components/ChartsSection'
-import LoginPage       from './pages/LoginPage'
-import RegisterPage    from './pages/RegisterPage'
+import BudgetPlanner from './components/BudgetPlanner'
+import ChartsSection from './components/ChartsSection'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import SubscriptionPage from './pages/SubscriptionPage'
-import TaxPage         from './pages/TaxPage'
+import TaxPage from './pages/TaxPage'
 import HealthScorePage from './pages/HealthScorePage'
-import AuditLogPage    from './pages/AuditLogPage'
-import TeamPage        from './pages/TeamPage'
-import SettingsPage    from './pages/SettingsPage'
-import { useAuth }     from './context/AuthContext'
+import AuditLogPage from './pages/AuditLogPage'
+import TeamPage from './pages/TeamPage'
+import SettingsPage from './pages/SettingsPage'
+import { useAuth } from './context/AuthContext'
 import './App.css'
 
 type Tab =
   | 'dashboard' | 'charts' | 'budget' | 'chat'
-  | 'invoices'  | 'import' | 'tax'    | 'health'
-  | 'audit'     | 'team'   | 'settings'
+  | 'invoices' | 'import' | 'tax' | 'health'
+  | 'audit' | 'team' | 'settings'
 
 // ── Protected shell ───────────────────────────────────────────────────────────
 function ProtectedApp() {
-  const { user, logout, isPremium, isFree } = useAuth()
+  const { user, logout, isFree } = useAuth()
   const navigate = useNavigate()
 
-  const [activeTab,    setTab]    = useState<Tab>('dashboard')
-  const [sidebarOpen,  setSidebar] = useState(false)
+  const [activeTab, setTab] = useState<Tab>('dashboard')
+  const [sidebarOpen, setSidebar] = useState(false)
   // Key-bump to force Dashboard to re-fetch after a statement import
   const [dashboardKey, setDashboardKey] = useState(0)
 
@@ -108,23 +108,23 @@ function ProtectedApp() {
         <nav className={`app-nav ${sidebarOpen ? 'open' : ''}`}>
           {/* Main */}
           <div className="nav-section-label">Main</div>
-          <NavBtn tab="dashboard" label="Dashboard"   icon="📊" />
-          <NavBtn tab="charts"    label="Charts"       icon="📈" locked={isFree} />
-          <NavBtn tab="budget"    label="Budget"       icon="🎯" />
-          <NavBtn tab="chat"      label="AI Assistant" icon="🤖" />
+          <NavBtn tab="dashboard" label="Dashboard" icon="📊" />
+          <NavBtn tab="charts" label="Charts" icon="📈" locked={isFree} />
+          <NavBtn tab="budget" label="Budget" icon="🎯" />
+          <NavBtn tab="chat" label="AI Assistant" icon="🤖" />
 
           {/* Finance */}
           <div className="nav-section-label">Finance</div>
-          <NavBtn tab="invoices"  label="Invoices"     icon="📄" locked={isFree} />
-          <NavBtn tab="import"    label="Import"       icon="⬆️" />
-          <NavBtn tab="tax"       label="Tax & GST"    icon="🧾" locked={isFree} />
-          <NavBtn tab="health"    label="Health Score" icon="💚" locked={isFree} />
+          <NavBtn tab="invoices" label="Invoices" icon="📄" locked={isFree} />
+          <NavBtn tab="import" label="Import" icon="⬆️" />
+          <NavBtn tab="tax" label="Tax & GST" icon="🧾" locked={isFree} />
+          <NavBtn tab="health" label="Health Score" icon="💚" locked={isFree} />
 
           {/* Pro */}
           <div className="nav-section-label">Pro</div>
-          <NavBtn tab="audit"    label="Audit Log"     icon="📋" locked={isFree} />
-          <NavBtn tab="team"     label="Team"          icon="👥" locked={isFree} />
-          <NavBtn tab="settings" label="Settings"      icon="⚙️" />
+          <NavBtn tab="audit" label="Audit Log" icon="📋" locked={isFree} />
+          <NavBtn tab="team" label="Team" icon="👥" locked={isFree} />
+          <NavBtn tab="settings" label="Settings" icon="⚙️" />
         </nav>
 
         {/* Mobile nav backdrop */}
@@ -135,10 +135,9 @@ function ProtectedApp() {
         {/* ── Right side ──────────────────────────────────────────────────── */}
         <div className="header-right">
           {/* Tier badge */}
-          <span className={`tier-badge ${
-            user?.subscriptionTier === 'ACTIVE' ? 'active' :
-            user?.subscriptionTier === 'TRIAL'  ? 'trial'  : 'free'
-          }`}>
+          <span className={`tier-badge ${user?.subscriptionTier === 'ACTIVE' ? 'active' :
+              user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'
+            }`}>
             {user?.subscriptionTier ?? 'FREE'}
           </span>
 
@@ -151,9 +150,9 @@ function ProtectedApp() {
           <button className="btn-logout" onClick={logout} title="Logout">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
           </button>
         </div>
@@ -165,10 +164,10 @@ function ProtectedApp() {
         {activeTab === 'dashboard' && (
           <Dashboard key={dashboardKey} companyId={companyId} />
         )}
-        {activeTab === 'charts'   && <ChartsSection companyId={companyId} />}
-        {activeTab === 'budget'   && <BudgetPlanner companyId={companyId} />}
-        {activeTab === 'chat'     && <ChatAssistant />}
-        {activeTab === 'invoices' && <InvoiceUpload />}
+        {activeTab === 'charts' && <ChartsSection companyId={companyId} />}
+        {activeTab === 'budget' && <BudgetPlanner companyId={companyId} />}
+        {activeTab === 'chat' && <ChatAssistant />}
+        {activeTab === 'invoices' && <InvoiceUpload companyId={companyId} />}
 
         {/* FIX: onImportSuccess is now passed — resolves TS compile error */}
         {activeTab === 'import' && (
@@ -178,10 +177,10 @@ function ProtectedApp() {
           />
         )}
 
-        {activeTab === 'tax'      && <TaxPage       companyId={companyId} />}
-        {activeTab === 'health'   && <HealthScorePage companyId={companyId} />}
-        {activeTab === 'audit'    && <AuditLogPage  companyId={companyId} />}
-        {activeTab === 'team'     && <TeamPage      companyId={companyId} />}
+        {activeTab === 'tax' && <TaxPage companyId={companyId} />}
+        {activeTab === 'health' && <HealthScorePage companyId={companyId} />}
+        {activeTab === 'audit' && <AuditLogPage companyId={companyId} />}
+        {activeTab === 'team' && <TeamPage companyId={companyId} />}
         {activeTab === 'settings' && <SettingsPage />}
       </main>
     </div>

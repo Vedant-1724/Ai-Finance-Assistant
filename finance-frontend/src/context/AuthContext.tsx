@@ -6,26 +6,26 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
 interface UserInfo {
-  token:              string
-  companyId:          number
-  email:              string
-  subscriptionTier:   'FREE' | 'TRIAL' | 'ACTIVE'
+  token: string
+  companyId: number
+  email: string
+  subscriptionTier: 'FREE' | 'TRIAL' | 'ACTIVE'
   trialDaysRemaining: number
-  aiChatsRemaining:   number
+  aiChatsRemaining: number
 }
 
 interface AuthContextType {
-  user:             UserInfo | null
-  isAuthenticated:  boolean
-  isPremium:        boolean
-  isFree:           boolean
-  isTrial:          boolean
-  login:            (token: string, companyId: number, email: string,
-                     subscriptionStatus: string, trialDaysRemaining: number,
-                     aiChatsRemaining: number) => void
-  logout:           () => void
+  user: UserInfo | null
+  isAuthenticated: boolean
+  isPremium: boolean
+  isFree: boolean
+  isTrial: boolean
+  login: (token: string, companyId: number, email: string,
+    subscriptionStatus: string, trialDaysRemaining: number,
+    aiChatsRemaining: number) => void
+  logout: () => void
   updateSubscription: (tier: string, daysRemaining: number, aiChatsRemaining: number) => void
-  updateAiChats:    (remaining: number) => void
+  updateAiChats: (remaining: number) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       companyId,
       email,
-      subscriptionTier:   tier,
+      subscriptionTier: tier,
       trialDaysRemaining,
       aiChatsRemaining,
     }
@@ -71,10 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateSubscription = (tier: string, daysRemaining: number, aiChatsRemaining: number) => {
     if (!user) return
-    const normalizedTier = (tier === 'ACTIVE' || tier === 'TRIAL') ? tier as 'ACTIVE' | 'TRIAL' : 'FREE'
-    const updated = {
+    const normalizedTier: 'ACTIVE' | 'TRIAL' | 'FREE' = (tier === 'ACTIVE' || tier === 'TRIAL') ? tier as 'ACTIVE' | 'TRIAL' : 'FREE'
+    const updated: UserInfo = {
       ...user,
-      subscriptionTier:   normalizedTier,
+      subscriptionTier: normalizedTier,
       trialDaysRemaining: daysRemaining,
       aiChatsRemaining,
     }
@@ -90,8 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const isPremium = user?.subscriptionTier === 'ACTIVE' || user?.subscriptionTier === 'TRIAL'
-  const isFree    = !isPremium
-  const isTrial   = user?.subscriptionTier === 'TRIAL'
+  const isFree = !isPremium
+  const isTrial = user?.subscriptionTier === 'TRIAL'
 
   return (
     <AuthContext.Provider value={{

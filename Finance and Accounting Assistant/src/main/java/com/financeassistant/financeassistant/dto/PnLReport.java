@@ -2,6 +2,7 @@ package com.financeassistant.financeassistant.dto;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.io.Serializable;
 
 /**
  * FIX: Added @Builder pattern and CategoryBreakdown inner class.
@@ -9,7 +10,9 @@ import java.util.List;
  * ReportingService uses PnLReport.builder() and CategoryBreakdown — this file
  * must match exactly or you will get compile errors.
  */
-public class PnLReport {
+public class PnLReport implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private String period;
     private String startDate;
@@ -20,23 +23,26 @@ public class PnLReport {
     private List<CategoryBreakdown> breakdown;
 
     // ── No-arg constructor (needed for Jackson deserialization) ───────────────
-    public PnLReport() {}
+    public PnLReport() {
+    }
 
     // ── All-args constructor ──────────────────────────────────────────────────
     public PnLReport(String period, String startDate, String endDate,
-                     BigDecimal totalIncome, BigDecimal totalExpense,
-                     BigDecimal netProfit, List<CategoryBreakdown> breakdown) {
-        this.period       = period;
-        this.startDate    = startDate;
-        this.endDate      = endDate;
-        this.totalIncome  = totalIncome;
+            BigDecimal totalIncome, BigDecimal totalExpense,
+            BigDecimal netProfit, List<CategoryBreakdown> breakdown) {
+        this.period = period;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.totalIncome = totalIncome;
         this.totalExpense = totalExpense;
-        this.netProfit    = netProfit;
-        this.breakdown    = breakdown;
+        this.netProfit = netProfit;
+        this.breakdown = breakdown;
     }
 
     // ── Builder ───────────────────────────────────────────────────────────────
-    public static Builder builder() { return new Builder(); }
+    public static Builder builder() {
+        return new Builder();
+    }
 
     public static class Builder {
         private String period;
@@ -47,13 +53,40 @@ public class PnLReport {
         private BigDecimal netProfit;
         private List<CategoryBreakdown> breakdown;
 
-        public Builder period(String period)               { this.period = period; return this; }
-        public Builder startDate(String startDate)         { this.startDate = startDate; return this; }
-        public Builder endDate(String endDate)             { this.endDate = endDate; return this; }
-        public Builder totalIncome(BigDecimal v)           { this.totalIncome = v; return this; }
-        public Builder totalExpense(BigDecimal v)          { this.totalExpense = v; return this; }
-        public Builder netProfit(BigDecimal v)             { this.netProfit = v; return this; }
-        public Builder breakdown(List<CategoryBreakdown> b){ this.breakdown = b; return this; }
+        public Builder period(String period) {
+            this.period = period;
+            return this;
+        }
+
+        public Builder startDate(String startDate) {
+            this.startDate = startDate;
+            return this;
+        }
+
+        public Builder endDate(String endDate) {
+            this.endDate = endDate;
+            return this;
+        }
+
+        public Builder totalIncome(BigDecimal v) {
+            this.totalIncome = v;
+            return this;
+        }
+
+        public Builder totalExpense(BigDecimal v) {
+            this.totalExpense = v;
+            return this;
+        }
+
+        public Builder netProfit(BigDecimal v) {
+            this.netProfit = v;
+            return this;
+        }
+
+        public Builder breakdown(List<CategoryBreakdown> b) {
+            this.breakdown = b;
+            return this;
+        }
 
         public PnLReport build() {
             return new PnLReport(period, startDate, endDate,
@@ -62,35 +95,90 @@ public class PnLReport {
     }
 
     // ── Inner class ───────────────────────────────────────────────────────────
-    public static class CategoryBreakdown {
+    public static class CategoryBreakdown implements Serializable {
+        private static final long serialVersionUID = 1L;
         private String categoryName;
         private BigDecimal amount;
 
-        public CategoryBreakdown() {}
+        public CategoryBreakdown() {
+        }
+
         public CategoryBreakdown(String categoryName, BigDecimal amount) {
             this.categoryName = categoryName;
             this.amount = amount;
         }
 
-        public String getCategoryName() { return categoryName; }
-        public void setCategoryName(String categoryName) { this.categoryName = categoryName; }
-        public BigDecimal getAmount() { return amount; }
-        public void setAmount(BigDecimal amount) { this.amount = amount; }
+        public String getCategoryName() {
+            return categoryName;
+        }
+
+        public void setCategoryName(String categoryName) {
+            this.categoryName = categoryName;
+        }
+
+        public BigDecimal getAmount() {
+            return amount;
+        }
+
+        public void setAmount(BigDecimal amount) {
+            this.amount = amount;
+        }
     }
 
     // ── Getters & Setters ─────────────────────────────────────────────────────
-    public String getPeriod()                          { return period; }
-    public void setPeriod(String period)               { this.period = period; }
-    public String getStartDate()                       { return startDate; }
-    public void setStartDate(String startDate)         { this.startDate = startDate; }
-    public String getEndDate()                         { return endDate; }
-    public void setEndDate(String endDate)             { this.endDate = endDate; }
-    public BigDecimal getTotalIncome()                 { return totalIncome; }
-    public void setTotalIncome(BigDecimal totalIncome) { this.totalIncome = totalIncome; }
-    public BigDecimal getTotalExpense()                { return totalExpense; }
-    public void setTotalExpense(BigDecimal v)          { this.totalExpense = v; }
-    public BigDecimal getNetProfit()                   { return netProfit; }
-    public void setNetProfit(BigDecimal netProfit)     { this.netProfit = netProfit; }
-    public List<CategoryBreakdown> getBreakdown()      { return breakdown; }
-    public void setBreakdown(List<CategoryBreakdown> b){ this.breakdown = b; }
+    public String getPeriod() {
+        return period;
+    }
+
+    public void setPeriod(String period) {
+        this.period = period;
+    }
+
+    public String getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(String startDate) {
+        this.startDate = startDate;
+    }
+
+    public String getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(String endDate) {
+        this.endDate = endDate;
+    }
+
+    public BigDecimal getTotalIncome() {
+        return totalIncome;
+    }
+
+    public void setTotalIncome(BigDecimal totalIncome) {
+        this.totalIncome = totalIncome;
+    }
+
+    public BigDecimal getTotalExpense() {
+        return totalExpense;
+    }
+
+    public void setTotalExpense(BigDecimal v) {
+        this.totalExpense = v;
+    }
+
+    public BigDecimal getNetProfit() {
+        return netProfit;
+    }
+
+    public void setNetProfit(BigDecimal netProfit) {
+        this.netProfit = netProfit;
+    }
+
+    public List<CategoryBreakdown> getBreakdown() {
+        return breakdown;
+    }
+
+    public void setBreakdown(List<CategoryBreakdown> b) {
+        this.breakdown = b;
+    }
 }

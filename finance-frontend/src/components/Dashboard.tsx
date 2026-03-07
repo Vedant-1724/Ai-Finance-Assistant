@@ -194,10 +194,7 @@ function Dashboard({ companyId }: DashboardProps) {
 
       {/* ── Charts ── */}
       {!txnLoading && !txnError && (
-        <ChartsSection
-          transactions={transactions}
-          breakdown={pnl?.breakdown ?? []}
-        />
+        <ChartsSection companyId={companyId} />
       )}
 
       {/* ── P&L Report ── */}
