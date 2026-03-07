@@ -39,3 +39,9 @@ finance-frontend/dist/
 finance-frontend/dist-ssr/
 finance-frontend/*.local
 finance-frontend/.npm/
+
+# Package Locks
+package-lock.json
+
+# Finance AI Synthetic Data
+finance-ai/data/

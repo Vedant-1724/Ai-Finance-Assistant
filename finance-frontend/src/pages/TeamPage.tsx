@@ -12,16 +12,16 @@ import { useAuth } from '../context/AuthContext'
 type Role = 'OWNER' | 'EDITOR' | 'VIEWER'
 
 interface Member {
-  id:          number
-  email:       string
-  role:        Role
-  acceptedAt:  string | null
+  id: number
+  email: string
+  role: Role
+  acceptedAt: string | null
   inviteEmail: string | null
-  createdAt:   string
+  createdAt: string
 }
 
 const ROLE_LABELS: Record<Role, { label: string; color: string; desc: string }> = {
-  OWNER:  { label: 'Owner',  color: '#60a5fa', desc: 'Full access, billing, invite' },
+  OWNER: { label: 'Owner', color: '#60a5fa', desc: 'Full access, billing, invite' },
   EDITOR: { label: 'Editor', color: '#4ade80', desc: 'Add/edit transactions, view reports' },
   VIEWER: { label: 'Viewer', color: '#94a3b8', desc: 'Read-only access to dashboard' },
 }
@@ -30,23 +30,23 @@ export default function TeamPage({ companyId }: { companyId: number }) {
   const { user, isFree } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [invEmail, setInvEmail] = useState('')
-  const [invRole,  setInvRole]  = useState<Role>('VIEWER')
+  const [invRole, setInvRole] = useState<Role>('VIEWER')
   const [inviting, setInviting] = useState(false)
-  const [invMsg,   setInvMsg]   = useState<string | null>(null)
-  const [invErr,   setInvErr]   = useState<string | null>(null)
+  const [invMsg, setInvMsg] = useState<string | null>(null)
+  const [invErr, setInvErr] = useState<string | null>(null)
   const [removing, setRemoving] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await api.get<Member[]>(`/api/v1/${companyId}/team`, { headers })
+      const res = await api.get<Member[]>(`/api/v1/${companyId}/team`)
       setMembers(res.data)
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')
-      else                setError('Failed to load team members.')
+      else setError('Failed to load team members.')
     } finally { setLoading(false) }
   }, [companyId])
 
@@ -61,8 +61,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
     try {
       await api.post(
         `/api/v1/${companyId}/team/invite`,
-        { email: invEmail.trim(), role: invRole },
-        { headers }
+        { email: invEmail.trim(), role: invRole }
       )
       setInvMsg(`✅ Invitation sent to ${invEmail.trim()}`)
       setInvEmail('')
@@ -77,7 +76,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
     if (!confirm(`Remove ${email} from the team?`)) return
     setRemoving(memberId)
     try {
-      await api.delete(`/api/v1/${companyId}/team/${memberId}`, { headers })
+      await api.delete(`/api/v1/${companyId}/team/${memberId}`)
       setMembers(prev => prev.filter(m => m.id !== memberId))
     } catch {
       alert('Failed to remove member. Please try again.')

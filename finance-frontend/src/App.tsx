@@ -13,6 +13,9 @@ import BudgetPlanner from './components/BudgetPlanner'
 import ChartsSection from './components/ChartsSection'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import VerifyEmailPage from './pages/VerifyEmailPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import TaxPage from './pages/TaxPage'
 import HealthScorePage from './pages/HealthScorePage'
@@ -136,7 +139,7 @@ function ProtectedApp() {
         <div className="header-right">
           {/* Tier badge */}
           <span className={`tier-badge ${user?.subscriptionTier === 'ACTIVE' ? 'active' :
-              user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'
+            user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'
             }`}>
             {user?.subscriptionTier ?? 'FREE'}
           </span>
@@ -200,6 +203,18 @@ export default function App() {
       <Route
         path="/register"
         element={!user ? <RegisterPage /> : <Navigate to="/" replace />}
+      />
+      <Route
+        path="/verify-email"
+        element={<VerifyEmailPage />}
+      />
+      <Route
+        path="/forgot-password"
+        element={!user ? <ForgotPasswordPage /> : <Navigate to="/" replace />}
+      />
+      <Route
+        path="/reset-password"
+        element={!user ? <ResetPasswordPage /> : <Navigate to="/" replace />}
       />
       <Route
         path="/subscription"

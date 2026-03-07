@@ -82,6 +82,8 @@ The **AI Finance & Accounting Assistant** is a comprehensive financial managemen
 | Invoice Upload UI | ✅ Live |
 | Email Notifications | ✅ Live |
 | Docker Compose Setup | ✅ Live |
+| Forgotten Password Reset | ✅ Live |
+| New Sign-up Email Verification | ✅ Live |
 | Bank Account Integration (Setu/Plaid)| 📋 Planned |
 | Cloud Deployment (AWS) | 📋 Planned |
 

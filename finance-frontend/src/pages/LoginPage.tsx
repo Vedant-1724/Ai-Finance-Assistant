@@ -39,7 +39,11 @@ export default function LoginPage() {
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const msg = (err.response?.data as { error?: string })?.error
-        setError(msg ?? 'Login failed. Check your email and password.')
+        if (msg === 'EMAIL_UNVERIFIED') {
+          setError('Please verify your email address to log in. Check your inbox for the verification link.')
+        } else {
+          setError(msg ?? 'Login failed. Check your email and password.')
+        }
       } else {
         setError('Cannot connect to server.')
       }
@@ -110,7 +114,12 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="auth-footer">
+        <p className="auth-footer" style={{ marginTop: '1.5rem' }}>
+          Forgot your password?{' '}
+          <Link to="/forgot-password" className="auth-link">Reset it</Link>
+        </p>
+
+        <p className="auth-footer" style={{ marginTop: '0.5rem' }}>
           Don't have an account?{' '}
           <Link to="/register" className="auth-link">Create one free</Link>
         </p>

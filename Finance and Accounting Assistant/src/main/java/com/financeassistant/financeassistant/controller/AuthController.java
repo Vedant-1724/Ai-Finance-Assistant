@@ -106,16 +106,18 @@ public class AuthController {
             AuthResponse response = authService.register(req);
             log.info("Registration success: {} from IP: {}", req.getEmail(), ip);
 
-            ResponseCookie cookie = ResponseCookie.from("jwt_token", response.getToken())
+            // Registration was successful, but they must verify before getting a JWT token.
+            // Clear any lingering cookies just in case.
+            ResponseCookie cookie = ResponseCookie.from("jwt_token", "")
                     .httpOnly(true)
                     .secure(true)
                     .path("/")
-                    .sameSite("Lax")
-                    .maxAge(30 * 24 * 60 * 60)
+                    .maxAge(0)
                     .build();
             httpResp.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(Map.of("message", "Registered. Please check your email to verify your account."));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", e.getMessage()));
@@ -123,6 +125,56 @@ public class AuthController {
             log.error("Register error for {}: {}", req.getEmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Registration failed. Please try again."));
+        }
+    }
+
+    /**
+     * GET /api/v1/auth/verify-email
+     * Completes registration if the token is valid.
+     */
+    @GetMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam String token) {
+        try {
+            authService.verifyEmail(token);
+            return ResponseEntity.ok(Map.of("message", "Email verified successfully. You can now login."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * POST /api/v1/auth/forgot-password
+     * Initiates the password reset flow.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(
+            @Valid @RequestBody com.financeassistant.financeassistant.dto.ForgotPasswordRequest req) {
+        try {
+            authService.forgotPassword(req.getEmail());
+            return ResponseEntity.ok(Map.of("message", "If that email exists, a password reset link has been sent."));
+        } catch (Exception e) {
+            log.error("Forgot password error for {}: {}", req.getEmail(), e.getMessage());
+            // Always return success to prevent email enumeration
+            return ResponseEntity.ok(Map.of("message", "If that email exists, a password reset link has been sent."));
+        }
+    }
+
+    /**
+     * POST /api/v1/auth/reset-password
+     * Completes the password reset provided a valid token.
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(
+            @Valid @RequestBody com.financeassistant.financeassistant.dto.ResetPasswordRequest req) {
+        try {
+            authService.resetPassword(req.getToken(), req.getNewPassword());
+            return ResponseEntity.ok(Map.of("message", "Password has been successfully reset."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Reset password error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to reset password. Please try again."));
         }
     }
 

@@ -11,59 +11,59 @@ import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
 interface EmailPrefs {
-  anomalyAlerts:  boolean
+  anomalyAlerts: boolean
   forecastAlerts: boolean
-  budgetAlerts:   boolean
-  weeklySummary:  boolean
+  budgetAlerts: boolean
+  weeklySummary: boolean
   trialReminders: boolean
 }
 
 interface UserSettings {
-  email:       string
+  email: string
   companyName: string
-  currency:    string
-  emailPrefs:  EmailPrefs
+  currency: string
+  emailPrefs: EmailPrefs
 }
 
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
 
 export default function SettingsPage() {
   const { user, logout } = useAuth()
-  const [settings,   setSettings]   = useState<UserSettings | null>(null)
-  const [loading,    setLoading]    = useState(true)
-  const [saving,     setSaving]     = useState(false)
-  const [saveMsg,    setSaveMsg]    = useState<string | null>(null)
-  const [saveErr,    setSaveErr]    = useState<string | null>(null)
+  const [settings, setSettings] = useState<UserSettings | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [saveErr, setSaveErr] = useState<string | null>(null)
 
   // Password change
-  const [pwCurrent,  setPwCurrent]  = useState('')
-  const [pwNew,      setPwNew]      = useState('')
-  const [pwConfirm,  setPwConfirm]  = useState('')
-  const [pwSaving,   setPwSaving]   = useState(false)
-  const [pwMsg,      setPwMsg]      = useState<string | null>(null)
-  const [pwErr,      setPwErr]      = useState<string | null>(null)
-  const [showPw,     setShowPw]     = useState(false)
+  const [pwCurrent, setPwCurrent] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwMsg, setPwMsg] = useState<string | null>(null)
+  const [pwErr, setPwErr] = useState<string | null>(null)
+  const [showPw, setShowPw] = useState(false)
 
   // Export
-  const [exporting,  setExporting]  = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get<UserSettings>('/api/v1/settings', { headers })
+      const res = await api.get<UserSettings>('/api/v1/settings')
       setSettings(res.data)
     } catch {
       // Fallback defaults so page always renders
       setSettings({
-        email:       user?.email ?? '',
+        email: user?.email ?? '',
         companyName: 'My Company',
-        currency:    'INR',
+        currency: 'INR',
         emailPrefs: {
-          anomalyAlerts:  true,
+          anomalyAlerts: true,
           forecastAlerts: true,
-          budgetAlerts:   true,
-          weeklySummary:  true,
+          budgetAlerts: true,
+          weeklySummary: true,
           trialReminders: true,
         },
       })
@@ -77,7 +77,7 @@ export default function SettingsPage() {
     if (!settings) return
     setSaving(true); setSaveErr(null); setSaveMsg(null)
     try {
-      await api.post('/api/v1/settings', settings, { headers })
+      await api.post('/api/v1/settings', settings)
       setSaveMsg('✅ Settings saved successfully.')
       setTimeout(() => setSaveMsg(null), 3500)
     } catch {
@@ -88,10 +88,10 @@ export default function SettingsPage() {
   // ── Change password ───────────────────────────────────────────────────────
   const handleChangePassword = async () => {
     setPwErr(null); setPwMsg(null)
-    if (!pwCurrent)              { setPwErr('Enter your current password.');   return }
-    if (pwNew.length < 8)        { setPwErr('New password must be ≥ 8 characters.'); return }
-    if (pwNew !== pwConfirm)     { setPwErr('New passwords do not match.');    return }
-    if (pwNew === pwCurrent)     { setPwErr('New password must differ from current.'); return }
+    if (!pwCurrent) { setPwErr('Enter your current password.'); return }
+    if (pwNew.length < 8) { setPwErr('New password must be ≥ 8 characters.'); return }
+    if (pwNew !== pwConfirm) { setPwErr('New passwords do not match.'); return }
+    if (pwNew === pwCurrent) { setPwErr('New password must differ from current.'); return }
 
     setPwSaving(true)
     try {
@@ -116,9 +116,9 @@ export default function SettingsPage() {
         `/api/v1/${user?.companyId}/transactions/export?format=csv`,
         { headers, responseType: 'blob' }
       )
-      const url  = URL.createObjectURL(new Blob([res.data as BlobPart]))
+      const url = URL.createObjectURL(new Blob([res.data as BlobPart]))
       const link = document.createElement('a')
-      link.href  = url
+      link.href = url
       link.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`
       link.click()
       URL.revokeObjectURL(url)
@@ -197,11 +197,11 @@ export default function SettingsPage() {
 
         {(
           [
-            { key: 'anomalyAlerts',  label: 'Anomaly Alerts',  desc: 'Email when unusual transactions are detected' },
-            { key: 'forecastAlerts', label: 'Forecast Alerts',  desc: 'Weekly cash flow forecast summary' },
-            { key: 'budgetAlerts',   label: 'Budget Alerts',    desc: 'Alert when spending exceeds budget limits' },
-            { key: 'weeklySummary',  label: 'Weekly Summary',   desc: 'Monday morning P&L and health score digest' },
-            { key: 'trialReminders', label: 'Trial Reminders',  desc: 'Reminder emails before your trial expires' },
+            { key: 'anomalyAlerts', label: 'Anomaly Alerts', desc: 'Email when unusual transactions are detected' },
+            { key: 'forecastAlerts', label: 'Forecast Alerts', desc: 'Weekly cash flow forecast summary' },
+            { key: 'budgetAlerts', label: 'Budget Alerts', desc: 'Alert when spending exceeds budget limits' },
+            { key: 'weeklySummary', label: 'Weekly Summary', desc: 'Monday morning P&L and health score digest' },
+            { key: 'trialReminders', label: 'Trial Reminders', desc: 'Reminder emails before your trial expires' },
           ] as { key: keyof EmailPrefs; label: string; desc: string }[]
         ).map(({ key, label, desc }) => (
           <div key={key} className="settings-row">
@@ -342,7 +342,7 @@ export default function SettingsPage() {
                 'This will permanently delete ALL your transactions, reports, ' +
                 'invoices, and company data. This action CANNOT be undone.'
               )) {
-                api.delete('/api/v1/account', { headers })
+                api.delete('/api/v1/account')
                   .then(() => logout())
                   .catch(() => alert('Account deletion failed. Please contact support.'))
               }

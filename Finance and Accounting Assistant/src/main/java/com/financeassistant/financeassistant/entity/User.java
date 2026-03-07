@@ -13,15 +13,16 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * PATH: finance-backend/src/main/java/com/financeassistant/financeassistant/entity/User.java
+ * PATH:
+ * finance-backend/src/main/java/com/financeassistant/financeassistant/entity/User.java
  *
  * CHANGES:
- *  - Added FREE as the new default subscription status
- *  - Removed auto-start of trial from @PrePersist (trial is now opt-in)
- *  - Default subscriptionStatus is now FREE (not TRIAL)
- *  - Added aiChatsUsedToday + aiChatResetDate for daily AI chat limits
- *  - Updated isSubscriptionActive() to handle FREE tier
- *  - Added helper methods: getTier(), getAiChatDailyLimit(), canUseAiChat()
+ * - Added FREE as the new default subscription status
+ * - Removed auto-start of trial from @PrePersist (trial is now opt-in)
+ * - Default subscriptionStatus is now FREE (not TRIAL)
+ * - Added aiChatsUsedToday + aiChatResetDate for daily AI chat limits
+ * - Updated isSubscriptionActive() to handle FREE tier
+ * - Added helper methods: getTier(), getAiChatDailyLimit(), canUseAiChat()
  */
 @Entity
 @Table(name = "users")
@@ -44,6 +45,9 @@ public class User implements UserDetails {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
 
     // ── Subscription fields ───────────────────────────────────────────────────
     @Column(name = "trial_started_at")
@@ -68,11 +72,11 @@ public class User implements UserDetails {
 
     // ── Subscription Status Enum ──────────────────────────────────────────────
     public enum SubscriptionStatus {
-        FREE,       // Default — permanent free tier with limited features
-        TRIAL,      // 5-day premium trial (explicitly started by user)
-        ACTIVE,     // Paid subscriber
-        EXPIRED,    // Trial ended, reverts to FREE limitations
-        CANCELLED   // Was subscriber, reverts to FREE limitations
+        FREE, // Default — permanent free tier with limited features
+        TRIAL, // 5-day premium trial (explicitly started by user)
+        ACTIVE, // Paid subscriber
+        EXPIRED, // Trial ended, reverts to FREE limitations
+        CANCELLED // Was subscriber, reverts to FREE limitations
     }
 
     // ── Business logic helpers ────────────────────────────────────────────────
@@ -88,7 +92,8 @@ public class User implements UserDetails {
                 return subscriptionExpiresAt == null
                         || Instant.now().isBefore(subscriptionExpiresAt);
             case TRIAL:
-                if (trialStartedAt == null) return true;
+                if (trialStartedAt == null)
+                    return true;
                 return Instant.now().isBefore(trialStartedAt.plus(5, ChronoUnit.DAYS));
             case FREE:
             case EXPIRED:
@@ -109,7 +114,8 @@ public class User implements UserDetails {
                 return subscriptionExpiresAt == null
                         || Instant.now().isBefore(subscriptionExpiresAt);
             case TRIAL:
-                if (trialStartedAt == null) return false;
+                if (trialStartedAt == null)
+                    return false;
                 return Instant.now().isBefore(trialStartedAt.plus(5, ChronoUnit.DAYS));
             default:
                 return false;
@@ -141,10 +147,12 @@ public class User implements UserDetails {
      * Returns days remaining on free trial (0 if not on trial or expired).
      */
     public long trialDaysRemaining() {
-        if (subscriptionStatus != SubscriptionStatus.TRIAL) return 0L;
-        if (trialStartedAt == null) return 5L;
-        Instant expiry    = trialStartedAt.plus(5, ChronoUnit.DAYS);
-        long    remaining = Instant.now().until(expiry, ChronoUnit.DAYS);
+        if (subscriptionStatus != SubscriptionStatus.TRIAL)
+            return 0L;
+        if (trialStartedAt == null)
+            return 5L;
+        Instant expiry = trialStartedAt.plus(5, ChronoUnit.DAYS);
+        long remaining = Instant.now().until(expiry, ChronoUnit.DAYS);
         return Math.max(0L, remaining);
     }
 
@@ -157,9 +165,12 @@ public class User implements UserDetails {
     public int getAiChatDailyLimit() {
         String tier = getEffectiveTier();
         switch (tier) {
-            case "ACTIVE": return 50;
-            case "TRIAL":  return 10;
-            default:       return 3;
+            case "ACTIVE":
+                return 50;
+            case "TRIAL":
+                return 10;
+            default:
+                return 3;
         }
     }
 
@@ -180,51 +191,139 @@ public class User implements UserDetails {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         // ✅ FIX: Do NOT auto-start trial here.
-        // Trial is now explicitly started by the user via /api/v1/subscription/start-trial
+        // Trial is now explicitly started by the user via
+        // /api/v1/subscription/start-trial
         // Default status is FREE (set by field initializer above)
     }
 
     // ── Constructors ──────────────────────────────────────────────────────────
-    public User() {}
+    public User() {
+    }
 
     public User(String email, String password, String role) {
-        this.email    = email;
+        this.email = email;
         this.password = password;
-        this.role     = role;
+        this.role = role;
     }
 
     // ── UserDetails interface ─────────────────────────────────────────────────
-    @Override public String getUsername() { return email; }
-    @Override public String getPassword() { return password; }
+    @Override
+    public String getUsername() {
+        return email;
+    }
+
+    @Override
+    public String getPassword() {
+        return password;
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role));
     }
 
-    @Override public boolean isAccountNonExpired()    { return true; }
-    @Override public boolean isAccountNonLocked()     { return true; }
-    @Override public boolean isCredentialsNonExpired(){ return true; }
-    @Override public boolean isEnabled()              { return true; }
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
 
     // ── Getters / Setters ─────────────────────────────────────────────────────
-    public Long getId()                                    { return id; }
-    public String getEmail()                               { return email; }
-    public void setEmail(String email)                     { this.email = email; }
-    public void setPassword(String password)               { this.password = password; }
-    public String getRole()                                { return role; }
-    public void setRole(String role)                       { this.role = role; }
-    public LocalDateTime getCreatedAt()                    { return createdAt; }
-    public Instant getTrialStartedAt()                     { return trialStartedAt; }
-    public void setTrialStartedAt(Instant t)               { this.trialStartedAt = t; }
-    public SubscriptionStatus getSubscriptionStatus()      { return subscriptionStatus; }
-    public void setSubscriptionStatus(SubscriptionStatus s){ this.subscriptionStatus = s; }
-    public Instant getSubscriptionExpiresAt()              { return subscriptionExpiresAt; }
-    public void setSubscriptionExpiresAt(Instant e)        { this.subscriptionExpiresAt = e; }
-    public String getRazorpaySubscriptionId()              { return razorpaySubscriptionId; }
-    public void setRazorpaySubscriptionId(String id)       { this.razorpaySubscriptionId = id; }
-    public int getAiChatsUsedToday()                       { return aiChatsUsedToday; }
-    public void setAiChatsUsedToday(int n)                 { this.aiChatsUsedToday = n; }
-    public LocalDate getAiChatResetDate()                  { return aiChatResetDate; }
-    public void setAiChatResetDate(LocalDate d)            { this.aiChatResetDate = d; }
+    public Long getId() {
+        return id;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean v) {
+        this.emailVerified = v;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getTrialStartedAt() {
+        return trialStartedAt;
+    }
+
+    public void setTrialStartedAt(Instant t) {
+        this.trialStartedAt = t;
+    }
+
+    public SubscriptionStatus getSubscriptionStatus() {
+        return subscriptionStatus;
+    }
+
+    public void setSubscriptionStatus(SubscriptionStatus s) {
+        this.subscriptionStatus = s;
+    }
+
+    public Instant getSubscriptionExpiresAt() {
+        return subscriptionExpiresAt;
+    }
+
+    public void setSubscriptionExpiresAt(Instant e) {
+        this.subscriptionExpiresAt = e;
+    }
+
+    public String getRazorpaySubscriptionId() {
+        return razorpaySubscriptionId;
+    }
+
+    public void setRazorpaySubscriptionId(String id) {
+        this.razorpaySubscriptionId = id;
+    }
+
+    public int getAiChatsUsedToday() {
+        return aiChatsUsedToday;
+    }
+
+    public void setAiChatsUsedToday(int n) {
+        this.aiChatsUsedToday = n;
+    }
+
+    public LocalDate getAiChatResetDate() {
+        return aiChatResetDate;
+    }
+
+    public void setAiChatResetDate(LocalDate d) {
+        this.aiChatResetDate = d;
+    }
 }

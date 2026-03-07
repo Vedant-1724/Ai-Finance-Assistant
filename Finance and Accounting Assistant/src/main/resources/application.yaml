@@ -22,8 +22,8 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
-    validate-on-migrate: false
-    out-of-order: true
+    validate-on-migrate: true
+    out-of-order: false
     locations: classpath:db/migration
 
   data:
@@ -86,7 +86,7 @@ razorpay:
 ai:
   service:
     url: ${AI_SERVICE_URL:http://localhost:5001}
-    api.key: ${AI_SERVICE_API_KEY:fallback_dev_key}
+    api.key: ${AI_SERVICE_API_KEY}
 
 # ── App config ────────────────────────────────────────────────────────────────
 app:
@@ -97,7 +97,7 @@ app:
     max-transactions-view: 10
   mail:
     from: ${MAIL_FROM:noreply@financeai.in}
-    enabled: ${MAIL_ENABLED:true}   # set true in production
+    enabled: ${MAIL_ENABLED:false}
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 security:
