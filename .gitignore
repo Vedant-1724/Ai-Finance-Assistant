@@ -1,6 +1,7 @@
 # Global ignores
 .DS_Store
 *.log
+*_logs.txt
 .vscode/
 .idea/
 

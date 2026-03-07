@@ -14,9 +14,9 @@
 ALTER TABLE users
     ALTER COLUMN password TYPE VARCHAR(255);
 
--- Step 2 — replace the plain-text test password with BCrypt hash of 'password123'
+-- Step 2 — replace the test password with BCrypt hash
 -- BCrypt hash generated with cost factor 10.
--- The plain password for this account remains: password123
+-- The plain password has been redacted for security.
 UPDATE users
 SET password = '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW'
 WHERE email = 'admin@finance.com';

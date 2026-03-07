@@ -1,6 +1,6 @@
 # 💼 AI Finance & Accounting Assistant
 
-> An intelligent, full-stack financial management platform powered by Spring Boot, Python AI services, and React — with GPT-4o-mini integration for natural language financial insights.
+> An intelligent, full-stack financial management platform powered by Spring Boot, Python AI services, and React — with Gemini 1.5 Flash integration for natural language financial insights.
 
 ## 📋 Table of Contents
 
@@ -42,7 +42,7 @@ The **AI Finance & Accounting Assistant** is a comprehensive financial managemen
 │  React Frontend │────▶│  Spring Boot Backend  │────▶│  Python AI Service  │
 │  (Port 5173)    │     │  (Port 8080)          │     │  (Port 5000)        │
 │                 │     │                       │     │                     │
-│  Dashboard      │     │  REST API             │     │  GPT-4o-mini Chat   │
+│  Dashboard      │     │  REST API             │     │  Gemini 1.5 Flash   │
 │  AI Chat        │     │  Spring Security      │     │  Prophet Forecast   │
 │  Transactions   │     │  JPA / Hibernate      │     │  Anomaly Detection  │
 └─────────────────┘     │  Flyway Migrations    │     │  OCR Invoice Parse  │
@@ -65,8 +65,8 @@ The **AI Finance & Accounting Assistant** is a comprehensive financial managemen
 | Feature | Status | Description |
 |---|---|---|
 | Transaction Management | ✅ Live | Add, view, and track financial transactions |
-| Financial Dashboard | ✅ Live | Real-time income, expense, and net cash flow metrics |
-| AI Chat Assistant | ✅ Live | GPT-4o-mini powered financial Q&A |
+| Financial Dashboard | ✅ Live | Real-time income, expense, and net cash flow metrics (Recharts) |
+| AI Chat Assistant | ✅ Live | Gemini 1.5 Flash powered financial Q&A |
 | Anomaly Detection | ✅ Live | ML-based unusual transaction detection |
 | Cash Flow Forecasting | ✅ Live | 30-day Prophet ML forecast |
 | Invoice OCR | ✅ Live | Extract data from invoice images |
@@ -74,15 +74,15 @@ The **AI Finance & Accounting Assistant** is a comprehensive financial managemen
 | CORS Support | ✅ Live | Cross-origin React frontend support |
 | Flyway Migrations | ✅ Live | Database version control |
 
-### Coming Soon
+### Current Extended Features
 | Feature | Status |
 |---|---|
-| JWT Authentication | 🔨 In Progress |
-| Charts & Graphs (Recharts) | 📋 Planned |
-| Bank Account Integration (Plaid) | 📋 Planned |
-| Invoice Upload UI | 📋 Planned |
-| Email Notifications | 📋 Planned |
-| Docker Compose | 📋 Planned |
+| JWT Authentication (HttpOnly) | ✅ Live |
+| Interactive Charts (Recharts) | ✅ Live |
+| Invoice Upload UI | ✅ Live |
+| Email Notifications | ✅ Live |
+| Docker Compose Setup | ✅ Live |
+| Bank Account Integration (Setu/Plaid)| 📋 Planned |
 | Cloud Deployment (AWS) | 📋 Planned |
 
 ---
@@ -101,9 +101,9 @@ The **AI Finance & Accounting Assistant** is a comprehensive financial managemen
 - **Lombok** — Boilerplate reduction
 
 ### AI Service (Python Flask)
-- **Python 3.14** — Runtime
+- **Python 3.10+** — Runtime
 - **Flask 3.1** — Web framework
-- **OpenAI GPT-4o-mini** — Natural language AI
+- **Google Gemini 1.5 Flash** — Natural language AI
 - **Prophet** — Time series forecasting
 - **Scikit-learn** — Machine learning (anomaly detection, categorization)
 - **Pytesseract + Pillow** — Invoice OCR
@@ -276,7 +276,7 @@ CREATE TABLE invoices (
 );
 
 -- Seed initial data
--- Password is 'password123' hashed with BCrypt
+-- Password is hashed with BCrypt
 INSERT INTO users (email, password, role)
 VALUES ('admin@finance.com', '$2y$10$wB5V.LInM1sE37E4ZqGATuYV7M.kY.RjO0YOf8H1Z8B1fF/T3266O', 'ADMIN');
 
@@ -315,7 +315,7 @@ pip install -r requirements.txt
 
 Create `.env` file:
 ```env
-OPENAI_API_KEY=sk-proj-your-openai-key-here
+GOOGLE_API_KEY=your-gemini-api-key-here
 ```
 
 Run the service:
@@ -463,19 +463,19 @@ spring:
 ## 🗺️ Roadmap
 
 - [x] Transaction CRUD API
-- [x] Financial Dashboard UI
-- [x] AI Chat Integration (GPT-4o-mini)
+- [x] Financial Dashboard UI (with Recharts)
+- [x] AI Chat Integration (Gemini 1.5 Flash)
 - [x] Anomaly Detection (Isolation Forest)
 - [x] Cash Flow Forecasting (Prophet)
 - [x] Invoice OCR Parser
 - [x] Redis Caching
 - [x] RabbitMQ Event Publishing
-- [ ] JWT Authentication
-- [ ] Interactive Charts (Recharts)
-- [ ] Bank Account Integration (Plaid)
-- [ ] Invoice Upload UI
-- [ ] Email Alerts
-- [ ] Docker Compose
+- [x] JWT Authentication
+- [x] Interactive Charts (Recharts)
+- [x] Invoice Upload UI
+- [x] Email Alerts
+- [x] Docker Compose
+- [ ] Bank Account Integration (Setu/Plaid)
 - [ ] Kubernetes Deployment
 - [ ] CI/CD Pipeline (GitHub Actions)
 - [ ] Cloud Deployment (AWS/GCP)

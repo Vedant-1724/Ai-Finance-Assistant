@@ -21,25 +21,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableCaching
 @Configuration
 public class CacheConfig {
-    // Spring Boot auto-configures ConcurrentMapCache when cache.type=simple.
-    // No additional bean needed for development mode.
+        // Spring Boot auto-configures ConcurrentMapCache when cache.type=simple.
+        // No additional bean needed for development mode.
 
-    // ── Upgrade to Redis later ────────────────────────────────────────────────
-    @org.springframework.context.annotation.Bean
-    public org.springframework.data.redis.cache.RedisCacheManager cacheManager(
-            org.springframework.data.redis.connection.RedisConnectionFactory factory) {
-        org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration
-                .defaultCacheConfig()
-                .entryTtl(java.time.Duration.ofMinutes(5))
-                .serializeKeysWith(org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
-                        .fromSerializer(new org.springframework.data.redis.serializer.StringRedisSerializer()))
-                .serializeValuesWith(
-                        org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair
-                                .fromSerializer(
-                                        new org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer()))
-                .disableCachingNullValues();
-        return org.springframework.data.redis.cache.RedisCacheManager.builder(factory)
-                .cacheDefaults(config)
-                .build();
-    }
 }

@@ -10,7 +10,6 @@ import json
 import logging
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +17,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=os.getenv('ALLOWED_ORIGINS', '*').split(','))
 
 # ──────────────────────────────────────────────────────────────────────────────
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
