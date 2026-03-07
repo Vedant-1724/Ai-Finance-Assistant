@@ -11,20 +11,20 @@ import api from '../api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ParsedTransaction {
-  date:        string
+  date: string
   description: string
-  amount:      number
-  source:      string
-  selected:    boolean
+  amount: number
+  source: string
+  selected: boolean
 }
 
 interface ParseResult {
   transactions: Omit<ParsedTransaction, 'selected'>[]
-  total_found:  number
-  skipped:      number
-  source:       string
-  warning?:     string
-  error?:       string
+  total_found: number
+  skipped: number
+  source: string
+  warning?: string
+  error?: string
 }
 
 interface StatementImportProps {
@@ -34,20 +34,22 @@ interface StatementImportProps {
 
 // Allowed file types for frontend pre-check
 const ALLOWED_EXTENSIONS = new Set(['csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'])
-const MAX_FILE_SIZE_MB   = 10
-const MAX_FILE_SIZE      = MAX_FILE_SIZE_MB * 1024 * 1024
+const MAX_FILE_SIZE_MB = 10
+const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function StatementImport({ companyId, onImportSuccess }: StatementImportProps) {
-  const fileRef                                       = useRef<HTMLInputElement>(null)
-  const [step, setStep]                               = useState<'upload' | 'preview' | 'done'>('upload')
-  const [parsing, setParsing]                         = useState(false)
-  const [importing, setImporting]                     = useState(false)
-  const [parseResult, setParseResult]                 = useState<ParseResult | null>(null)
-  const [transactions, setTransactions]               = useState<ParsedTransaction[]>([])
-  const [parseError, setParseError]                   = useState<string | null>(null)
-  const [importResult, setImportResult]               = useState<{ imported: number } | null>(null)
-  const [dragOver, setDragOver]                       = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
+  const [parsing, setParsing] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null)
+  const [transactions, setTransactions] = useState<ParsedTransaction[]>([])
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<{ imported: number } | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const [setuSyncing, setSetuSyncing] = useState(false)
+  const [setuError, setSetuError] = useState<string | null>(null)
 
   // ── Frontend validation ──────────────────────────────────────────────────────
   const validateFile = (file: File): string | null => {
@@ -100,7 +102,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
           data.warning
             ? `No transactions found. ${data.warning}`
             : 'No transactions could be detected in this file. ' +
-              'Please check the format or try a different file.'
+            'Please check the format or try a different file.'
         )
         return
       }
@@ -143,10 +145,10 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   }
 
   // ── Selection helpers ────────────────────────────────────────────────────────
-  const toggleRow     = (i: number) =>
+  const toggleRow = (i: number) =>
     setTransactions(prev => prev.map((t, idx) => idx === i ? { ...t, selected: !t.selected } : t))
-  const selectAll     = () => setTransactions(prev => prev.map(t => ({ ...t, selected: true })))
-  const deselectAll   = () => setTransactions(prev => prev.map(t => ({ ...t, selected: false })))
+  const selectAll = () => setTransactions(prev => prev.map(t => ({ ...t, selected: true })))
+  const deselectAll = () => setTransactions(prev => prev.map(t => ({ ...t, selected: false })))
   const selectedCount = transactions.filter(t => t.selected).length
 
   // ── Import ───────────────────────────────────────────────────────────────────
@@ -179,7 +181,53 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     setTransactions([])
     setParseError(null)
     setImportResult(null)
+    setSetuError(null)
     if (fileRef.current) fileRef.current.value = ''
+  }
+
+  // ── Setu AA Bank Sync ────────────────────────────────────────────────────────
+  const handleSetuSync = async () => {
+    setSetuError(null)
+    setSetuSyncing(true)
+
+    try {
+      // 1. Get consent URL (Mocked)
+      const consentRes = await api.post(`/api/v1/${companyId}/setu/consent`)
+      const consentUrl = consentRes.data.consentUrl
+
+      // In a real flow, you would redirect the user to this URL and handle a callback
+      // However, for this MVP we just immediately simulate the sync
+      // alert(`Redirecting to Setu AA consent: ${consentUrl}`)
+
+      // 2. Fetch Sync Data (Mocked)
+      const syncRes = await api.post(`/api/v1/${companyId}/setu/sync`)
+      const fetched: ParsedTransaction[] = syncRes.data.map((t: any) => ({
+        ...t,
+        selected: true
+      }))
+
+      if (fetched.length === 0) {
+        setSetuError("No transactions found from the bank via Setu AA.")
+        setSetuSyncing(false)
+        return
+      }
+
+      // Populate preview table
+      setTransactions(fetched)
+      setParseResult({
+        transactions: fetched,
+        total_found: fetched.length,
+        skipped: 0,
+        source: 'Setu AA'
+      })
+
+      setStep('preview')
+
+    } catch (err: any) {
+      setSetuError(err?.response?.data?.message || 'Failed to sync with Setu AA.')
+    } finally {
+      setSetuSyncing(false)
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -194,12 +242,12 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
         <p className="import-subtitle">
           Upload your UPI history, bank statement CSV, or screenshot.{' '}
           <strong>Sensitive information (account numbers, IFSC, card numbers) is
-          automatically removed — only transaction details are kept.</strong>
+            automatically removed — only transaction details are kept.</strong>
         </p>
         <div className="privacy-badge">
           <span className="privacy-icon">🔒</span>
           <span>Privacy Protected: Account numbers, IFSC codes, and card numbers
-          are redacted before any data is processed or stored.</span>
+            are redacted before any data is processed or stored.</span>
         </div>
       </div>
 
@@ -253,11 +301,11 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             <div className="redaction-grid">
               {[
                 ['Account Numbers', 'Shown as XXXX1234'],
-                ['Card Numbers',    'Shown as XXXX XXXX XXXX 5678'],
-                ['IFSC Codes',      'Completely removed'],
-                ['Personal UPI IDs','Phone-based UPIs redacted'],
-                ['Mobile Numbers',  'Shown as XXXXXX1234'],
-                ['PAN Numbers',     'Completely removed'],
+                ['Card Numbers', 'Shown as XXXX XXXX XXXX 5678'],
+                ['IFSC Codes', 'Completely removed'],
+                ['Personal UPI IDs', 'Phone-based UPIs redacted'],
+                ['Mobile Numbers', 'Shown as XXXXXX1234'],
+                ['PAN Numbers', 'Completely removed'],
               ].map(([title, desc]) => (
                 <div className="redaction-item" key={title}>
                   <span className="redact-icon">🚫</span>
@@ -268,6 +316,28 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="setu-sync-section" style={{ marginTop: 24, padding: 24, borderRadius: 12, border: '1px solid #1e293b', background: '#0f172a' }}>
+            <h3 style={{ marginBottom: 8, fontSize: 18, color: '#f8fafc' }}>
+              🇮🇳 Auto-Sync with Bank (Account Aggregator)
+            </h3>
+            <p style={{ color: '#94a3b8', marginBottom: 16, fontSize: 14 }}>
+              Securely connect your bank account via the RBI-regulated Account Aggregator framework (powered by Setu).
+              No login credentials shared.
+            </p>
+            <button
+              className="btn-primary"
+              onClick={handleSetuSync}
+              disabled={setuSyncing || parsing}
+              style={{ padding: '12px 24px', fontSize: 16, width: '100%', display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}
+            >
+              {setuSyncing ? <div className="spinner" style={{ width: 16, height: 16 }} /> : '🔗'}
+              {setuSyncing ? 'Connecting to Bank...' : 'Connect Bank via Setu AA'}
+            </button>
+            {setuError && (
+              <div className="parse-error" style={{ marginTop: 12 }}>❌ {setuError}</div>
+            )}
           </div>
         </div>
       )}
@@ -304,7 +374,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
 
           <div className="preview-controls">
             <div className="select-controls">
-              <button className="btn-select-all"   onClick={selectAll}>☑ Select All</button>
+              <button className="btn-select-all" onClick={selectAll}>☑ Select All</button>
               <button className="btn-deselect-all" onClick={deselectAll}>☐ Deselect All</button>
             </div>
             <div className="import-actions">

@@ -8,9 +8,14 @@
 .env
 .env.*
 !.env.example
-secret*
+**/secret*
+**/credentials*
 *.pem
 *.key
+id_rsa
+application-prod.properties
+application-local.properties
+docker-compose.override.yml
 
 # Java / Spring Boot
 Finance and Accounting Assistant/target/

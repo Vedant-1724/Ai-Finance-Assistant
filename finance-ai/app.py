@@ -21,6 +21,15 @@ app = Flask(__name__)
 CORS(app, origins=os.getenv('ALLOWED_ORIGINS', '*').split(','))
 
 # ──────────────────────────────────────────────────────────────────────────────
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev_finance_secret_key_123")
+
+@app.before_request
+def require_api_key():
+    if request.endpoint and request.endpoint != 'health' and request.method != 'OPTIONS':
+        key = request.headers.get('X-API-Key')
+        if not key or key != INTERNAL_API_KEY:
+            return jsonify({"error": "Unauthorized. Missing or invalid X-API-Key header."}), 401
+# ──────────────────────────────────────────────────────────────────────────────
 # GOOGLE GEMINI API KEY — Paste your key here or set as environment variable
 # ──────────────────────────────────────────────────────────────────────────────
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -190,7 +199,7 @@ def detect_anomalies():
             [abs(float(t.get('amount', 0))) for t in transactions]
         ).reshape(-1, 1)
 
-        model = IsolationForest(contamination=0.05, random_state=42)
+        model = IsolationForest(contamination="auto", random_state=42)
         preds = model.fit_predict(amounts)
 
         anomalies = [

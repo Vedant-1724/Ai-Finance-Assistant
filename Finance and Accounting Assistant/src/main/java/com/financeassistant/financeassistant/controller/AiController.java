@@ -26,6 +26,9 @@ public class AiController {
     @Value("${ai.service.url:http://localhost:5001}")
     private String aiServiceUrl;
 
+    @Value("${ai.service.api.key:dev_finance_secret_key_123}")
+    private String aiServiceApiKey;
+
     /**
      * POST /api/v1/ai/chat
      * Proxies to Python Flask /chat with per-user daily limit enforcement.
@@ -52,6 +55,7 @@ public class AiController {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-API-Key", aiServiceApiKey);
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
             // ✅ FIX: Use explicit type to avoid unchecked warning
