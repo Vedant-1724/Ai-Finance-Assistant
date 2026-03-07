@@ -4,8 +4,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/financedb
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:vedant}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -34,8 +34,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASS:guest}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
 
   cache:
     type: redis
@@ -71,16 +71,16 @@ spring:
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 jwt:
-  secret: ${JWT_SECRET:CHANGE_ME_IN_PRODUCTION_USE_A_64_CHAR_RANDOM_STRING_HERE_12345678}
+  secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 # ── Razorpay ──────────────────────────────────────────────────────────────────
 razorpay:
   key:
-    id: ${RAZORPAY_KEY_ID:rzp_test_YOUR_KEY_ID_HERE}
-    secret: ${RAZORPAY_KEY_SECRET:YOUR_KEY_SECRET_HERE}
+    id: ${RAZORPAY_KEY_ID}
+    secret: ${RAZORPAY_KEY_SECRET}
   webhook:
-    secret: ${RAZORPAY_WEBHOOK_SECRET:YOUR_WEBHOOK_SECRET_HERE}
+    secret: ${RAZORPAY_WEBHOOK_SECRET}
 
 # ── AI Service (Python Flask) ─────────────────────────────────────────────────
 ai:
@@ -90,7 +90,7 @@ ai:
 # ── App config ────────────────────────────────────────────────────────────────
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   free-tier:
     max-transactions: 20
     max-transactions-view: 10

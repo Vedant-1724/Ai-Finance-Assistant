@@ -9,8 +9,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: financedb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-vedant}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -29,20 +29,22 @@ services:
 
   # ── PostgreSQL Database Backups ──────────────────────────────────────────
   pg_backup:
-    image: postgres:16-alpine
+    image: alpine:3.19
     container_name: finance-pg-backup
     restart: unless-stopped
     environment:
       POSTGRES_DB: financedb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-vedant}
-    volumes:
-      - pg_backups:/backups
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET}
     depends_on:
       postgres:
         condition: service_healthy
     command: >
-      sh -c 'echo "0 2 * * * pg_dump -h postgres -U postgres financedb | gzip > /backups/db_backup_\$$(date +\%Y\%m\%d).sql.gz" > /etc/crontabs/root && crond -f'
+      sh -c 'apk add --no-cache aws-cli postgresql-client && echo "0 2 * * * PGPASSWORD=\$${POSTGRES_PASSWORD} pg_dump -h postgres -U \$${POSTGRES_USER} \$${POSTGRES_DB} | gzip > /tmp/db_backup.sql.gz && aws s3 cp /tmp/db_backup.sql.gz s3://\$${S3_BUCKET}/db_backup_\$$(date +\%Y\%m\%d).sql.gz" > /etc/crontabs/root && crond -f'
 
   # ── Redis Cache ──────────────────────────────────────────────────────────
   redis:
@@ -71,8 +73,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     healthcheck:
       test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
       interval: 15s
@@ -96,15 +98,15 @@ services:
       - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/financedb
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-vedant}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: guest
-      SPRING_RABBITMQ_PASSWORD: guest
-      JWT_SECRET: ${JWT_SECRET:-dummy_secret_for_ci_testing_1234567890}
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: 86400000
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-dummy}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-dummy}
@@ -140,10 +142,10 @@ services:
     environment:
       BACKEND_URL: http://backend:8080
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USER: guest
-      RABBITMQ_PASS: guest
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASS: ${RABBITMQ_PASSWORD}
       PORT: 5001
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-dummy}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -164,6 +166,7 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - backend
       - ai-service
