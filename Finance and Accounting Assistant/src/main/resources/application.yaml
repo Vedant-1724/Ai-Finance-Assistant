@@ -90,7 +90,7 @@ ai:
 # ── App config ────────────────────────────────────────────────────────────────
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
   free-tier:
     max-transactions: 20
     max-transactions-view: 10
