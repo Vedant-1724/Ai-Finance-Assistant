@@ -9,28 +9,28 @@ import { useAuth } from '../context/AuthContext'
 
 interface GstEntry {
   categoryName: string
-  gstRate:      number
+  gstRate: number
   taxableAmount: number
-  gstAmount:    number
-  type:         'INCOME' | 'EXPENSE'
+  gstAmount: number
+  type: 'INCOME' | 'EXPENSE'
 }
 
 interface TaxSummary {
-  financialYear:  string
-  quarter:        string
-  totalIncome:    number
-  totalExpense:   number
-  netProfit:      number
-  gstCollected:   number   // from income (output tax)
-  gstPaid:        number   // from expenses (input tax)
-  gstPayable:     number   // collected - paid
-  estimatedTDS:   number
+  financialYear: string
+  quarter: string
+  totalIncome: number
+  totalExpense: number
+  netProfit: number
+  gstCollected: number   // from income (output tax)
+  gstPaid: number   // from expenses (input tax)
+  gstPayable: number   // collected - paid
+  estimatedTDS: number
   estimatedAdvTax: number
-  breakdown:      GstEntry[]
+  breakdown: GstEntry[]
 }
 
 const QUARTERS = ['Q1 (Apr–Jun)', 'Q2 (Jul–Sep)', 'Q3 (Oct–Dec)', 'Q4 (Jan–Mar)']
-const YEARS    = ['2025-26', '2024-25', '2023-24']
+const YEARS = ['2025-26', '2024-25', '2023-24']
 
 const ITR_CHECKLIST = [
   { id: 1, text: 'Collect Form 16 / 16A from all deductors' },
@@ -44,27 +44,26 @@ const ITR_CHECKLIST = [
 ]
 
 export default function TaxPage({ companyId }: { companyId: number }) {
-  const { user, isFree } = useAuth()
-  const [activeTab,   setActiveTab]  = useState<'gst' | 'tds' | 'adv' | 'itr'>('gst')
-  const [year,        setYear]       = useState(YEARS[0])
-  const [quarter,     setQuarter]    = useState('Q1')
-  const [data,        setData]       = useState<TaxSummary | null>(null)
-  const [loading,     setLoading]    = useState(true)
-  const [error,       setError]      = useState<string | null>(null)
-  const [checked,     setChecked]    = useState<Set<number>>(new Set())
+  const { isFree } = useAuth()
+  const [activeTab, setActiveTab] = useState<'gst' | 'tds' | 'adv' | 'itr'>('gst')
+  const [year, setYear] = useState(YEARS[0])
+  const [quarter, setQuarter] = useState('Q1')
+  const [data, setData] = useState<TaxSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [checked, setChecked] = useState<Set<number>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
       const res = await api.get<TaxSummary>(
-        `/api/v1/${companyId}/tax?year=${encodeURIComponent(year)}&quarter=${quarter.slice(0,2)}`,
-        { headers }
+        `/api/v1/${companyId}/tax?year=${encodeURIComponent(year)}&quarter=${quarter.slice(0, 2)}`
       )
       setData(res.data)
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')
-      else                setError('Failed to load tax data.')
+      else setError('Failed to load tax data.')
     } finally { setLoading(false) }
   }, [companyId, year, quarter])
 
@@ -105,11 +104,11 @@ export default function TaxPage({ companyId }: { companyId: number }) {
       <div className="page-header">
         <h1 className="page-title">🧾 Tax &amp; GST</h1>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <select className="select-sm" value={year}    onChange={e => setYear(e.target.value)}>
+          <select className="select-sm" value={year} onChange={e => setYear(e.target.value)}>
             {YEARS.map(y => <option key={y}>{y}</option>)}
           </select>
           <select className="select-sm" value={quarter} onChange={e => setQuarter(e.target.value)}>
-            {QUARTERS.map(q => <option key={q} value={q.slice(0,2)}>{q}</option>)}
+            {QUARTERS.map(q => <option key={q} value={q.slice(0, 2)}>{q}</option>)}
           </select>
         </div>
       </div>
@@ -118,12 +117,12 @@ export default function TaxPage({ companyId }: { companyId: number }) {
       {data && (
         <div className="tax-summary-grid">
           {[
-            { label: 'Total Income',      value: fmt(data.totalIncome),     color: '#4ade80' },
-            { label: 'Total Expense',     value: fmt(data.totalExpense),     color: '#f87171' },
-            { label: 'Net Profit',        value: fmt(data.netProfit),        color: data.netProfit >= 0 ? '#4ade80' : '#f87171' },
-            { label: 'GST Collected',     value: fmt(data.gstCollected),     color: '#60a5fa' },
-            { label: 'GST Input Credit',  value: fmt(data.gstPaid),          color: '#a78bfa' },
-            { label: 'GST Payable',       value: fmt(data.gstPayable),       color: data.gstPayable > 0 ? '#fcd34d' : '#4ade80' },
+            { label: 'Total Income', value: fmt(data.totalIncome), color: '#4ade80' },
+            { label: 'Total Expense', value: fmt(data.totalExpense), color: '#f87171' },
+            { label: 'Net Profit', value: fmt(data.netProfit), color: data.netProfit >= 0 ? '#4ade80' : '#f87171' },
+            { label: 'GST Collected', value: fmt(data.gstCollected), color: '#60a5fa' },
+            { label: 'GST Input Credit', value: fmt(data.gstPaid), color: '#a78bfa' },
+            { label: 'GST Payable', value: fmt(data.gstPayable), color: data.gstPayable > 0 ? '#fcd34d' : '#4ade80' },
           ].map(({ label, value, color }) => (
             <div key={label} className="tax-summary-card">
               <div className="tax-label">{label}</div>
@@ -141,8 +140,10 @@ export default function TaxPage({ companyId }: { companyId: number }) {
             className={`tab-btn ${activeTab === t ? 'active' : ''}`}
             onClick={() => setActiveTab(t)}
           >
-            {{ gst: '📊 GST Breakdown', tds: '📋 TDS Estimate',
-               adv: '📅 Advance Tax',  itr: '✅ ITR Checklist' }[t]}
+            {{
+              gst: '📊 GST Breakdown', tds: '📋 TDS Estimate',
+              adv: '📅 Advance Tax', itr: '✅ ITR Checklist'
+            }[t]}
           </button>
         ))}
       </div>
@@ -206,8 +207,8 @@ export default function TaxPage({ companyId }: { companyId: number }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <InfoRow label="Total Income (this period)" value={fmt(data.totalIncome)} color="#4ade80" />
-            <InfoRow label="Estimated TDS @ 10%"        value={fmt(data.estimatedTDS)} color="#60a5fa" />
-            <InfoRow label="Net After TDS"              value={fmt(data.totalIncome - data.estimatedTDS)} color="#e2e8f0" />
+            <InfoRow label="Estimated TDS @ 10%" value={fmt(data.estimatedTDS)} color="#60a5fa" />
+            <InfoRow label="Net After TDS" value={fmt(data.totalIncome - data.estimatedTDS)} color="#e2e8f0" />
             <div style={{
               background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
               borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#93c5fd', lineHeight: 1.6
@@ -228,7 +229,7 @@ export default function TaxPage({ companyId }: { companyId: number }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <InfoRow label="Annualised Net Profit (projected)" value={fmt(data.netProfit * 4)} color="#e2e8f0" />
-            <InfoRow label="Estimated Annual Tax (30% slab)"   value={fmt(data.estimatedAdvTax)} color="#fcd34d" />
+            <InfoRow label="Estimated Annual Tax (30% slab)" value={fmt(data.estimatedAdvTax)} color="#fcd34d" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { installment: '1st — 15 Jun', percent: 15 },

@@ -4,7 +4,7 @@
 //  - Razorpay checkout for Pro
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
@@ -135,12 +135,12 @@ export default function SubscriptionPage() {
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <button
-          onClick={() => navigate('/')}
-          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto 20px' }}
+        <Link
+          to="/"
+          style={{ textDecoration: 'none', color: 'var(--text-muted)', fontSize: 13, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, margin: '0 auto 20px', width: 'max-content' }}
         >
           ← Back to dashboard
-        </button>
+        </Link>
         <h1 className="page-title" style={{ fontSize: 28, marginBottom: 8 }}>Choose your plan</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
           {isActive ? '✅ You are on the Pro plan — thank you for subscribing!'

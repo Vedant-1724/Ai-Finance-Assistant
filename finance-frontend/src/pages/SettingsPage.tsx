@@ -96,8 +96,7 @@ export default function SettingsPage() {
     setPwSaving(true)
     try {
       await api.post('/api/v1/auth/change-password',
-        { currentPassword: pwCurrent, newPassword: pwNew },
-        { headers }
+        { currentPassword: pwCurrent, newPassword: pwNew }
       )
       setPwMsg('✅ Password changed. You will need to log in again.')
       setPwCurrent(''); setPwNew(''); setPwConfirm('')
@@ -114,7 +113,7 @@ export default function SettingsPage() {
     try {
       const res = await api.get(
         `/api/v1/${user?.companyId}/transactions/export?format=csv`,
-        { headers, responseType: 'blob' }
+        { responseType: 'blob' }
       )
       const url = URL.createObjectURL(new Blob([res.data as BlobPart]))
       const link = document.createElement('a')

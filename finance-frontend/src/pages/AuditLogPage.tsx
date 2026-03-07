@@ -1,7 +1,7 @@
 // PATH: finance-frontend/src/pages/AuditLogPage.tsx
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
-import { useAuth } from '../context/AuthContext'
+
 
 interface AuditEntry {
   id: number; companyId: number; userId: number; action: string;
@@ -10,7 +10,7 @@ interface AuditEntry {
 interface PageResponse { content: AuditEntry[]; totalPages: number; number: number }
 
 export default function AuditLogPage({ companyId }: { companyId: number }) {
-  const { user } = useAuth()
+
   const [data, setData] = useState<PageResponse | null>(null)
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)

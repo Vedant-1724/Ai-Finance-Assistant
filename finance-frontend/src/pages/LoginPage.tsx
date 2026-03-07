@@ -114,14 +114,25 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="auth-footer" style={{ marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', color: 'var(--text-muted)', fontSize: '12px' }}>
+          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+          <span style={{ padding: '0 10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>New to FinanceAI?</span>
+          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate('/register')}
+          onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.borderColor = 'var(--text-secondary)'; }}
+          onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+          style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease' }}
+        >
+          Create New Account
+        </button>
+
+        <p className="auth-footer" style={{ marginTop: '1.5rem', textAlign: 'center' }}>
           Forgot your password?{' '}
           <Link to="/forgot-password" className="auth-link">Reset it</Link>
-        </p>
-
-        <p className="auth-footer" style={{ marginTop: '0.5rem' }}>
-          Don't have an account?{' '}
-          <Link to="/register" className="auth-link">Create one free</Link>
         </p>
       </div>
     </div>

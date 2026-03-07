@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
-import { useAuth } from '../context/AuthContext'
+
 
 interface BudgetVariance {
   id: number; categoryName: string; budgeted: number; actual: number;
@@ -14,7 +14,7 @@ interface BudgetDTO {
 }
 
 export default function BudgetPlanner({ companyId }: { companyId: number }) {
-  const { user } = useAuth()
+
   const [variances, setVariances] = useState<BudgetVariance[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)

@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, LineChart, Line
 } from 'recharts'
 import api from '../api'
-import { useAuth } from '../context/AuthContext'
+
 
 interface MonthlyBar { month: string; income: number; expense: number; net: number }
 interface CategoryPie { name: string; value: number; percent: number }
@@ -21,7 +21,7 @@ const TEXT = '#94a3b8'
 const fmt = (v: number) => '₹' + Math.abs(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 
 export default function ChartsSection({ companyId }: { companyId: number }) {
-  const { user } = useAuth()
+
   const [data, setData] = useState<ChartData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

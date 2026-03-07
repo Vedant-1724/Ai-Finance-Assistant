@@ -67,21 +67,9 @@ function ProtectedApp() {
 
   return (
     <div className="app-shell">
-      {/* Trial / free tier reminder banner */}
-      <StatusBanner onUpgrade={() => navigate('/subscription')} />
-
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="app-header">
-        <div className="header-left">
-          {/* Hamburger (mobile) */}
-          <button
-            className="hamburger"
-            onClick={() => setSidebar(!sidebarOpen)}
-            aria-label="Toggle menu"
-          >
-            <span /><span /><span />
-          </button>
-
+      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
+      <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
           {/* Brand */}
           <div className="brand">
             <div className="brand-logo">
@@ -108,7 +96,7 @@ function ProtectedApp() {
         </div>
 
         {/* ── Navigation ──────────────────────────────────────────────────── */}
-        <nav className={`app-nav ${sidebarOpen ? 'open' : ''}`}>
+        <nav className="app-nav">
           {/* Main */}
           <div className="nav-section-label">Main</div>
           <NavBtn tab="dashboard" label="Dashboard" icon="📊" />
@@ -130,62 +118,85 @@ function ProtectedApp() {
           <NavBtn tab="settings" label="Settings" icon="⚙️" />
         </nav>
 
-        {/* Mobile nav backdrop */}
-        {sidebarOpen && (
-          <div className="nav-overlay" onClick={() => setSidebar(false)} />
-        )}
-
-        {/* ── Right side ──────────────────────────────────────────────────── */}
-        <div className="header-right">
-          {/* Tier badge */}
-          <span className={`tier-badge ${user?.subscriptionTier === 'ACTIVE' ? 'active' :
-            user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'
-            }`}>
-            {user?.subscriptionTier ?? 'FREE'}
-          </span>
-
-          <span className="user-email">{user?.email}</span>
-
+        {/* ── Sidebar Footer ──────────────────────────────────────────────── */}
+        <div className="sidebar-footer">
+          <div className="user-profile-sm">
+            <div className="user-email-wrap">
+              <span className={`tier-badge ${user?.subscriptionTier === 'ACTIVE' ? 'active' : user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'}`}>
+                {user?.subscriptionTier ?? 'FREE'}
+              </span>
+              <span className="user-email" title={user?.email}>{user?.email}</span>
+            </div>
+            <button className="btn-logout" onClick={logout} title="Logout">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
+          </div>
           <button className="btn-upgrade" onClick={() => navigate('/subscription')}>
-            {isFree ? '⬆️ Upgrade' : '💳 Plan'}
-          </button>
-
-          <button className="btn-logout" onClick={logout} title="Logout">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            {isFree ? '⬆️ Upgrade to Pro' : '💳 View Plan'}
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* ── Main content area ───────────────────────────────────────────────── */}
-      <main className="app-main">
-        {/* FIX: dashboardKey forces remount/re-fetch after import */}
-        {activeTab === 'dashboard' && (
-          <Dashboard key={dashboardKey} companyId={companyId} />
-        )}
-        {activeTab === 'charts' && <ChartsSection companyId={companyId} />}
-        {activeTab === 'budget' && <BudgetPlanner companyId={companyId} />}
-        {activeTab === 'chat' && <ChatAssistant />}
-        {activeTab === 'invoices' && <InvoiceUpload companyId={companyId} />}
+      {/* Mobile nav backdrop */}
+      {sidebarOpen && (
+        <div className="nav-overlay" onClick={() => setSidebar(false)} />
+      )}
 
-        {/* FIX: onImportSuccess is now passed — resolves TS compile error */}
-        {activeTab === 'import' && (
-          <StatementImport
-            companyId={companyId}
-            onImportSuccess={handleImportSuccess}
-          />
-        )}
+      {/* ── Content Wrapper ───────────────────────────────────────────────── */}
+      <div className="app-content-wrapper">
+        {/* Mobile Header */}
+        <header className="mobile-header">
+          <button className="hamburger" onClick={() => setSidebar(true)} aria-label="Open menu">
+            <span /><span /><span />
+          </button>
+          <div className="brand-logo" style={{ transform: 'scale(0.8)' }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="8" fill="url(#brandGrad2)" />
+              <path d="M8 18l4-8 4 6 2-4 2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <defs>
+                <linearGradient id="brandGrad2" x1="0" y1="0" x2="28" y2="28">
+                  <stop stopColor="#3b82f6" />
+                  <stop offset="1" stopColor="#8b5cf6" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div className="mobile-brand" style={{ marginLeft: 8 }}>FinanceAI</div>
+        </header>
 
-        {activeTab === 'tax' && <TaxPage companyId={companyId} />}
-        {activeTab === 'health' && <HealthScorePage companyId={companyId} />}
-        {activeTab === 'audit' && <AuditLogPage companyId={companyId} />}
-        {activeTab === 'team' && <TeamPage companyId={companyId} />}
-        {activeTab === 'settings' && <SettingsPage />}
-      </main>
+        {/* Trial / free tier reminder banner overlays exactly below the mobile header or top of content frame */}
+        <StatusBanner onUpgrade={() => navigate('/subscription')} />
+
+        {/* ── Main content area ───────────────────────────────────────────────── */}
+        <main className="app-main">
+          {/* FIX: dashboardKey forces remount/re-fetch after import */}
+          {activeTab === 'dashboard' && (
+            <Dashboard key={dashboardKey} companyId={companyId} />
+          )}
+          {activeTab === 'charts' && <ChartsSection companyId={companyId} />}
+          {activeTab === 'budget' && <BudgetPlanner companyId={companyId} />}
+          {activeTab === 'chat' && <ChatAssistant />}
+          {activeTab === 'invoices' && <InvoiceUpload companyId={companyId} />}
+
+          {/* FIX: onImportSuccess is now passed — resolves TS compile error */}
+          {activeTab === 'import' && (
+            <StatementImport
+              companyId={companyId}
+              onImportSuccess={handleImportSuccess}
+            />
+          )}
+
+          {activeTab === 'tax' && <TaxPage companyId={companyId} />}
+          {activeTab === 'health' && <HealthScorePage companyId={companyId} />}
+          {activeTab === 'audit' && <AuditLogPage companyId={companyId} />}
+          {activeTab === 'team' && <TeamPage companyId={companyId} />}
+          {activeTab === 'settings' && <SettingsPage />}
+        </main>
+      </div>
     </div>
   )
 }

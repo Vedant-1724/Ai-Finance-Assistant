@@ -48,7 +48,7 @@ function scoreColor(score: number) {
 }
 
 export default function HealthScorePage({ companyId }: { companyId: number }) {
-  const { user, isFree } = useAuth()
+  const { isFree } = useAuth()
   const [month, setMonth] = useState(MONTHS[0].value)
   const [data, setData] = useState<HealthScore | null>(null)
   const [loading, setLoading] = useState(true)
