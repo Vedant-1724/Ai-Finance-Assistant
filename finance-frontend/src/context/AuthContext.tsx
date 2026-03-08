@@ -8,7 +8,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 interface UserInfo {
   companyId: number
   email: string
-  subscriptionTier: 'FREE' | 'TRIAL' | 'ACTIVE'
+  subscriptionTier: 'FREE' | 'TRIAL' | 'ACTIVE' | 'MAX'
   trialDaysRemaining: number
   aiChatsRemaining: number
 }
@@ -19,6 +19,7 @@ interface AuthContextType {
   isPremium: boolean
   isFree: boolean
   isTrial: boolean
+  isMax: boolean
   login: (companyId: number, email: string,
     subscriptionStatus: string, trialDaysRemaining: number,
     aiChatsRemaining: number) => void
@@ -46,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     trialDaysRemaining: number,
     aiChatsRemaining: number
   ) => {
-    const tier = (subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIAL')
-      ? subscriptionStatus as 'ACTIVE' | 'TRIAL'
+    const tier = (subscriptionStatus === 'ACTIVE' || subscriptionStatus === 'TRIAL' || subscriptionStatus === 'MAX')
+      ? subscriptionStatus as 'ACTIVE' | 'TRIAL' | 'MAX'
       : 'FREE'
 
     const userInfo: UserInfo = {
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateSubscription = (tier: string, daysRemaining: number, aiChatsRemaining: number) => {
     if (!user) return
-    const normalizedTier: 'ACTIVE' | 'TRIAL' | 'FREE' = (tier === 'ACTIVE' || tier === 'TRIAL') ? tier as 'ACTIVE' | 'TRIAL' : 'FREE'
+    const normalizedTier: 'ACTIVE' | 'TRIAL' | 'FREE' | 'MAX' = (tier === 'ACTIVE' || tier === 'TRIAL' || tier === 'MAX') ? tier as 'ACTIVE' | 'TRIAL' | 'MAX' : 'FREE'
     const updated: UserInfo = {
       ...user,
       subscriptionTier: normalizedTier,
@@ -86,9 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth_user', JSON.stringify(updated))
   }
 
-  const isPremium = user?.subscriptionTier === 'ACTIVE' || user?.subscriptionTier === 'TRIAL'
+  const isPremium = user?.subscriptionTier === 'ACTIVE' || user?.subscriptionTier === 'TRIAL' || user?.subscriptionTier === 'MAX'
   const isFree = !isPremium
   const isTrial = user?.subscriptionTier === 'TRIAL'
+  const isMax = user?.subscriptionTier === 'MAX'
 
   return (
     <AuthContext.Provider value={{
@@ -97,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isPremium,
       isFree,
       isTrial,
+      isMax,
       login,
       logout,
       updateSubscription,

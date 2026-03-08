@@ -73,8 +73,9 @@ public class User implements UserDetails {
     // ── Subscription Status Enum ──────────────────────────────────────────────
     public enum SubscriptionStatus {
         FREE, // Default — permanent free tier with limited features
-        TRIAL, // 5-day premium trial (explicitly started by user)
-        ACTIVE, // Paid subscriber
+        TRIAL, // 3-day premium trial (explicitly started by user)
+        ACTIVE, // Paid subscriber (Pro)
+        MAX, // Max paid subscriber
         EXPIRED, // Trial ended, reverts to FREE limitations
         CANCELLED // Was subscriber, reverts to FREE limitations
     }
@@ -88,13 +89,14 @@ public class User implements UserDetails {
      */
     public boolean isSubscriptionActive() {
         switch (subscriptionStatus) {
+            case MAX:
             case ACTIVE:
                 return subscriptionExpiresAt == null
                         || Instant.now().isBefore(subscriptionExpiresAt);
             case TRIAL:
                 if (trialStartedAt == null)
                     return true;
-                return Instant.now().isBefore(trialStartedAt.plus(5, ChronoUnit.DAYS));
+                return Instant.now().isBefore(trialStartedAt.plus(3, ChronoUnit.DAYS));
             case FREE:
             case EXPIRED:
             case CANCELLED:
@@ -110,13 +112,14 @@ public class User implements UserDetails {
      */
     public boolean hasPremiumAccess() {
         switch (subscriptionStatus) {
+            case MAX:
             case ACTIVE:
                 return subscriptionExpiresAt == null
                         || Instant.now().isBefore(subscriptionExpiresAt);
             case TRIAL:
                 if (trialStartedAt == null)
                     return false;
-                return Instant.now().isBefore(trialStartedAt.plus(5, ChronoUnit.DAYS));
+                return Instant.now().isBefore(trialStartedAt.plus(3, ChronoUnit.DAYS));
             default:
                 return false;
         }
@@ -127,12 +130,16 @@ public class User implements UserDetails {
      */
     public String getEffectiveTier() {
         switch (subscriptionStatus) {
+            case MAX:
+                if (subscriptionExpiresAt == null || Instant.now().isBefore(subscriptionExpiresAt))
+                    return "MAX";
+                return "FREE"; // Expired MAX → FREE
             case ACTIVE:
                 if (subscriptionExpiresAt == null || Instant.now().isBefore(subscriptionExpiresAt))
                     return "ACTIVE";
                 return "FREE"; // Expired ACTIVE → FREE
             case TRIAL:
-                if (trialStartedAt != null && Instant.now().isBefore(trialStartedAt.plus(5, ChronoUnit.DAYS)))
+                if (trialStartedAt != null && Instant.now().isBefore(trialStartedAt.plus(3, ChronoUnit.DAYS)))
                     return "TRIAL";
                 return "FREE"; // Expired TRIAL → FREE
             case FREE:
@@ -150,8 +157,8 @@ public class User implements UserDetails {
         if (subscriptionStatus != SubscriptionStatus.TRIAL)
             return 0L;
         if (trialStartedAt == null)
-            return 5L;
-        Instant expiry = trialStartedAt.plus(5, ChronoUnit.DAYS);
+            return 3L;
+        Instant expiry = trialStartedAt.plus(3, ChronoUnit.DAYS);
         long remaining = Instant.now().until(expiry, ChronoUnit.DAYS);
         return Math.max(0L, remaining);
     }
@@ -165,12 +172,14 @@ public class User implements UserDetails {
     public int getAiChatDailyLimit() {
         String tier = getEffectiveTier();
         switch (tier) {
-            case "ACTIVE":
+            case "MAX":
                 return 50;
+            case "ACTIVE":
+                return 20;
             case "TRIAL":
-                return 10;
+                return 0; // AI chat excluded from trial
             default:
-                return 3;
+                return 0; // FREE — AI chat excluded
         }
     }
 

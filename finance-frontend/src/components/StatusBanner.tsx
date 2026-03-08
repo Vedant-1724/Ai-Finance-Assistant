@@ -11,16 +11,31 @@ interface StatusBannerProps {
 }
 
 export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
-  const { user, isPremium, isFree, isTrial } = useAuth()
+  const { user, isPremium, isFree, isTrial, isMax } = useAuth()
 
   if (!user) return null
 
   // ── Active paid subscriber — no intrusive banner ───────────────────────────
-  if (isPremium && !isTrial) {
+  if (isPremium && !isTrial && !isMax) {
     return (
       <div className="status-banner banner-active">
         <span className="banner-text">
           ✅ <strong>Pro Plan</strong> — All features unlocked. {
+            user.aiChatsRemaining > 0
+              ? `${user.aiChatsRemaining} AI chats remaining today.`
+              : 'Daily AI chat limit reached — resets at midnight.'
+          }
+        </span>
+      </div>
+    )
+  }
+
+  // ── Max tier ───────────────────────────────────────────────────────────────
+  if (isMax) {
+    return (
+      <div className="status-banner banner-max" style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)', borderBottom: '1px solid rgba(139, 92, 246, 0.2)', color: '#c4b5fd' }}>
+        <span className="banner-text">
+          👑 <strong>Max Plan</strong> — Ultimate power unlocked. {
             user.aiChatsRemaining > 0
               ? `${user.aiChatsRemaining} AI chats remaining today.`
               : 'Daily AI chat limit reached — resets at midnight.'
@@ -43,14 +58,12 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
           {days <= 0
             ? 'Your trial has expired.'
             : days === 1
-            ? 'Last day of your trial!'
-            : `${days} days remaining.`}{' '}
-          {user.aiChatsRemaining > 0
-            ? `${user.aiChatsRemaining} AI chats left today.`
-            : 'Daily AI chat limit reached.'}
+              ? 'Last day of your trial!'
+              : `${days} days remaining.`}{' '}
+          AI Chat is not included.
         </span>
         <button className="banner-cta" onClick={onUpgrade}>
-          Upgrade to Pro →
+          Upgrade to Pro for 20 queries/day →
         </button>
       </div>
     )
@@ -61,7 +74,7 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
     return (
       <div className="status-banner banner-free">
         <span className="banner-text">
-          🔓 <strong>Free Plan</strong> — Limited to 10 transactions &amp; 3 AI chats/day.
+          🔓 <strong>Free Plan</strong> — Limited to 50 transactions &amp; no AI chat.
           Unlock forecasts, charts, invoices, tax tools &amp; more.
         </span>
         <button className="banner-cta" onClick={onUpgrade}>

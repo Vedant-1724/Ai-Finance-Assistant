@@ -32,7 +32,7 @@ type Tab =
 
 // ── Protected shell ───────────────────────────────────────────────────────────
 function ProtectedApp() {
-  const { user, logout, isFree } = useAuth()
+  const { user, logout, isFree, isTrial } = useAuth()
   const navigate = useNavigate()
 
   const [activeTab, setTab] = useState<Tab>('dashboard')
@@ -102,7 +102,7 @@ function ProtectedApp() {
           <NavBtn tab="dashboard" label="Dashboard" icon="📊" />
           <NavBtn tab="charts" label="Charts" icon="📈" locked={isFree} />
           <NavBtn tab="budget" label="Budget" icon="🎯" />
-          <NavBtn tab="chat" label="AI Assistant" icon="🤖" />
+          <NavBtn tab="chat" label="AI Assistant" icon="🤖" locked={isFree || isTrial} />
 
           {/* Finance */}
           <div className="nav-section-label">Finance</div>
@@ -122,7 +122,7 @@ function ProtectedApp() {
         <div className="sidebar-footer">
           <div className="user-profile-sm">
             <div className="user-email-wrap">
-              <span className={`tier-badge ${user?.subscriptionTier === 'ACTIVE' ? 'active' : user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'}`}>
+              <span className={`tier-badge ${user?.subscriptionTier === 'MAX' ? 'max' : user?.subscriptionTier === 'ACTIVE' ? 'active' : user?.subscriptionTier === 'TRIAL' ? 'trial' : 'free'}`}>
                 {user?.subscriptionTier ?? 'FREE'}
               </span>
               <span className="user-email" title={user?.email}>{user?.email}</span>

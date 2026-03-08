@@ -63,23 +63,30 @@ public class PaymentController {
      */
     @PostMapping("/create-order")
     public ResponseEntity<?> createOrder(
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user,
+            @RequestBody Map<String, Object> payload) {
         try {
+            int amount = payload.containsKey("amount") ? (Integer) payload.get("amount") : 39900;
+            String plan = amount == 89900 ? "MAX" : "ACTIVE";
+
             RazorpayClient client = new RazorpayClient(keyId, keySecret);
 
             JSONObject opts = new JSONObject();
-            opts.put("amount", 49900); // ₹499.00 in paise (1 rupee = 100 paise)
+            opts.put("amount", amount);
             opts.put("currency", "INR");
             opts.put("receipt", "rcpt_" + System.currentTimeMillis());
-            opts.put("notes", new JSONObject().put("email", user.getEmail()));
+            opts.put("notes", new JSONObject()
+                    .put("email", user.getEmail())
+                    .put("plan", plan));
 
             Order order = client.orders.create(opts);
-            log.info("Razorpay order created: {} for user {}", order.get("id"), user.getEmail());
+            log.info("Razorpay order created: {} for user {} for plan {}", order.get("id"), user.getEmail(), plan);
 
             return ResponseEntity.ok(Map.of(
                     "orderId", order.get("id"),
                     "amount", order.get("amount"),
                     "currency", order.get("currency"),
+                    "plan", plan,
                     "keyId", keyId,
                     "email", user.getEmail()));
 
@@ -138,11 +145,12 @@ public class PaymentController {
                         .getJSONObject("entity");
 
                 String email = paymentEntity.getJSONObject("notes").optString("email", "");
+                String plan = paymentEntity.getJSONObject("notes").optString("plan", "ACTIVE");
                 String paymentId = paymentEntity.getString("id");
 
                 if (!email.isBlank()) {
-                    subscriptionService.activateSubscription(email, paymentId);
-                    log.info("Subscription activated via webhook for email={}", email);
+                    subscriptionService.activateSubscription(email, paymentId, plan);
+                    log.info("Subscription activated via webhook for email={} to plan={}", email, plan);
                 } else {
                     log.warn("Webhook payment.captured missing email in notes — skipped");
                 }
@@ -172,6 +180,7 @@ public class PaymentController {
             String razorpayPaymentId = payload.get("razorpay_payment_id");
             String razorpayOrderId = payload.get("razorpay_order_id");
             String razorpaySignature = payload.get("razorpay_signature");
+            String plan = payload.getOrDefault("plan", "ACTIVE");
 
             if (razorpayPaymentId == null || razorpayOrderId == null || razorpaySignature == null) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Missing payment verification parameters"));
@@ -185,8 +194,8 @@ public class PaymentController {
             boolean isValid = Utils.verifyPaymentSignature(options, keySecret);
 
             if (isValid) {
-                subscriptionService.activateSubscription(user.getEmail(), razorpayPaymentId);
-                log.info("Subscription activated via frontend verify for email={}", user.getEmail());
+                subscriptionService.activateSubscription(user.getEmail(), razorpayPaymentId, plan);
+                log.info("Subscription activated via frontend verify for email={} to plan={}", user.getEmail(), plan);
                 return ResponseEntity.ok(Map.of("status", "success"));
             } else {
                 log.warn("Invalid payment signature during verify for {}", user.getEmail());

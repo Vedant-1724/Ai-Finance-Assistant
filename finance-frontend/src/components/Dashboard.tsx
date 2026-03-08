@@ -83,8 +83,12 @@ function Dashboard({ companyId }: DashboardProps) {
         `/api/v1/${companyId}/reports/pnl?period=${period}`
       )
       setPnl(res.data)
-    } catch {
-      setPnlError('Could not load P&L report. Make sure Spring Boot is running.')
+    } catch (err: any) {
+      if (err.response?.status === 402) {
+        setPnlError('Upgrade to Pro to view Profit & Loss reports.')
+      } else {
+        setPnlError('Could not load P&L report. Make sure Spring Boot is running.')
+      }
     } finally {
       setPnlLoading(false)
     }

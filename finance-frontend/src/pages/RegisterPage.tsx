@@ -32,18 +32,11 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      const res = await axios.post<AuthResponse>(
-        '/api/v1/auth/register',
-        { email, password, companyName }
-      )
-      login(
-        res.data.companyId,
-        res.data.email,
-        res.data.subscriptionStatus,
-        res.data.trialDaysRemaining,
-        res.data.aiChatsRemaining
-      )
-      navigate('/', { replace: true })
+      // The backend returns a status message, not the auth payload.
+      // We set a success message instead of auto-logging in.
+      setError('Registration successful! Please check your email to verify your account before logging in.')
+      // Optional: auto-redirect to login after a few seconds
+      setTimeout(() => navigate('/login'), 5000)
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const msg = (err.response?.data as { error?: string })?.error

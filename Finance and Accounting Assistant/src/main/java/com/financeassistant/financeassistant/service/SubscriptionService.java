@@ -15,16 +15,16 @@ import java.time.temporal.ChronoUnit;
 /**
  *
  * CHANGES:
- *  - startTrial() is now an explicit user action (not auto-called on register)
- *  - Added incrementAiChatUsage() and getAiChatsRemaining() for daily quota
- *  - FREE/EXPIRED/CANCELLED all map to free-tier behaviour (not hard-blocked)
+ * - startTrial() is now an explicit user action (not auto-called on register)
+ * - Added incrementAiChatUsage() and getAiChatsRemaining() for daily quota
+ * - FREE/EXPIRED/CANCELLED all map to free-tier behaviour (not hard-blocked)
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SubscriptionService {
 
-    private static final int TRIAL_DAYS = 5;
+    private static final int TRIAL_DAYS = 3;
 
     private final UserRepository userRepository;
 
@@ -67,7 +67,8 @@ public class SubscriptionService {
 
     /**
      * Attempts to consume one AI chat message for the given user.
-     * Returns the number of chats remaining AFTER this message, or -1 if limit exceeded.
+     * Returns the number of chats remaining AFTER this message, or -1 if limit
+     * exceeded.
      */
     @Transactional
     public int consumeAiChatMessage(User user) {
@@ -100,30 +101,39 @@ public class SubscriptionService {
     // ── Subscription activation / renewal / cancellation ─────────────────────
 
     @Transactional
-    public void activateSubscription(String email, String razorpayPaymentId) {
+    public void activateSubscription(String email, String razorpayPaymentId, String plan) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
         Instant expiry = Instant.now().plus(30, ChronoUnit.DAYS);
-        user.setSubscriptionStatus(SubscriptionStatus.ACTIVE);
+
+        SubscriptionStatus finalStatus = "MAX".equalsIgnoreCase(plan) ? SubscriptionStatus.MAX
+                : SubscriptionStatus.ACTIVE;
+        user.setSubscriptionStatus(finalStatus);
+
         user.setSubscriptionExpiresAt(expiry);
         user.setRazorpaySubscriptionId(razorpayPaymentId);
         userRepository.save(user);
-        log.info("Subscription ACTIVATED for {} — expires {}", email, expiry);
+        log.info("Subscription {} ACTIVATED for {} — expires {}", finalStatus, email, expiry);
     }
 
     @Transactional
-    public void renewSubscription(String email, String razorpayPaymentId) {
+    public void renewSubscription(String email, String razorpayPaymentId, String plan) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
         Instant base = (user.getSubscriptionExpiresAt() != null &&
-                        user.getSubscriptionExpiresAt().isAfter(Instant.now()))
-                       ? user.getSubscriptionExpiresAt() : Instant.now();
+                user.getSubscriptionExpiresAt().isAfter(Instant.now()))
+                        ? user.getSubscriptionExpiresAt()
+                        : Instant.now();
         Instant newExpiry = base.plus(30, ChronoUnit.DAYS);
-        user.setSubscriptionStatus(SubscriptionStatus.ACTIVE);
+
+        SubscriptionStatus finalStatus = "MAX".equalsIgnoreCase(plan) ? SubscriptionStatus.MAX
+                : SubscriptionStatus.ACTIVE;
+        user.setSubscriptionStatus(finalStatus);
+
         user.setSubscriptionExpiresAt(newExpiry);
         user.setRazorpaySubscriptionId(razorpayPaymentId);
         userRepository.save(user);
-        log.info("Subscription RENEWED for {} — new expiry {}", email, newExpiry);
+        log.info("Subscription {} RENEWED for {} — new expiry {}", finalStatus, email, newExpiry);
     }
 
     @Transactional

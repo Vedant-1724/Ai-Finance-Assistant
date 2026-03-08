@@ -32,12 +32,6 @@ api.interceptors.response.use(
       window.location.href = '/login'
     }
 
-    if (status === 402) {
-      // Subscription expired → redirect to upgrade page
-      // SubscriptionFilter.java returns 402 for expired/cancelled users
-      window.location.href = '/subscription'
-    }
-
     return Promise.reject(err)
   }
 )
