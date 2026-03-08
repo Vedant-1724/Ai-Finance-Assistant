@@ -91,8 +91,8 @@ CREATE INDEX IF NOT EXISTS idx_member_invite_token
 
 -- ── 7. GST rate column on categories ─────────────────────────────────────────
 ALTER TABLE categories
-    ADD COLUMN IF NOT EXISTS gst_rate INTEGER NOT NULL DEFAULT 18
-        CHECK (gst_rate IN (0, 5, 12, 18, 28));
+    ADD COLUMN IF NOT EXISTS gst_rate DECIMAL(5,2) NOT NULL DEFAULT 18.00
+        CHECK (gst_rate IN (0.00, 5.00, 12.00, 18.00, 28.00));
 
 -- ── 8. Seed default GST rates ────────────────────────────────────────────────
 UPDATE categories SET gst_rate = 0  WHERE LOWER(name) IN ('salary','wages','rent','healthcare');
