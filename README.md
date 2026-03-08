@@ -434,7 +434,7 @@ curl -X POST http://localhost:5000/forecast \
 
 ### Python AI Service (`.env`)
 ```env
-OPENAI_API_KEY=sk-proj-your-key-here
+GOOGLE_API_KEY=your-gemini-key-here
 PLAID_CLIENT_ID=your-plaid-client-id
 PLAID_SECRET=your-plaid-secret
 PLAID_ENV=sandbox
@@ -510,7 +510,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 ## 🙏 Acknowledgements
 
 - [Spring Boot](https://spring.io/projects/spring-boot)
-- [OpenAI](https://openai.com)
+- [Google Gemini](https://ai.google.dev/)
 - [Prophet by Meta](https://facebook.github.io/prophet/)
 - [Scikit-learn](https://scikit-learn.org)
 - [React](https://react.dev)
