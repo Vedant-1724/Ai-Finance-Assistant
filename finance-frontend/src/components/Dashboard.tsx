@@ -172,22 +172,28 @@ function Dashboard({ companyId }: DashboardProps) {
       ) : txnLoading ? (
         <div className="loading">⏳ Loading financial data...</div>
       ) : (
-        <div className="metric-grid">
-          <div className="metric income">
-            <div className="metric-icon">📈</div>
-            <label>Total Income</label>
-            <div className="metric-value">₹{liveIncome.toLocaleString('en-IN')}</div>
+        <div className="premium-metric-container">
+          <div className="premium-metric-card income">
+            <div className="premium-metric-header">
+              <div className="premium-metric-icon">📈</div>
+              <label className="premium-metric-label">Total Income</label>
+            </div>
+            <div className="premium-metric-value">₹{liveIncome.toLocaleString('en-IN')}</div>
           </div>
-          <div className="metric expense">
-            <div className="metric-icon">📉</div>
-            <label>Total Expenses</label>
-            <div className="metric-value">₹{liveExpense.toLocaleString('en-IN')}</div>
+          <div className="premium-metric-card expense">
+            <div className="premium-metric-header">
+              <div className="premium-metric-icon">📉</div>
+              <label className="premium-metric-label">Total Expenses</label>
+            </div>
+            <div className="premium-metric-value">₹{liveExpense.toLocaleString('en-IN')}</div>
           </div>
-          <div className="metric net">
-            <div className="metric-icon">💰</div>
-            <label>Net Cash Flow</label>
+          <div className="premium-metric-card net">
+            <div className="premium-metric-header">
+              <div className="premium-metric-icon">💰</div>
+              <label className="premium-metric-label">Net Cash Flow</label>
+            </div>
             <div
-              className="metric-value"
+              className="premium-metric-value"
               style={{ color: liveNet >= 0 ? 'var(--accent-bright)' : 'var(--expense)' }}
             >
               ₹{liveNet.toLocaleString('en-IN')}
@@ -202,14 +208,14 @@ function Dashboard({ companyId }: DashboardProps) {
       )}
 
       {/* ── P&L Report ── */}
-      <div className="pnl-section">
+      <div className="premium-pnl-container pnl-section">
         <div className="pnl-header">
           <h3>📊 Profit & Loss Report</h3>
-          <div className="period-tabs">
+          <div className="period-tabs premium-period-tabs">
             {(['month', 'quarter', 'year'] as Period[]).map(p => (
               <button
                 key={p}
-                className={`period-tab ${activePeriod === p ? 'active' : ''}`}
+                className={`period-tab premium-period-tab ${activePeriod === p ? 'active' : ''}`}
                 onClick={() => setActivePeriod(p)}
               >
                 {periodLabel[p]}

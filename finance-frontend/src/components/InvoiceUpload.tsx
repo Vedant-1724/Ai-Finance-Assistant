@@ -10,20 +10,20 @@ interface InvoiceUploadProps {
 }
 
 interface OcrResult {
-  vendor:     string | null
-  date:       string | null
+  vendor: string | null
+  date: string | null
   invoice_no: string | null
-  total:      number | null
-  currency:   string
-  raw_text:   string
-  note?:      string
+  total: number | null
+  currency: string
+  raw_text: string
+  note?: string
 }
 
 interface EditForm {
   description: string
-  date:        string
-  amount:      string
-  type:        'expense' | 'income'
+  date: string
+  amount: string
+  type: 'expense' | 'income'
 }
 
 type Stage = 'idle' | 'uploading' | 'reviewing' | 'saving' | 'saved' | 'error'
@@ -32,12 +32,12 @@ type Stage = 'idle' | 'uploading' | 'reviewing' | 'saving' | 'saved' | 'error'
 //  Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 const ACCEPTED = ['image/png', 'image/jpeg', 'image/jpg']
-const TODAY    = new Date().toISOString().split('T')[0]
+const TODAY = new Date().toISOString().split('T')[0]
 
 function buildDescription(vendor: string | null, invoiceNo: string | null): string {
   if (vendor && invoiceNo) return `Invoice from ${vendor} #${invoiceNo}`
-  if (vendor)              return `Invoice from ${vendor}`
-  if (invoiceNo)           return `Invoice #${invoiceNo}`
+  if (vendor) return `Invoice from ${vendor}`
+  if (invoiceNo) return `Invoice #${invoiceNo}`
   return 'Invoice payment'
 }
 
@@ -57,11 +57,11 @@ function normaliseDate(raw: string | null): string {
 function DropZone({
   onFile, dragOver, onDragOver, onDragLeave, onDrop,
 }: {
-  onFile:      (f: File) => void
-  dragOver:    boolean
-  onDragOver:  (e: DragEvent<HTMLDivElement>) => void
+  onFile: (f: File) => void
+  dragOver: boolean
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void
   onDragLeave: () => void
-  onDrop:      (e: DragEvent<HTMLDivElement>) => void
+  onDrop: (e: DragEvent<HTMLDivElement>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -116,12 +116,12 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 //  Main component
 // ─────────────────────────────────────────────────────────────────────────────
 function InvoiceUpload({ companyId }: InvoiceUploadProps) {
-  const [stage,    setStage]    = useState<Stage>('idle')
+  const [stage, setStage] = useState<Stage>('idle')
   const [dragOver, setDragOver] = useState(false)
-  const [ocr,      setOcr]      = useState<OcrResult | null>(null)
+  const [ocr, setOcr] = useState<OcrResult | null>(null)
   const [fileName, setFileName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
-  const [form,     setForm]     = useState<EditForm>({
+  const [form, setForm] = useState<EditForm>({
     description: '', date: TODAY, amount: '', type: 'expense',
   })
 
@@ -155,9 +155,9 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       setOcr(result)
       setForm({
         description: buildDescription(result.vendor, result.invoice_no),
-        date:        normaliseDate(result.date),
-        amount:      result.total != null ? String(result.total) : '',
-        type:        'expense',
+        date: normaliseDate(result.date),
+        amount: result.total != null ? String(result.total) : '',
+        type: 'expense',
       })
       setStage('reviewing')
     } catch (e) {
@@ -170,9 +170,9 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
   }, [])
 
   // ── Drag-drop handlers ────────────────────────────────────────────────────
-  const handleDragOver  = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true) }
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true) }
   const handleDragLeave = () => setDragOver(false)
-  const handleDrop      = (e: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setDragOver(false)
     const file = e.dataTransfer.files[0]
@@ -191,7 +191,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
     setStage('saving')
     try {
       await api.post(`/api/v1/${companyId}/transactions`, {
-        date:        form.date,
+        date: form.date,
         description: form.description,
         amount,
       })
@@ -218,7 +218,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="inv-container">
+    <div className="inv-container premium-invoice-wrapper">
 
       <div className="inv-header">
         <div className="inv-header-text">
@@ -249,44 +249,52 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       )}
 
       {stage === 'reviewing' && ocr && (
-        <div className="inv-review">
-          <div className="inv-extracted">
-            <div className="inv-section-label">📷 Extracted from image</div>
-            <div className="inv-fields">
-              <FieldRow label="Vendor"     value={ocr.vendor     ?? '—'} />
-              <FieldRow label="Invoice #"  value={ocr.invoice_no ?? '—'} />
-              <FieldRow label="Date found" value={ocr.date       ?? '—'} />
+        <div className="premium-inv-review">
+          {/* Left Pane: Extracted Info */}
+          <div className="premium-inv-extracted">
+            <div className="premium-section-header">
+              <span className="premium-icon">📷</span> Extracted Details
+            </div>
+            <div className="premium-inv-fields">
+              <FieldRow label="Vendor" value={ocr.vendor ?? '—'} />
+              <FieldRow label="Invoice #" value={ocr.invoice_no ?? '—'} />
+              <FieldRow label="Date found" value={ocr.date ?? '—'} />
               <FieldRow label="Amount"
                 value={ocr.total != null ? `${ocr.currency} ${ocr.total.toLocaleString('en-IN')}` : '—'} />
             </div>
             {ocr.note && <NoteBar note={ocr.note} />}
           </div>
 
-          <div className="inv-form-card">
-            <div className="inv-section-label">✏️ Review & save as transaction</div>
+          {/* Right Pane: Review & Save */}
+          <div className="premium-inv-form">
+            <div className="premium-section-header">
+              <span className="premium-icon">✏️</span> Review & Save
+            </div>
 
-            <label className="inv-label">Description</label>
-            <input
-              className="inv-input"
-              value={form.description}
-              onChange={e => setField('description', e.target.value)}
-              placeholder="Invoice description"
-            />
+            <div className="premium-form-group">
+              <label className="premium-label">Description</label>
+              <input
+                className="premium-input"
+                value={form.description}
+                onChange={e => setField('description', e.target.value)}
+                placeholder="Invoice description"
+              />
+            </div>
 
-            <div className="inv-row-2">
-              <div>
-                <label className="inv-label">Date</label>
+            <div className="premium-form-row">
+              <div className="premium-form-group">
+                <label className="premium-label">Date</label>
                 <input
-                  className="inv-input"
+                  className="premium-input"
                   type="date"
                   value={form.date}
                   onChange={e => setField('date', e.target.value)}
                 />
               </div>
-              <div>
-                <label className="inv-label">Amount (₹)</label>
+              <div className="premium-form-group">
+                <label className="premium-label">Amount (₹)</label>
                 <input
-                  className="inv-input"
+                  className="premium-input"
                   type="number"
                   min="0"
                   step="0.01"
@@ -297,30 +305,32 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
               </div>
             </div>
 
-            <label className="inv-label">Type</label>
-            <div className="inv-type-toggle">
-              <button
-                className={`inv-type-btn ${form.type === 'expense' ? 'inv-type-btn--active-exp' : ''}`}
-                onClick={() => setField('type', 'expense')}
-              >
-                📉 Expense
-              </button>
-              <button
-                className={`inv-type-btn ${form.type === 'income' ? 'inv-type-btn--active-inc' : ''}`}
-                onClick={() => setField('type', 'income')}
-              >
-                📈 Income
-              </button>
+            <div className="premium-form-group">
+              <label className="premium-label">Type</label>
+              <div className="premium-type-toggle">
+                <button
+                  className={`premium-type-btn ${form.type === 'expense' ? 'expense-active' : ''}`}
+                  onClick={() => setField('type', 'expense')}
+                >
+                  📉 Expense
+                </button>
+                <button
+                  className={`premium-type-btn ${form.type === 'income' ? 'income-active' : ''}`}
+                  onClick={() => setField('type', 'income')}
+                >
+                  📈 Income
+                </button>
+              </div>
             </div>
 
-            {errorMsg && <p className="inv-error-inline">{errorMsg}</p>}
+            {errorMsg && <div className="premium-error">{errorMsg}</div>}
 
             <button
-              className="inv-btn-save"
+              className="premium-btn-save"
               onClick={() => void saveTransaction()}
               disabled={!form.description.trim() || !form.amount}
             >
-              💾 Save as Transaction
+              💾 Save Transaction
             </button>
           </div>
         </div>

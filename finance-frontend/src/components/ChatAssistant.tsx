@@ -17,12 +17,12 @@ export default function ChatAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: '👋 Hi! I\'m your AI finance assistant. Ask me anything about your finances, cash flow, or accounting.' }
   ])
-  const [input, setInput]     = useState('')
+  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const bottomRef             = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const chatsRemaining = user?.aiChatsRemaining ?? 0
-  const dailyLimit     = user?.subscriptionTier === 'ACTIVE' ? 50 : user?.subscriptionTier === 'TRIAL' ? 10 : 3
+  const dailyLimit = user?.subscriptionTier === 'ACTIVE' ? 50 : user?.subscriptionTier === 'TRIAL' ? 10 : 3
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -120,9 +120,9 @@ export default function ChatAssistant() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="chat-input-area">
+        <div className="chat-input-area premium-chat-input-wrapper">
           <textarea
-            className="chat-textarea"
+            className="chat-textarea premium-chat-textarea"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -131,7 +131,7 @@ export default function ChatAssistant() {
             rows={1}
           />
           <button
-            className="chat-send-btn"
+            className="chat-send-btn premium-chat-send"
             onClick={sendMessage}
             disabled={loading || !input.trim() || chatsRemaining <= 0}
           >

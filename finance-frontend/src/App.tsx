@@ -24,6 +24,7 @@ import TeamPage from './pages/TeamPage'
 import SettingsPage from './pages/SettingsPage'
 import { useAuth } from './context/AuthContext'
 import './App.css'
+import './PremiumUI.css'
 
 type Tab =
   | 'dashboard' | 'charts' | 'budget' | 'chat'
@@ -37,6 +38,7 @@ function ProtectedApp() {
 
   const [activeTab, setTab] = useState<Tab>('dashboard')
   const [sidebarOpen, setSidebar] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Key-bump to force Dashboard to re-fetch after a statement import
   const [dashboardKey, setDashboardKey] = useState(0)
 
@@ -59,19 +61,19 @@ function ProtectedApp() {
       onClick={() => navTo(tab)}
       title={locked ? 'Upgrade to access' : label}
     >
-      <span>{icon}</span>
-      {label}
-      {locked && <span className="lock-icon">🔒</span>}
+      <span className="nav-icon">{icon}</span>
+      {!sidebarCollapsed && <span className="nav-label">{label}</span>}
+      {locked && !sidebarCollapsed && <span className="lock-icon">🔒</span>}
     </button>
   )
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <aside className={`app-sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           {/* Brand */}
-          <div className="brand">
+          <div className="brand" style={{ cursor: sidebarCollapsed ? 'pointer' : 'default' }} onClick={() => sidebarCollapsed && setSidebarCollapsed(false)}>
             <div className="brand-logo">
               <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
                 <rect width="28" height="28" rx="8" fill="url(#brandGrad)" />
@@ -88,11 +90,20 @@ function ProtectedApp() {
                 </defs>
               </svg>
             </div>
-            <div className="brand-text">
-              <span className="brand-name">FinanceAI</span>
-              <span className="brand-tag">Assistant</span>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="brand-text">
+                <span className="brand-name">FinanceAI</span>
+                <span className="brand-tag">Assistant</span>
+              </div>
+            )}
           </div>
+          {!sidebarCollapsed && (
+            <button className="sidebar-toggle-btn" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* ── Navigation ──────────────────────────────────────────────────── */}
@@ -135,9 +146,11 @@ function ProtectedApp() {
               </svg>
             </button>
           </div>
-          <button className="btn-upgrade" onClick={() => navigate('/subscription')}>
-            {isFree ? '⬆️ Upgrade to Pro' : '💳 View Plan'}
-          </button>
+          {!sidebarCollapsed && (
+            <button className="btn-upgrade" onClick={() => navigate('/subscription')}>
+              {isFree ? '⬆️ Upgrade to Pro' : '💳 View Plan'}
+            </button>
+          )}
         </div>
       </aside>
 
