@@ -134,7 +134,7 @@ export default function SubscriptionPage() {
   const isFree = !isActive && !isTrial && !isMax
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px', position: 'relative' }}>
+    <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 20px', position: 'relative' }}>
       {/* Close Button */}
       <button
         onClick={() => navigate('/')}
