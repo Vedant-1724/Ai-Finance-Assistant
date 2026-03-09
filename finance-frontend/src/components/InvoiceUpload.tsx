@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from 'react'
 import axios from 'axios'                         // kept for OCR — calls Python on port 5000 (no JWT)
 import api from '../api'                          // ← JWT-aware instance for Spring Boot calls
+import { useAuth } from '../context/AuthContext'
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Interfaces
@@ -116,6 +117,7 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 //  Main component
 // ─────────────────────────────────────────────────────────────────────────────
 function InvoiceUpload({ companyId }: InvoiceUploadProps) {
+  const { isFree } = useAuth()
   const [stage, setStage] = useState<Stage>('idle')
   const [dragOver, setDragOver] = useState(false)
   const [ocr, setOcr] = useState<OcrResult | null>(null)
@@ -217,6 +219,15 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
     setForm(prev => ({ ...prev, [key]: val }))
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (isFree) return (
+    <div className="upgrade-gate">
+      <div style={{ fontSize: 56 }}>🧾</div>
+      <h2>Invoice Scanner requires Trial or Pro</h2>
+      <p>Access AI-powered invoice extraction and automated data entry.</p>
+      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+    </div>
+  )
+
   return (
     <div className="inv-container premium-invoice-wrapper">
 
