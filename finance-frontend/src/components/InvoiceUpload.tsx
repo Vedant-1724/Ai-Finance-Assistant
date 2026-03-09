@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from 'react'
-import axios from 'axios'                         // kept for OCR — calls Python on port 5000 (no JWT)
+import axios from 'axios'                         // kept for reference
 import api from '../api'                          // ← JWT-aware instance for Spring Boot calls
 import { useAuth } from '../context/AuthContext'
 
@@ -147,9 +147,9 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       const formData = new FormData()
       formData.append('file', file)
 
-      // Raw axios — the OCR endpoint is the Python server on port 5000, no JWT
-      const res = await axios.post<OcrResult>(
-        '/ai/ocr',
+      // Use the JWT-aware 'api' instance to call the new backend proxy
+      const res = await api.post<OcrResult>(
+        `/api/v1/ai/ocr`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
@@ -164,9 +164,10 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       setStage('reviewing')
     } catch (e) {
       const msg = axios.isAxiosError(e)
-        ? (e.response?.data as { error?: string })?.error ?? e.message
+        ? (e.response?.data as { message?: string })?.message ??
+        (e.response?.data as { error?: string })?.error ?? e.message
         : String(e)
-      setErrorMsg(`OCR failed: ${msg}. Make sure the Python AI server is running on port 5000.`)
+      setErrorMsg(`OCR failed: ${msg}. Make sure the Python AI server is running on port 5001.`)
       setStage('error')
     }
   }, [])
