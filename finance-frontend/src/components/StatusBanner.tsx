@@ -77,8 +77,8 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
           🔓 <strong>Free Plan</strong> — Limited to 50 transactions &amp; no AI chat.
           Unlock forecasts, charts, invoices, tax tools &amp; more.
         </span>
-        <button className="banner-cta" onClick={onUpgrade}>
-          Start Free Trial →
+        <button className="btn-gradient" style={{ padding: '6px 16px', fontSize: '13px', marginLeft: '12px' }} onClick={onUpgrade}>
+          🚀 Start Free Trial →
         </button>
       </div>
     )
