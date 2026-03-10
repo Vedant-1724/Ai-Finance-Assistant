@@ -2,22 +2,18 @@ package com.financeassistant.financeassistant.controller;
 
 import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.service.SubscriptionService;
+import com.financeassistant.financeassistant.service.SubscriptionStatusPayloadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * PATH:
- * finance-backend/src/main/java/com/financeassistant/financeassistant/controller/SubscriptionController.java
- *
- * NEW FILE — handles subscription management endpoints:
- * POST /api/v1/subscription/start-trial — explicitly start the 5-day trial
- * GET /api/v1/subscription/status — get current tier + AI chat remaining
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/subscription")
@@ -25,12 +21,8 @@ import java.util.Map;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+    private final SubscriptionStatusPayloadService subscriptionStatusPayloadService;
 
-    /**
-     * POST /api/v1/subscription/start-trial
-     * Starts the 5-day free trial for the current user.
-     * Can only be called once per user account.
-     */
     @PostMapping("/start-trial")
     public ResponseEntity<?> startTrial(@AuthenticationPrincipal User user) {
         boolean started = subscriptionService.startTrial(user);
@@ -39,33 +31,14 @@ public class SubscriptionController {
                     "error", "TRIAL_ALREADY_USED",
                     "message", "Your free trial has already been used. Please upgrade to Pro."));
         }
-        return ResponseEntity.ok(Map.of(
-                "message", "Your 5-day free trial has started!",
-                "tier", "TRIAL",
-                "trialDaysRemaining", 5,
-                "aiChatsRemaining", user.getAiChatDailyLimit()));
+        return ResponseEntity.ok(subscriptionStatusPayloadService.build(user, "Your 3-day free trial has started!"));
     }
 
-    /**
-     * GET /api/v1/subscription/status
-     * Returns current subscription status for the authenticated user.
-     */
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(Map.of(
-                "tier", user.getEffectiveTier(),
-                "status", user.getSubscriptionStatus().name(),
-                "trialDaysRemaining", user.trialDaysRemaining(),
-                "aiChatsRemaining", user.getAiChatsRemainingToday(),
-                "aiChatDailyLimit", user.getAiChatDailyLimit(),
-                "hasPremiumAccess", user.hasPremiumAccess(),
-                "trialAlreadyUsed", user.getTrialStartedAt() != null));
+        return ResponseEntity.ok(subscriptionStatusPayloadService.build(user, null));
     }
 
-    /**
-     * POST /api/v1/subscription/cancel
-     * Cancels the current subscription, reverts to FREE tier.
-     */
     @PostMapping("/cancel")
     public ResponseEntity<?> cancelSubscription(@AuthenticationPrincipal User user) {
         if (user.getSubscriptionStatus() == User.SubscriptionStatus.FREE) {
@@ -74,8 +47,8 @@ public class SubscriptionController {
                     "message", "You don't have an active subscription to cancel."));
         }
         subscriptionService.cancelSubscription(user.getEmail());
-        return ResponseEntity.ok(Map.of(
-                "message", "Your subscription has been cancelled. You've been moved to the Free tier.",
-                "tier", "FREE"));
+        return ResponseEntity.ok(subscriptionStatusPayloadService.build(
+                user,
+                "Your subscription has been cancelled. You've been moved to the Free tier."));
     }
 }

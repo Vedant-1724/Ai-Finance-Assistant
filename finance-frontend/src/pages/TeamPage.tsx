@@ -20,6 +20,13 @@ interface Member {
   createdAt: string
 }
 
+interface InviteResponse {
+  message: string
+  memberId: number
+  emailDeliveryEnabled: boolean
+  inviteUrl?: string
+}
+
 const ROLE_LABELS: Record<Role, { label: string; color: string; desc: string }> = {
   OWNER: { label: 'Owner', color: '#60a5fa', desc: 'Full access, billing, invite' },
   EDITOR: { label: 'Editor', color: '#4ade80', desc: 'Add/edit transactions, view reports' },
@@ -36,10 +43,12 @@ export default function TeamPage({ companyId }: { companyId: number }) {
   const [inviting, setInviting] = useState(false)
   const [invMsg, setInvMsg] = useState<string | null>(null)
   const [invErr, setInvErr] = useState<string | null>(null)
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [removing, setRemoving] = useState<number | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null)
+    setLoading(true)
+    setError(null)
     try {
       const res = await api.get<Member[]>(`/api/v1/${companyId}/team`)
       setMembers(res.data)
@@ -47,29 +56,45 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')
       else setError('Failed to load team members.')
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }, [companyId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const handleInvite = async () => {
-    if (!invEmail.trim()) { setInvErr('Email is required.'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invEmail)) {
-      setInvErr('Enter a valid email address.'); return
+    if (!invEmail.trim()) {
+      setInvErr('Email is required.')
+      return
     }
-    setInviting(true); setInvErr(null); setInvMsg(null)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invEmail)) {
+      setInvErr('Enter a valid email address.')
+      return
+    }
+
+    setInviting(true)
+    setInvErr(null)
+    setInvMsg(null)
+    setInviteUrl(null)
+
     try {
-      await api.post(
+      const res = await api.post<InviteResponse>(
         `/api/v1/${companyId}/team/invite`,
         { email: invEmail.trim(), role: invRole }
       )
-      setInvMsg(`✅ Invitation sent to ${invEmail.trim()}`)
+      setInvMsg(res.data.message)
+      setInviteUrl(res.data.emailDeliveryEnabled ? null : res.data.inviteUrl ?? null)
       setInvEmail('')
       void load()
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
       setInvErr(msg ?? 'Failed to send invitation.')
-    } finally { setInviting(false) }
+    } finally {
+      setInviting(false)
+    }
   }
 
   const handleRemove = async (memberId: number, email: string) => {
@@ -80,7 +105,9 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       setMembers(prev => prev.filter(m => m.id !== memberId))
     } catch {
       alert('Failed to remove member. Please try again.')
-    } finally { setRemoving(null) }
+    } finally {
+      setRemoving(null)
+    }
   }
 
   if (isFree) return (
@@ -109,12 +136,11 @@ export default function TeamPage({ companyId }: { companyId: number }) {
         <span style={{ fontSize: 13, color: '#475569' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
       </div>
 
-      {/* ── Role legend ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {(Object.entries(ROLE_LABELS) as [Role, typeof ROLE_LABELS[Role]][]).map(([role, info]) => (
           <div key={role} style={{
             padding: '8px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.07)', fontSize: 12
+            border: '1px solid rgba(255,255,255,0.07)', fontSize: 12,
           }}>
             <span style={{ color: info.color, fontWeight: 700 }}>{info.label}</span>
             <span style={{ color: '#475569', marginLeft: 8 }}>{info.desc}</span>
@@ -122,7 +148,6 @@ export default function TeamPage({ companyId }: { companyId: number }) {
         ))}
       </div>
 
-      {/* ── Members list ────────────────────────────────────────────────────── */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
           <span className="card-title">Current Members</span>
@@ -143,26 +168,25 @@ export default function TeamPage({ companyId }: { companyId: number }) {
 
               return (
                 <div key={m.id} className="team-member-card" style={{
-                  borderRadius: 0, border: 'none',
+                  borderRadius: 0,
+                  border: 'none',
                   borderBottom: '1px solid rgba(255,255,255,0.04)',
                 }}>
-                  {/* Avatar */}
                   <div className="team-avatar">{initials}</div>
 
-                  {/* Info */}
                   <div className="team-member-info">
                     <div className="team-member-email">
                       {m.email || m.inviteEmail}
                       {isCurrentUser && (
                         <span style={{
                           marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px',
-                          borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#60a5fa'
+                          borderRadius: 10, background: 'rgba(59,130,246,0.15)', color: '#60a5fa',
                         }}>YOU</span>
                       )}
                       {isPending && (
                         <span style={{
                           marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '1px 6px',
-                          borderRadius: 10, background: 'rgba(245,158,11,0.12)', color: '#fcd34d'
+                          borderRadius: 10, background: 'rgba(245,158,11,0.12)', color: '#fcd34d',
                         }}>PENDING</span>
                       )}
                     </div>
@@ -171,7 +195,6 @@ export default function TeamPage({ companyId }: { companyId: number }) {
                     </div>
                   </div>
 
-                  {/* Role badge */}
                   <span style={{
                     padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
                     background: `${roleInfo.color}18`, color: roleInfo.color,
@@ -180,7 +203,6 @@ export default function TeamPage({ companyId }: { companyId: number }) {
                     {roleInfo.label}
                   </span>
 
-                  {/* Remove (not for self, not for owner) */}
                   {!isCurrentUser && m.role !== 'OWNER' && (
                     <button
                       className="btn-danger"
@@ -199,7 +221,6 @@ export default function TeamPage({ companyId }: { companyId: number }) {
         )}
       </div>
 
-      {/* ── Invite form ─────────────────────────────────────────────────────── */}
       <div className="invite-form">
         <div style={{ marginBottom: 16 }}>
           <div className="card-title">Invite a Team Member</div>
@@ -208,7 +229,16 @@ export default function TeamPage({ companyId }: { companyId: number }) {
           </div>
         </div>
 
-        {invMsg && <div className="success-toast" style={{ marginBottom: 12 }}>{invMsg}</div>}
+        {invMsg && (
+          <div className="success-toast" style={{ marginBottom: 12, display: 'grid', gap: 10 }}>
+            <div>{invMsg}</div>
+            {inviteUrl && (
+              <div style={{ fontSize: 12, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                Manual invite link: <a href={inviteUrl}>{inviteUrl}</a>
+              </div>
+            )}
+          </div>
+        )}
         {invErr && <div className="auth-error" style={{ marginBottom: 12 }}>{invErr}</div>}
 
         <div className="invite-form-row">

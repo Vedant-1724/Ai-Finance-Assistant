@@ -3,6 +3,8 @@ package com.financeassistant.financeassistant.service;
 import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.entity.UserEmailPrefs;
 import com.financeassistant.financeassistant.repository.UserEmailPrefsRepository;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,19 +12,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import java.math.BigDecimal;
 
-/**
- * EmailAlertService
- * Sends async HTML emails for: anomaly alerts, forecast warnings,
- * budget threshold warnings, trial expiry, and weekly summaries.
- *
- * All sends are @Async — they never block the caller thread.
- * Set app.mail.enabled=true in application.yaml to activate in production.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,7 +30,32 @@ public class EmailAlertService {
   @Value("${app.mail.enabled:false}")
   private boolean mailEnabled;
 
-  // ── Anomaly Alert ─────────────────────────────────────────────────────────
+  @Value("${app.mail.expose-links-when-disabled:true}")
+  private boolean exposeLinksWhenDisabled;
+
+  @Value("${app.base-url:http://localhost:5173}")
+  private String appBaseUrl;
+
+  public boolean isMailEnabled() {
+    return mailEnabled;
+  }
+
+  public boolean shouldExposeActionLinksWhenDisabled() {
+    return !mailEnabled && exposeLinksWhenDisabled;
+  }
+
+  public String buildVerificationUrl(String token) {
+    return buildUrl("/verify-email?token=" + token);
+  }
+
+  public String buildResetUrl(String token) {
+    return buildUrl("/reset-password?token=" + token);
+  }
+
+  public String buildInviteUrl(String token) {
+    return buildUrl("/join?token=" + token);
+  }
+
   @Async
   public void sendAnomalyAlert(User user, BigDecimal amount, String description) {
     if (!mailEnabled)
@@ -56,16 +74,15 @@ public class EmailAlertService {
             <strong>Amount:</strong> ₹%s<br/>
             <strong>Description:</strong> %s
           </div>
-          <p>Please review this transaction in your <a href="https://financeai.in/dashboard" style="color:#3b82f6">dashboard</a>.</p>
+          <p>Please review this transaction in your <a href="%s" style="color:#3b82f6">dashboard</a>.</p>
           <p style="color:#64748b;font-size:12px">You can manage alert preferences in Settings → Notifications.</p>
         </div>
         """
-        .formatted(user.getEmail(), amount.toPlainString(), description);
+        .formatted(user.getEmail(), amount.toPlainString(), description, buildUrl("/"));
 
     sendEmail(user.getEmail(), subject, html);
   }
 
-  // ── Negative Forecast Alert ───────────────────────────────────────────────
   @Async
   public void sendNegativeForecastAlert(User user, int daysUntilNegative, BigDecimal projectedBalance) {
     if (!mailEnabled)
@@ -84,15 +101,14 @@ public class EmailAlertService {
             <strong>Projected balance turns negative in:</strong> %d days<br/>
             <strong>Projected balance:</strong> ₹%s
           </div>
-          <p>View your full <a href="https://financeai.in/dashboard" style="color:#3b82f6">cash flow forecast</a> and take action now.</p>
+          <p>View your full <a href="%s" style="color:#3b82f6">cash flow forecast</a> and take action now.</p>
         </div>
         """
-        .formatted(user.getEmail(), daysUntilNegative, projectedBalance.toPlainString());
+        .formatted(user.getEmail(), daysUntilNegative, projectedBalance.toPlainString(), buildUrl("/"));
 
     sendEmail(user.getEmail(), subject, html);
   }
 
-  // ── Budget Threshold Alert (90%+) ─────────────────────────────────────────
   @Async
   public void sendBudgetAlert(User user, String categoryName, BigDecimal spent, BigDecimal budget) {
     if (!mailEnabled)
@@ -117,17 +133,16 @@ public class EmailAlertService {
               <div style="background:%s;border-radius:4px;height:8px;width:%d%%"></div>
             </div>
           </div>
-          <p>Review your <a href="https://financeai.in/dashboard" style="color:#3b82f6">budget planner</a>.</p>
+          <p>Review your <a href="%s" style="color:#3b82f6">budget planner</a>.</p>
         </div>
         """
         .formatted(user.getEmail(), categoryName, pct,
             spent.toPlainString(), budget.toPlainString(),
-            pct >= 100 ? "#ef4444" : "#f59e0b", Math.min(pct, 100));
+            pct >= 100 ? "#ef4444" : "#f59e0b", Math.min(pct, 100), buildUrl("/"));
 
     sendEmail(user.getEmail(), subject, html);
   }
 
-  // ── Trial Expiry Reminder ─────────────────────────────────────────────────
   @Async
   public void sendTrialExpiryReminder(User user, long daysRemaining) {
     if (!mailEnabled)
@@ -148,17 +163,16 @@ public class EmailAlertService {
             <li>AI Cash Flow Forecasting</li><li>Anomaly Detection</li>
             <li>Invoice OCR</li><li>Full P&amp;L Reports</li>
           </ul>
-          <a href="https://financeai.in/subscription" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px">
-            Upgrade to Pro — ₹499/month
+          <a href="%s" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:8px">
+            Upgrade to Pro — ₹399/month
           </a>
         </div>
         """
-        .formatted(user.getEmail(), daysRemaining, daysRemaining == 1 ? "" : "s");
+        .formatted(user.getEmail(), daysRemaining, daysRemaining == 1 ? "" : "s", buildUrl("/subscription"));
 
     sendEmail(user.getEmail(), subject, html);
   }
 
-  // ── Team Invite ───────────────────────────────────────────────────────────
   @Async
   public void sendTeamInvite(String toEmail, String companyName, String inviteUrl) {
     if (!mailEnabled)
@@ -179,14 +193,12 @@ public class EmailAlertService {
     sendEmail(toEmail, subject, html);
   }
 
-  // ── Email Verification ────────────────────────────────────────────────────
   @Async
   public void sendEmailVerification(String toEmail, String token) {
     if (!mailEnabled)
       return;
     String subject = "Verify your email address — FinanceAI";
-    // The token is appended to the frontend URL which then POSTs back to the API.
-    String verifyUrl = "https://financeai.in/verify-email?token=" + token;
+    String verifyUrl = buildVerificationUrl(token);
 
     String html = """
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px">
@@ -204,13 +216,12 @@ public class EmailAlertService {
     sendEmail(toEmail, subject, html);
   }
 
-  // ── Password Reset ─────────────────────────────────────────────────────────
   @Async
   public void sendPasswordReset(String toEmail, String token) {
     if (!mailEnabled)
       return;
     String subject = "Reset your FinanceAI password";
-    String resetUrl = "https://financeai.in/reset-password?token=" + token;
+    String resetUrl = buildResetUrl(token);
 
     String html = """
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px">
@@ -250,17 +261,16 @@ public class EmailAlertService {
             <strong>AI Recommendations:</strong>
             <p style="color:#94a3b8;white-space:pre-line">%s</p>
           </div>
-          <a href="https://financeai.in/dashboard" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px">
+          <a href="%s" style="display:inline-block;background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin-top:16px">
             View Full Dashboard
           </a>
         </div>
         """
-        .formatted(user.getEmail(), month, color, score, recommendations);
+        .formatted(user.getEmail(), month, color, score, recommendations, buildUrl("/"));
 
     sendEmail(user.getEmail(), subject, html);
   }
 
-  // ── Internal helper ───────────────────────────────────────────────────────
   private void sendEmail(String to, String subject, String htmlBody) {
     try {
       MimeMessage msg = mailSender.createMimeMessage();
@@ -274,5 +284,11 @@ public class EmailAlertService {
     } catch (MessagingException e) {
       log.error("Failed to send email to {}: {}", to, e.getMessage());
     }
+  }
+
+  private String buildUrl(String path) {
+    String base = StringUtils.trimTrailingCharacter(appBaseUrl, '/');
+    String normalizedPath = path.startsWith("/") ? path : "/" + path;
+    return base + normalizedPath;
   }
 }

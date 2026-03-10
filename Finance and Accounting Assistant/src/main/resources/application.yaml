@@ -1,5 +1,4 @@
 # PATH: Finance and Accounting Assistant/src/main/resources/application.yaml
-# UPDATED: Added mail config, scheduling, GST tax settings
 
 spring:
   datasource:
@@ -41,16 +40,13 @@ spring:
   cache:
     type: redis
     redis:
-      time-to-live: 3600000   # 1 hour in ms
+      time-to-live: 3600000
 
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
 
-  # ── Email (SendGrid / Gmail SMTP) ──────────────────────────────────────────
-  # For SendGrid: host=smtp.sendgrid.net, port=587, username=apikey
-  # For Gmail:    host=smtp.gmail.com, port=587, enable app password
   mail:
     host: ${MAIL_HOST:smtp.sendgrid.net}
     port: ${MAIL_PORT:587}
@@ -64,18 +60,15 @@ spring:
             enable: true
     from: ${MAIL_FROM:noreply@financeai.in}
 
-  # ── Scheduling ────────────────────────────────────────────────────────────
   task:
     scheduling:
       pool:
         size: 4
 
-# ── JWT ───────────────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
-# ── Razorpay ──────────────────────────────────────────────────────────────────
 razorpay:
   key:
     id: ${RAZORPAY_KEY_ID}
@@ -83,14 +76,25 @@ razorpay:
   webhook:
     secret: ${RAZORPAY_WEBHOOK_SECRET}
 
-# ── AI Service (Python Flask) ─────────────────────────────────────────────────
 ai:
   service:
     url: ${AI_SERVICE_URL:http://localhost:5001}
     api.key: ${AI_SERVICE_API_KEY}
 
-# ── App config ────────────────────────────────────────────────────────────────
+bank:
+  sync:
+    provider: ${BANK_SYNC_PROVIDER:AUTO}
+
+setu:
+  base-url: ${SETU_BASE_URL:}
+  client-id: ${SETU_CLIENT_ID:}
+  client-secret: ${SETU_CLIENT_SECRET:}
+  consent-path: ${SETU_CONSENT_PATH:/consents}
+  transactions-path: ${SETU_TRANSACTIONS_PATH:/consents/{consentId}/transactions}
+  callback-url: ${SETU_CALLBACK_URL:http://localhost:8080/api/v1/setu/callback}
+
 app:
+  base-url: ${APP_BASE_URL:http://localhost:5173}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
   free-tier:
@@ -99,14 +103,15 @@ app:
   mail:
     from: ${MAIL_FROM:noreply@financeai.in}
     enabled: ${MAIL_ENABLED:false}
+    expose-links-when-disabled: ${MAIL_EXPOSE_LINKS_WHEN_DISABLED:true}
+  rabbit:
+    enabled: ${RABBIT_ENABLED:true}
 
-# ── Rate limiting ─────────────────────────────────────────────────────────────
 security:
   rate-limit:
     login-max-attempts: 5
     login-window-minutes: 1
 
-# ── Actuator ──────────────────────────────────────────────────────────────────
 management:
   health:
     mail:
@@ -118,3 +123,4 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+

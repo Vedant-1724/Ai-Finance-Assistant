@@ -1,12 +1,4 @@
-// PATH: finance-frontend/src/pages/SettingsPage.tsx
-// Account settings — profile, email notifications, security, data export, danger zone.
-// Calls:
-//   GET  /api/v1/settings          → load preferences
-//   POST /api/v1/settings          → save preferences
-//   POST /api/v1/auth/change-password
-//   GET  /api/v1/{companyId}/transactions/export?format=csv
-
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
@@ -28,14 +20,13 @@ interface UserSettings {
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth()
+  const { user, logout, updateProfile } = useAuth()
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [saveErr, setSaveErr] = useState<string | null>(null)
 
-  // Password change
   const [pwCurrent, setPwCurrent] = useState('')
   const [pwNew, setPwNew] = useState('')
   const [pwConfirm, setPwConfirm] = useState('')
@@ -44,17 +35,14 @@ export default function SettingsPage() {
   const [pwErr, setPwErr] = useState<string | null>(null)
   const [showPw, setShowPw] = useState(false)
 
-  // Export
   const [exporting, setExporting] = useState(false)
 
-  // ── Load ──────────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  const loadSettings = useCallback(async () => {
     setLoading(true)
     try {
       const res = await api.get<UserSettings>('/api/v1/settings')
       setSettings(res.data)
     } catch {
-      // Fallback defaults so page always renders
       setSettings({
         email: user?.email ?? '',
         companyName: 'My Company',
@@ -67,54 +55,88 @@ export default function SettingsPage() {
           trialReminders: true,
         },
       })
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }, [user?.email])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
 
-  // ── Save settings ─────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!settings) return
-    setSaving(true); setSaveErr(null); setSaveMsg(null)
+
+    setSaving(true)
+    setSaveErr(null)
+    setSaveMsg(null)
+
     try {
-      await api.post('/api/v1/settings', settings)
-      setSaveMsg('✅ Settings saved successfully.')
-      setTimeout(() => setSaveMsg(null), 3500)
+      const res = await api.post<UserSettings>('/api/v1/settings', settings)
+      setSettings(res.data)
+      updateProfile(res.data.email)
+      setSaveMsg('Settings saved successfully.')
+      window.setTimeout(() => setSaveMsg(null), 3500)
     } catch {
       setSaveErr('Failed to save settings. Please try again.')
-    } finally { setSaving(false) }
+    } finally {
+      setSaving(false)
+    }
   }
 
-  // ── Change password ───────────────────────────────────────────────────────
   const handleChangePassword = async () => {
-    setPwErr(null); setPwMsg(null)
-    if (!pwCurrent) { setPwErr('Enter your current password.'); return }
-    if (pwNew.length < 8) { setPwErr('New password must be ≥ 8 characters.'); return }
-    if (pwNew !== pwConfirm) { setPwErr('New passwords do not match.'); return }
-    if (pwNew === pwCurrent) { setPwErr('New password must differ from current.'); return }
+    setPwErr(null)
+    setPwMsg(null)
+
+    if (!pwCurrent) {
+      setPwErr('Enter your current password.')
+      return
+    }
+    if (pwNew.length < 8) {
+      setPwErr('New password must be at least 8 characters.')
+      return
+    }
+    if (pwNew !== pwConfirm) {
+      setPwErr('New passwords do not match.')
+      return
+    }
+    if (pwNew === pwCurrent) {
+      setPwErr('New password must differ from your current password.')
+      return
+    }
 
     setPwSaving(true)
     try {
-      await api.post('/api/v1/auth/change-password',
-        { currentPassword: pwCurrent, newPassword: pwNew }
-      )
-      setPwMsg('✅ Password changed. You will need to log in again.')
-      setPwCurrent(''); setPwNew(''); setPwConfirm('')
-      setTimeout(() => logout(), 2500)
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setPwErr(msg ?? 'Failed to change password.')
-    } finally { setPwSaving(false) }
+      const res = await api.post<{ message?: string }>('/api/v1/auth/change-password', {
+        currentPassword: pwCurrent,
+        newPassword: pwNew,
+      })
+      setPwMsg(res.data.message || 'Password changed. You will need to log in again.')
+      setPwCurrent('')
+      setPwNew('')
+      setPwConfirm('')
+      window.setTimeout(() => {
+        void logout()
+      }, 2500)
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { error?: string; message?: string } } })?.response?.data
+      setPwErr(data?.error ?? data?.message ?? 'Failed to change password.')
+    } finally {
+      setPwSaving(false)
+    }
   }
 
-  // ── Export CSV ────────────────────────────────────────────────────────────
   const handleExport = async () => {
+    if (!user?.companyId) {
+      alert('Company information is missing. Please log in again.')
+      return
+    }
+
     setExporting(true)
     try {
-      const res = await api.get(
-        `/api/v1/${user?.companyId}/transactions/export?format=csv`,
-        { responseType: 'blob' }
-      )
+      const res = await api.get(`/api/v1/${user.companyId}/export/csv`, {
+        responseType: 'blob',
+      })
       const url = URL.createObjectURL(new Blob([res.data as BlobPart]))
       const link = document.createElement('a')
       link.href = url
@@ -123,19 +145,45 @@ export default function SettingsPage() {
       URL.revokeObjectURL(url)
     } catch {
       alert('Export failed. Please try again.')
-    } finally { setExporting(false) }
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Are you absolutely sure you want to delete your account?\n\nThis permanently deletes all company data and cannot be undone.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      await api.delete('/api/v1/account')
+      await logout()
+    } catch {
+      alert('Account deletion failed. Please contact support.')
+    }
   }
 
   const togglePref = (key: keyof EmailPrefs) => {
     if (!settings) return
-    setSettings(prev => prev ? {
-      ...prev,
-      emailPrefs: { ...prev.emailPrefs, [key]: !prev.emailPrefs[key] }
-    } : prev)
+
+    setSettings(current => current ? {
+      ...current,
+      emailPrefs: {
+        ...current.emailPrefs,
+        [key]: !current.emailPrefs[key],
+      },
+    } : current)
   }
 
-  if (loading) return <div className="loading">⏳ Loading settings…</div>
-  if (!settings) return null
+  if (loading) {
+    return <div className="loading">⏳ Loading settings…</div>
+  }
+
+  if (!settings) {
+    return null
+  }
 
   return (
     <div className="settings-page">
@@ -143,10 +191,9 @@ export default function SettingsPage() {
         <h1 className="page-title">⚙️ Settings</h1>
       </div>
 
-      {saveMsg && <div className="success-toast">{saveMsg}</div>}
-      {saveErr && <div className="error" style={{ marginBottom: 12 }}>{saveErr}</div>}
+      {saveMsg && <div className="success-toast">✅ {saveMsg}</div>}
+      {saveErr && <div className="error" style={{ marginBottom: 12 }}>❌ {saveErr}</div>}
 
-      {/* ── Profile ──────────────────────────────────────────────────────── */}
       <div className="settings-section">
         <div className="settings-section-title">👤 Profile</div>
         <div className="settings-section-desc">Your account and company information.</div>
@@ -155,17 +202,19 @@ export default function SettingsPage() {
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Email address</label>
             <input
-              type="email" className="form-input"
+              type="email"
+              className="form-input"
               value={settings.email}
-              onChange={e => setSettings(prev => prev ? { ...prev, email: e.target.value } : prev)}
+              onChange={event => setSettings(current => current ? { ...current, email: event.target.value } : current)}
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Company name</label>
             <input
-              type="text" className="form-input"
+              type="text"
+              className="form-input"
               value={settings.companyName}
-              onChange={e => setSettings(prev => prev ? { ...prev, companyName: e.target.value } : prev)}
+              onChange={event => setSettings(current => current ? { ...current, companyName: event.target.value } : current)}
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -173,9 +222,11 @@ export default function SettingsPage() {
             <select
               className="form-select"
               value={settings.currency}
-              onChange={e => setSettings(prev => prev ? { ...prev, currency: e.target.value } : prev)}
+              onChange={event => setSettings(current => current ? { ...current, currency: event.target.value } : current)}
             >
-              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+              {CURRENCIES.map(currency => (
+                <option key={currency} value={currency}>{currency}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -187,7 +238,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ── Email Notifications ───────────────────────────────────────────── */}
       <div className="settings-section">
         <div className="settings-section-title">🔔 Email Notifications</div>
         <div className="settings-section-desc">
@@ -226,12 +276,11 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ── Security ──────────────────────────────────────────────────────── */}
       <div className="settings-section">
         <div className="settings-section-title">🔐 Security</div>
-        <div className="settings-section-desc">Change your password. You'll be logged out after a successful change.</div>
+        <div className="settings-section-desc">Change your password. You will be logged out after a successful change.</div>
 
-        {pwMsg && <div className="success-toast" style={{ marginBottom: 12 }}>{pwMsg}</div>}
+        {pwMsg && <div className="success-toast" style={{ marginBottom: 12 }}>✅ {pwMsg}</div>}
         {pwErr && <div className="auth-error" style={{ marginBottom: 12 }}>{pwErr}</div>}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -243,9 +292,9 @@ export default function SettingsPage() {
                 className="form-input"
                 placeholder="Enter current password"
                 value={pwCurrent}
-                onChange={e => setPwCurrent(e.target.value)}
+                onChange={event => setPwCurrent(event.target.value)}
               />
-              <button className="input-icon" type="button" onClick={() => setShowPw(p => !p)}>
+              <button className="input-icon" type="button" onClick={() => setShowPw(current => !current)}>
                 {showPw ? '🙈' : '👁️'}
               </button>
             </div>
@@ -257,7 +306,7 @@ export default function SettingsPage() {
               className="form-input"
               placeholder="Min. 8 characters"
               value={pwNew}
-              onChange={e => setPwNew(e.target.value)}
+              onChange={event => setPwNew(event.target.value)}
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -267,20 +316,23 @@ export default function SettingsPage() {
               className="form-input"
               placeholder="Repeat new password"
               value={pwConfirm}
-              onChange={e => setPwConfirm(e.target.value)}
+              onChange={event => setPwConfirm(event.target.value)}
             />
           </div>
         </div>
 
-        {/* Password strength indicator */}
         {pwNew && (
           <div style={{ marginTop: 8 }}>
             <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 4, height: 4, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', borderRadius: 4, transition: 'width 0.3s',
-                width: `${Math.min(100, pwNew.length * 8)}%`,
-                background: pwNew.length < 8 ? '#ef4444' : pwNew.length < 12 ? '#f59e0b' : '#22c55e'
-              }} />
+              <div
+                style={{
+                  height: '100%',
+                  borderRadius: 4,
+                  transition: 'width 0.3s',
+                  width: `${Math.min(100, pwNew.length * 8)}%`,
+                  background: pwNew.length < 8 ? '#ef4444' : pwNew.length < 12 ? '#f59e0b' : '#22c55e',
+                }}
+              />
             </div>
             <span style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, display: 'block' }}>
               {pwNew.length < 8 ? 'Too short' : pwNew.length < 12 ? 'Good' : 'Strong'} password
@@ -295,15 +347,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ── Data Export ───────────────────────────────────────────────────── */}
       <div className="settings-section">
         <div className="settings-section-title">📦 Data Export</div>
-        <div className="settings-section-desc">Download your data at any time. CSV includes all transactions.</div>
+        <div className="settings-section-desc">Download your transactions as a CSV file at any time.</div>
 
         <div className="settings-row">
           <div>
             <div className="settings-row-label">Export Transactions</div>
-            <div className="settings-row-desc">Download all transactions as a CSV file</div>
+            <div className="settings-row-desc">Download all transactions as CSV</div>
           </div>
           <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
             {exporting ? '⏳ Exporting…' : '⬇️ Download CSV'}
@@ -311,7 +362,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* ── Danger Zone ───────────────────────────────────────────────────── */}
       <div className="settings-section danger-zone">
         <div className="settings-section-title">⚠️ Danger Zone</div>
         <div className="settings-section-desc">Irreversible actions. Proceed with caution.</div>
@@ -321,7 +371,7 @@ export default function SettingsPage() {
             <div className="settings-row-label">Log Out</div>
             <div className="settings-row-desc">Sign out of your account on this device</div>
           </div>
-          <button className="btn-secondary" onClick={logout}>
+          <button className="btn-secondary" onClick={() => { void logout() }}>
             🚪 Log Out
           </button>
         </div>
@@ -329,24 +379,9 @@ export default function SettingsPage() {
         <div className="settings-row">
           <div>
             <div className="settings-row-label" style={{ color: '#f87171' }}>Delete Account</div>
-            <div className="settings-row-desc">
-              Permanently deletes all data. This cannot be undone.
-            </div>
+            <div className="settings-row-desc">Permanently delete all data. This cannot be undone.</div>
           </div>
-          <button
-            className="btn-danger"
-            onClick={() => {
-              if (confirm(
-                'Are you absolutely sure you want to delete your account?\n\n' +
-                'This will permanently delete ALL your transactions, reports, ' +
-                'invoices, and company data. This action CANNOT be undone.'
-              )) {
-                api.delete('/api/v1/account')
-                  .then(() => logout())
-                  .catch(() => alert('Account deletion failed. Please contact support.'))
-              }
-            }}
-          >
+          <button className="btn-danger" onClick={() => { void handleDeleteAccount() }}>
             🗑️ Delete Account
           </button>
         </div>

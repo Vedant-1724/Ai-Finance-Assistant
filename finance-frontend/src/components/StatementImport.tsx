@@ -1,15 +1,6 @@
-// PATH: finance-frontend/src/components/StatementImport.tsx
-//
-// FIX: parse-statement now calls /api/v1/{companyId}/parse-statement
-//      (Spring Boot proxy with JWT auth) instead of directly hitting
-//      http://localhost:5000/parse-statement (no auth, Python exposed).
-//
-// ADDED: Frontend file type + size validation before upload.
-
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import api from '../api'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 interface ParsedTransaction {
   date: string
   description: string
@@ -32,12 +23,21 @@ interface StatementImportProps {
   onImportSuccess: () => void
 }
 
-// Allowed file types for frontend pre-check
+interface BankSyncStatus {
+  provider: string
+  status: 'NOT_STARTED' | 'CONSENT_REQUIRED' | 'CONSENT_GRANTED' | 'SYNCED' | 'FAILED' | 'EXPIRED'
+  consentUrl?: string | null
+  consentId?: string | null
+  mockFallback: boolean
+  message?: string | null
+  expiresAt?: string | null
+  lastSyncedAt?: string | null
+}
+
 const ALLOWED_EXTENSIONS = new Set(['csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'])
 const MAX_FILE_SIZE_MB = 10
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
-// ── Component ──────────────────────────────────────────────────────────────────
 export default function StatementImport({ companyId, onImportSuccess }: StatementImportProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
@@ -50,14 +50,12 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   const [dragOver, setDragOver] = useState(false)
   const [setuSyncing, setSetuSyncing] = useState(false)
   const [setuError, setSetuError] = useState<string | null>(null)
+  const [setuNotice, setSetuNotice] = useState<string | null>(null)
 
-  // ── Frontend validation ──────────────────────────────────────────────────────
   const validateFile = (file: File): string | null => {
-    // Check size
     if (file.size > MAX_FILE_SIZE) {
       return `File too large. Maximum ${MAX_FILE_SIZE_MB}MB allowed.`
     }
-    // Check extension
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (!ALLOWED_EXTENSIONS.has(ext)) {
       return `Unsupported file type ".${ext}". Please use CSV, PDF, PNG, or JPG.`
@@ -65,11 +63,9 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     return null
   }
 
-  // ── Upload & Parse ───────────────────────────────────────────────────────────
   const handleFile = async (file: File) => {
     setParseError(null)
 
-    // Validate before uploading
     const validationError = validateFile(file)
     if (validationError) {
       setParseError(validationError)
@@ -83,8 +79,6 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     formData.append('file', file)
 
     try {
-      // FIX: Route through Spring Boot (JWT-authenticated proxy)
-      // instead of calling Python directly on port 5000.
       const res = await api.post(
         `/api/v1/${companyId}/parse-statement`,
         formData,
@@ -101,8 +95,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
         setParseError(
           data.warning
             ? `No transactions found. ${data.warning}`
-            : 'No transactions could be detected in this file. ' +
-            'Please check the format or try a different file.'
+            : 'No transactions could be detected in this file. Please check the format or try a different file.'
         )
         return
       }
@@ -115,7 +108,6 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       setParseResult(data)
       setTransactions(withSelection)
       setStep('preview')
-
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 401 || status === 403) {
@@ -123,8 +115,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       } else if (status === 503) {
         setParseError('AI service is unavailable. Please ensure the Python service is running.')
       } else {
-        const msg = (err as { response?: { data?: { error?: string } } })
-          ?.response?.data?.error
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
         setParseError(msg ?? 'Failed to parse statement. Please try a different file.')
       }
     } finally {
@@ -132,43 +123,52 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     }
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
     setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
+    const file = event.dataTransfer.files[0]
+    if (file) {
+      void handleFile(file)
+    }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleFile(file)
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      void handleFile(file)
+    }
   }
 
-  // ── Selection helpers ────────────────────────────────────────────────────────
-  const toggleRow = (i: number) =>
-    setTransactions(prev => prev.map((t, idx) => idx === i ? { ...t, selected: !t.selected } : t))
-  const selectAll = () => setTransactions(prev => prev.map(t => ({ ...t, selected: true })))
-  const deselectAll = () => setTransactions(prev => prev.map(t => ({ ...t, selected: false })))
-  const selectedCount = transactions.filter(t => t.selected).length
+  const toggleRow = (index: number) => {
+    setTransactions(prev => prev.map((txn, idx) => idx === index ? { ...txn, selected: !txn.selected } : txn))
+  }
 
-  // ── Import ───────────────────────────────────────────────────────────────────
+  const selectAll = () => setTransactions(prev => prev.map(txn => ({ ...txn, selected: true })))
+  const deselectAll = () => setTransactions(prev => prev.map(txn => ({ ...txn, selected: false })))
+  const selectedCount = transactions.filter(txn => txn.selected).length
+
   const handleImport = async () => {
-    const toImport = transactions.filter(t => t.selected)
-    if (toImport.length === 0) return
+    const toImport = transactions.filter(txn => txn.selected)
+    if (toImport.length === 0) {
+      return
+    }
 
     setImporting(true)
     try {
       const res = await api.post(`/api/v1/${companyId}/transactions/import`, {
         transactions: toImport.map(({ date, description, amount, source }) => ({
-          date, description, amount, source,
+          date,
+          description,
+          amount,
+          source,
         })),
       })
       setImportResult({ imported: res.data.imported })
       setStep('done')
       onImportSuccess()
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })
-        ?.response?.data?.message ?? 'Import failed. Please try again.'
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Import failed. Please try again.'
       setParseError(msg)
     } finally {
       setImporting(false)
@@ -182,81 +182,90 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     setParseError(null)
     setImportResult(null)
     setSetuError(null)
-    if (fileRef.current) fileRef.current.value = ''
+    setSetuNotice(null)
+    if (fileRef.current) {
+      fileRef.current.value = ''
+    }
   }
 
-  // ── Setu AA Bank Sync ────────────────────────────────────────────────────────
   const handleSetuSync = async () => {
     setSetuError(null)
+    setSetuNotice(null)
     setSetuSyncing(true)
 
     try {
-      // 1. Get consent URL (Mocked)
-      const consentRes = await api.post(`/api/v1/${companyId}/setu/consent`)
-      const consentUrl = consentRes.data.consentUrl; console.log(consentUrl)
+      const consentRes = await api.post<BankSyncStatus>(`/api/v1/${companyId}/setu/consent`)
+      const consent = consentRes.data
 
-      // In a real flow, you would redirect the user to this URL and handle a callback
-      // However, for this MVP we just immediately simulate the sync
-      // alert(`Redirecting to Setu AA consent: ${consentUrl}`)
-
-      // 2. Fetch Sync Data (Mocked)
-      const syncRes = await api.post(`/api/v1/${companyId}/setu/sync`)
-      const fetched: ParsedTransaction[] = syncRes.data.map((t: any) => ({
-        ...t,
-        selected: true
-      }))
-
-      if (fetched.length === 0) {
-        setSetuError("No transactions found from the bank via Setu AA.")
-        setSetuSyncing(false)
+      if (consent.status === 'CONSENT_REQUIRED') {
+        if (consent.consentUrl) {
+          const popup = window.open(consent.consentUrl, '_blank', 'noopener,noreferrer')
+          if (!popup) {
+            setSetuError('The bank consent window was blocked. Please allow pop-ups and try again.')
+          } else {
+            setSetuNotice(consent.message ?? 'Consent window opened. After approval, return here and click Connect Bank again to sync.')
+          }
+        } else {
+          setSetuError(consent.message ?? 'Bank consent is required before syncing.')
+        }
         return
       }
 
-      // Populate preview table
+      if (consent.message) {
+        setSetuNotice(consent.message)
+      }
+
+      const syncRes = await api.post(`/api/v1/${companyId}/setu/sync`)
+      const rawTransactions = Array.isArray(syncRes.data)
+        ? syncRes.data
+        : (syncRes.data?.transactions ?? [])
+
+      const fetched: ParsedTransaction[] = rawTransactions.map((txn: any) => ({
+        date: String(txn.date),
+        description: String(txn.description ?? 'Bank synced transaction'),
+        amount: Number(txn.amount),
+        source: String(txn.source ?? (consent.mockFallback ? 'Setu AA (Mock)' : 'Setu AA')),
+        selected: true,
+      }))
+
+      if (fetched.length === 0) {
+        setSetuError('No transactions found from the bank sync provider.')
+        return
+      }
+
       setTransactions(fetched)
       setParseResult({
         transactions: fetched,
         total_found: fetched.length,
         skipped: 0,
-        source: 'Setu AA'
+        source: consent.mockFallback ? 'Setu AA (Mock)' : 'Setu AA',
       })
-
       setStep('preview')
-
     } catch (err: any) {
-      setSetuError(err?.response?.data?.message || 'Failed to sync with Setu AA.')
+      setSetuError(err?.response?.data?.error || err?.response?.data?.message || 'Failed to sync with Setu AA.')
     } finally {
       setSetuSyncing(false)
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  //  RENDER
-  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="statement-import">
-
-      {/* ── Header ── */}
       <div className="import-header">
         <h2>📥 Import Bank Statement</h2>
         <p className="import-subtitle">
-          Upload your UPI history, bank statement CSV, or screenshot.{' '}
-          <strong>Sensitive information (account numbers, IFSC, card numbers) is
-            automatically removed — only transaction details are kept.</strong>
+          Upload your UPI history, bank statement CSV, or screenshot. <strong>Sensitive information (account numbers, IFSC, card numbers) is automatically removed — only transaction details are kept.</strong>
         </p>
         <div className="privacy-badge">
           <span className="privacy-icon">🔒</span>
-          <span>Privacy Protected: Account numbers, IFSC codes, and card numbers
-            are redacted before any data is processed or stored.</span>
+          <span>Privacy Protected: Account numbers, IFSC codes, and card numbers are redacted before any data is processed or stored.</span>
         </div>
       </div>
 
-      {/* ── Step 1: Upload ── */}
       {step === 'upload' && (
         <div className="upload-section">
           <div
             className={`dropzone ${dragOver ? 'drag-over' : ''}`}
-            onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+            onDragOver={event => { event.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
@@ -292,9 +301,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             onChange={handleInputChange}
           />
 
-          {parseError && (
-            <div className="parse-error">❌ {parseError}</div>
-          )}
+          {parseError && <div className="parse-error">❌ {parseError}</div>}
 
           <div className="redaction-info">
             <h4>🛡️ What We Automatically Remove</h4>
@@ -322,27 +329,31 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             <h3 style={{ marginBottom: 8, fontSize: 18, color: '#f8fafc' }}>
               🇮🇳 Auto-Sync with Bank (Account Aggregator)
             </h3>
-            <p style={{ color: '#94a3b8', marginBottom: 16, fontSize: 14 }}>
-              Securely connect your bank account via the RBI-regulated Account Aggregator framework (powered by Setu).
-              No login credentials shared.
+            <p style={{ color: '#94a3b8', marginBottom: 12, fontSize: 14 }}>
+              Securely connect your bank account via the RBI-regulated Account Aggregator framework (powered by Setu). No login credentials are shared.
+            </p>
+            <p style={{ color: '#64748b', marginBottom: 16, fontSize: 13 }}>
+              If live Setu credentials are not configured in this environment, FinanceAI falls back to safe demo bank data so you can still test the full workflow locally.
             </p>
             <button
               className="btn-primary"
-              onClick={handleSetuSync}
+              onClick={() => { void handleSetuSync() }}
               disabled={setuSyncing || parsing}
               style={{ padding: '12px 24px', fontSize: 16, width: '100%', display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}
             >
               {setuSyncing ? <div className="spinner" style={{ width: 16, height: 16 }} /> : '🔗'}
               {setuSyncing ? 'Connecting to Bank...' : 'Connect Bank via Setu AA'}
             </button>
-            {setuError && (
-              <div className="parse-error" style={{ marginTop: 12 }}>❌ {setuError}</div>
+            {setuNotice && (
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe', fontSize: 13 }}>
+                ℹ️ {setuNotice}
+              </div>
             )}
+            {setuError && <div className="parse-error" style={{ marginTop: 12 }}>❌ {setuError}</div>}
           </div>
         </div>
       )}
 
-      {/* ── Step 2: Preview ── */}
       {step === 'preview' && parseResult && (
         <div className="preview-section">
           <div className="parse-summary">
@@ -364,9 +375,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             </div>
           </div>
 
-          {parseResult.warning && (
-            <div className="parse-warning">⚠️ {parseResult.warning}</div>
-          )}
+          {parseResult.warning && <div className="parse-warning">⚠️ {parseResult.warning}</div>}
 
           <div className="privacy-confirm-badge">
             ✅ All sensitive data has been redacted. Only transaction details shown below.
@@ -381,12 +390,10 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
               <button className="btn-cancel-import" onClick={reset}>← Back</button>
               <button
                 className="btn-confirm-import"
-                onClick={handleImport}
+                onClick={() => { void handleImport() }}
                 disabled={importing || selectedCount === 0}
               >
-                {importing
-                  ? '⏳ Importing…'
-                  : `✅ Import ${selectedCount} Transaction${selectedCount !== 1 ? 's' : ''}`}
+                {importing ? '⏳ Importing…' : `✅ Import ${selectedCount} Transaction${selectedCount !== 1 ? 's' : ''}`}
               </button>
             </div>
           </div>
@@ -403,18 +410,18 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((txn, i) => (
+                {transactions.map((txn, index) => (
                   <tr
-                    key={i}
+                    key={index}
                     className={txn.selected ? '' : 'row-deselected'}
-                    onClick={() => toggleRow(i)}
+                    onClick={() => toggleRow(index)}
                   >
                     <td>
                       <input
                         type="checkbox"
                         checked={txn.selected}
-                        onChange={() => toggleRow(i)}
-                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleRow(index)}
+                        onClick={event => event.stopPropagation()}
                       />
                     </td>
                     <td className="date-cell">{txn.date}</td>
@@ -433,13 +440,10 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             </table>
           </div>
 
-          {parseError && (
-            <div className="parse-error">❌ {parseError}</div>
-          )}
+          {parseError && <div className="parse-error">❌ {parseError}</div>}
         </div>
       )}
 
-      {/* ── Step 3: Done ── */}
       {step === 'done' && importResult && (
         <div className="done-section">
           <div className="success-graphic">
@@ -450,8 +454,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             <strong>{importResult.imported}</strong> transactions imported successfully.
           </p>
           <p className="done-note">
-            Your dashboard and P&L report have been updated. Anomaly detection
-            will analyze the new transactions in the background.
+            Your dashboard and P&L report have been updated. Anomaly detection will analyze the new transactions in the background.
           </p>
           <div className="done-actions">
             <button className="btn-import-more" onClick={reset}>

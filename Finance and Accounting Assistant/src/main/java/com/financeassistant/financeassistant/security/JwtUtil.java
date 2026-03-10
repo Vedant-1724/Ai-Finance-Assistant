@@ -1,9 +1,7 @@
 package com.financeassistant.financeassistant.security;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,18 +10,6 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.Date;
 
-/**
- * JWT token creation and validation.
- *
- * Security hardening:
- *  - HS256 with a Base64-encoded secret (min 32 bytes)
- *  - Claims include: email, companyId, issued-at, expiry
- *  - Token expiry configurable via environment variable
- *  - All exceptions caught and logged — never leaks internals
- *
- * Ready for Razorpay: companyId in claims lets payment controller
- * verify the user's company without a database call.
- */
 @Slf4j
 @Component
 public class JwtUtil {
@@ -31,7 +17,7 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.expiration:86400000}")
+    @Value("${jwt.expiration-ms:86400000}")
     private long expirationMs;
 
     private SecretKey getSigningKey() {
@@ -39,27 +25,20 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    /**
-     * Generate a signed JWT containing email and companyId.
-     */
     public String generateToken(String email, Long companyId) {
-        Date now    = new Date();
+        Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
-            .subject(email)
-            .claim("companyId", companyId)
-            .claim("type", "access")
-            .issuedAt(now)
-            .expiration(expiry)
-            .signWith(getSigningKey())
-            .compact();
+                .subject(email)
+                .claim("companyId", companyId)
+                .claim("type", "access")
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(getSigningKey())
+                .compact();
     }
 
-    /**
-     * Extract the email (subject) from a token.
-     * Returns null if token is invalid/expired.
-     */
     public String extractEmail(String token) {
         try {
             return getClaims(token).getSubject();
@@ -69,23 +48,21 @@ public class JwtUtil {
         }
     }
 
-    /**
-     * Extract companyId from token claims.
-     */
     public Long extractCompanyId(String token) {
         try {
             Object id = getClaims(token).get("companyId");
-            if (id instanceof Integer) return ((Integer) id).longValue();
-            if (id instanceof Long)    return (Long) id;
+            if (id instanceof Integer integerId) {
+                return integerId.longValue();
+            }
+            if (id instanceof Long longId) {
+                return longId;
+            }
             return null;
         } catch (Exception e) {
             return null;
         }
     }
 
-    /**
-     * Get token expiry as milliseconds from epoch.
-     */
     public long getExpiryMs(String token) {
         try {
             return getClaims(token).getExpiration().getTime();
@@ -94,9 +71,6 @@ public class JwtUtil {
         }
     }
 
-    /**
-     * Validate token: signature, expiry, and email match.
-     */
     public boolean isTokenValid(String token, String email) {
         try {
             String tokenEmail = extractEmail(token);
@@ -117,9 +91,9 @@ public class JwtUtil {
 
     private Claims getClaims(String token) {
         return Jwts.parser()
-            .verifyWith(getSigningKey())
-            .build()
-            .parseSignedClaims(token)
-            .getPayload();
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

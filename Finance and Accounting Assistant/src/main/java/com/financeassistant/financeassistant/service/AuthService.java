@@ -38,50 +38,40 @@ public class AuthService implements UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    // ── UserDetailsService ────────────────────────────────────────────────────
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
     }
 
-    // ── Register ──────────────────────────────────────────────────────────────
     @Transactional
-    public AuthResponse register(RegisterRequest req) {
+    public RegistrationResult register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.getEmail())) {
             throw new IllegalArgumentException("An account with this email already exists.");
         }
 
-        // Create user — defaults to FREE tier (no trial auto-start)
         User user = new User(
                 req.getEmail().toLowerCase().trim(),
                 passwordEncoder.encode(req.getPassword()),
                 "USER");
         User savedUser = userRepository.save(user);
 
-        // Create company
         Company company = new Company();
         company.setOwnerId(savedUser.getId());
         company.setName(req.getCompanyName());
         company.setCurrency("INR");
         Company savedCompany = companyRepository.save(company);
 
-        // ✅ Generate and Send Verification Email (Token expires in 24 hours)
         String rawToken = UUID.randomUUID().toString();
         EmailVerificationToken tokenEntity = new EmailVerificationToken(rawToken, savedUser,
                 LocalDateTime.now().plusHours(24));
         tokenRepository.save(tokenEntity);
         emailService.sendEmailVerification(savedUser.getEmail(), rawToken);
 
-        // ✅ User is not logged in immediately. We don't dispatch a JWT token here
-        // anymore.
-        // The controller returning 201 will let the React front-end know to show a
-        // "Check your email" screen.
         log.info("Registered new FREE user (Unverified): {}", savedUser.getEmail());
-        return buildAuthResponse("", savedCompany.getId(), savedUser);
+        return new RegistrationResult(buildAuthResponse("", savedCompany.getId(), savedUser), rawToken);
     }
 
-    // ── Login ─────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest req) {
         User user = userRepository.findByEmail(req.getEmail().toLowerCase().trim())
@@ -95,17 +85,14 @@ public class AuthService implements UserDetailsService {
             throw new IllegalStateException("EMAIL_UNVERIFIED");
         }
 
-        // ✅ FIX: use findFirstByOwnerId (not findByOwnerId)
         Company company = companyRepository.findFirstByOwnerId(user.getId())
                 .orElseThrow(() -> new IllegalStateException("No company found for user"));
 
-        // ✅ FIX: generateToken needs TWO args (email, companyId)
         String token = jwtUtil.generateToken(user.getEmail(), company.getId());
         log.info("Login: {}", user.getEmail());
         return buildAuthResponse(token, company.getId(), user);
     }
 
-    // ── Email Verification Endpoint ───────────────────────────────────────────
     @Transactional
     public void verifyEmail(String token) {
         EmailVerificationToken verificationToken = tokenRepository.findByToken(token)
@@ -120,18 +107,17 @@ public class AuthService implements UserDetailsService {
         user.setEmailVerified(true);
         userRepository.save(user);
 
-        // Delete the token so it cannot be reused
         tokenRepository.delete(verificationToken);
         log.info("Email verified successfully for: {}", user.getEmail());
     }
 
-    // ── Password Reset Endpoints ──────────────────────────────────────────────
     @Transactional
-    public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email.toLowerCase().trim())
-                .orElseThrow(() -> new IllegalArgumentException("If this email exists, a reset link will be sent."));
+    public PasswordResetInitiationResult forgotPassword(String email) {
+        User user = userRepository.findByEmail(email.toLowerCase().trim()).orElse(null);
+        if (user == null) {
+            return new PasswordResetInitiationResult(false, null);
+        }
 
-        // Delete any existing reset token for this user
         resetTokenRepository.deleteByUserId(user.getId());
 
         String rawToken = UUID.randomUUID().toString();
@@ -140,6 +126,7 @@ public class AuthService implements UserDetailsService {
 
         emailService.sendPasswordReset(user.getEmail(), rawToken);
         log.info("Password reset requested for: {}", user.getEmail());
+        return new PasswordResetInitiationResult(true, rawToken);
     }
 
     @Transactional
@@ -156,12 +143,32 @@ public class AuthService implements UserDetailsService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        // Discard token so it cannot be used again
         resetTokenRepository.delete(resetToken);
         log.info("Password was reset successfully for: {}", user.getEmail());
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect.");
+        }
+
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new IllegalArgumentException("New password must be at least 8 characters.");
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new IllegalArgumentException("New password must differ from your current password.");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password changed successfully for: {}", user.getEmail());
+    }
+
     private AuthResponse buildAuthResponse(String token, Long companyId, User user) {
         return new AuthResponse(
                 token,
@@ -170,5 +177,11 @@ public class AuthService implements UserDetailsService {
                 user.getEffectiveTier(),
                 user.trialDaysRemaining(),
                 user.getAiChatsRemainingToday());
+    }
+
+    public record RegistrationResult(AuthResponse authResponse, String verificationToken) {
+    }
+
+    public record PasswordResetInitiationResult(boolean accountFound, String resetToken) {
     }
 }

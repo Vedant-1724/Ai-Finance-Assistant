@@ -1,7 +1,4 @@
-// PATH: finance-frontend/src/components/AddTransactionModal.tsx
-// Supports both creating new transactions and editing existing ones.
-
-import { useState, useEffect, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import api from '../api'
 
 interface Transaction {
@@ -16,7 +13,7 @@ interface Props {
   companyId: number
   onClose: () => void
   onSuccess: () => void
-  editingTxn?: Transaction | null  // If provided, modal is in edit mode
+  editingTxn?: Transaction | null
 }
 
 interface CategoryOption {
@@ -32,9 +29,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
     editingTxn ? editingTxn.date : new Date().toISOString().split('T')[0]
   )
   const [description, setDescription] = useState(editingTxn?.description ?? '')
-  const [amount, setAmount] = useState(
-    editingTxn ? String(Math.abs(editingTxn.amount)) : ''
-  )
+  const [amount, setAmount] = useState(editingTxn ? String(Math.abs(editingTxn.amount)) : '')
   const [type, setType] = useState<'income' | 'expense'>(
     editingTxn ? (editingTxn.amount >= 0 ? 'income' : 'expense') : 'expense'
   )
@@ -45,48 +40,70 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
   const [error, setError] = useState<string | null>(null)
   const [aiSuggested, setAiSuggested] = useState<string | null>(null)
 
-  // ── Load categories ────────────────────────────────────────────────────────
   useEffect(() => {
     api.get<CategoryOption[]>(`/api/v1/${companyId}/categories`)
-      .then(r => setCategories(r.data))
+      .then(response => setCategories(response.data))
       .catch(() => setCategories([]))
   }, [companyId])
 
-  // ── AI auto-categorise after user finishes typing description ─────────────
   useEffect(() => {
-    if (description.length < 5) return
-    const timer = setTimeout(async () => {
+    if (!editingTxn?.categoryName || categories.length === 0) {
+      return
+    }
+
+    const match = categories.find(category => category.name.toLowerCase() === editingTxn.categoryName?.toLowerCase())
+    if (match) {
+      setCategoryId(String(match.id))
+    }
+  }, [categories, editingTxn])
+
+  useEffect(() => {
+    if (description.trim().length < 5) {
+      setAiSuggested(null)
+      return
+    }
+
+    const timer = window.setTimeout(async () => {
       setCatLoading(true)
       try {
         const res = await api.post<{ category: string; confidence: number }>(
           `/api/v1/${companyId}/transactions/categorize`,
-          { description }
+          { description, type }
         )
-        if (res.data?.category && res.data.confidence > 0.4) {
+        if (res.data.category && res.data.confidence > 0.4) {
           setAiSuggested(res.data.category)
           const match = categories.find(
-            c => c.name.toLowerCase() === res.data.category.toLowerCase()
+            category => category.name.toLowerCase() === res.data.category.toLowerCase()
           )
-          if (match) setCategoryId(String(match.id))
+          if (match) {
+            setCategoryId(String(match.id))
+          }
         }
       } catch {
-        // AI categorize is optional — fail silently
+        // Categorization is optional. Leave manual entry available.
       } finally {
         setCatLoading(false)
       }
     }, 700)
-    return () => clearTimeout(timer)
-  }, [description, categories, companyId])
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+    return () => window.clearTimeout(timer)
+  }, [categories, companyId, description, type])
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
     setError(null)
 
-    if (!date) { setError('Please select a date.'); return }
-    if (!description) { setError('Description is required.'); return }
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      setError('Enter a valid positive amount.'); return
+    if (!date) {
+      setError('Please select a date.')
+      return
+    }
+    if (!description.trim()) {
+      setError('Description is required.')
+      return
+    }
+    if (!amount || Number.isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      setError('Enter a valid positive amount.')
+      return
     }
 
     const finalAmount = type === 'expense'
@@ -95,43 +112,36 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
 
     setLoading(true)
     try {
-      if (isEdit) {
-        // UPDATE existing transaction
-        await api.put(`/api/v1/${companyId}/transactions/${editingTxn!.id}`, {
-          date,
-          description: description.trim(),
-          amount: finalAmount,
-          categoryId: categoryId ? parseInt(categoryId) : null,
-        })
-      } else {
-        // CREATE new transaction
-        await api.post(`/api/v1/${companyId}/transactions`, {
-          date,
-          description: description.trim(),
-          amount: finalAmount,
-          categoryId: categoryId ? parseInt(categoryId) : null,
-        })
+      const payload = {
+        date,
+        description: description.trim(),
+        amount: finalAmount,
+        categoryId: categoryId ? parseInt(categoryId, 10) : null,
       }
+
+      if (isEdit) {
+        await api.put(`/api/v1/${companyId}/transactions/${editingTxn!.id}`, payload)
+      } else {
+        await api.post(`/api/v1/${companyId}/transactions`, payload)
+      }
+
       onSuccess()
       onClose()
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error
-      setError(msg ?? `Failed to ${isEdit ? 'update' : 'save'} transaction. Please try again.`)
+      const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
+      setError(data?.error ?? data?.message ?? `Failed to ${isEdit ? 'update' : 'save'} transaction. Please try again.`)
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredCategories = categories.filter(c =>
-    type === 'income' ? c.type === 'INCOME' : c.type === 'EXPENSE'
+  const filteredCategories = categories.filter(category =>
+    type === 'income' ? category.type === 'INCOME' : category.type === 'EXPENSE'
   )
 
   return (
-    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
       <div className="modal-box" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Transaction' : 'Add Transaction'}>
-
-        {/* Header */}
         <div className="modal-header">
           <h2 className="modal-title">{isEdit ? '✏️ Edit Transaction' : '➕ Add Transaction'}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
@@ -140,37 +150,44 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
         {error && <div className="auth-error" style={{ marginBottom: 16 }}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
-
-          {/* Type toggle */}
           <div className="form-group">
             <label>Type</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              {(['expense', 'income'] as const).map(t => (
+              {(['expense', 'income'] as const).map(nextType => (
                 <button
-                  key={t}
+                  key={nextType}
                   type="button"
-                  onClick={() => { setType(t); setCategoryId('') }}
+                  onClick={() => {
+                    setType(nextType)
+                    setCategoryId('')
+                    setAiSuggested(null)
+                  }}
                   style={{
-                    flex: 1, padding: '10px', borderRadius: 8, border: '1px solid',
-                    cursor: 'pointer', fontWeight: 600, fontSize: 14, transition: 'all 0.15s',
-                    background: type === t
-                      ? t === 'expense' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)'
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: 8,
+                    border: '1px solid',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    transition: 'all 0.15s',
+                    background: type === nextType
+                      ? nextType === 'expense' ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)'
                       : 'rgba(255,255,255,0.04)',
-                    borderColor: type === t
-                      ? t === 'expense' ? 'rgba(239,68,68,0.5)' : 'rgba(34,197,94,0.5)'
+                    borderColor: type === nextType
+                      ? nextType === 'expense' ? 'rgba(239,68,68,0.5)' : 'rgba(34,197,94,0.5)'
                       : 'rgba(255,255,255,0.1)',
-                    color: type === t
-                      ? t === 'expense' ? '#f87171' : '#4ade80'
+                    color: type === nextType
+                      ? nextType === 'expense' ? '#f87171' : '#4ade80'
                       : '#94a3b8',
                   }}
                 >
-                  {t === 'expense' ? '📉 Expense' : '📈 Income'}
+                  {nextType === 'expense' ? '📉 Expense' : '📈 Income'}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Date */}
           <div className="form-group">
             <label htmlFor="txn-date">Date</label>
             <input
@@ -178,13 +195,12 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
               type="date"
               className="form-input"
               value={date}
-              onChange={e => setDate(e.target.value)}
+              onChange={event => setDate(event.target.value)}
               max={new Date().toISOString().split('T')[0]}
               required
             />
           </div>
 
-          {/* Description */}
           <div className="form-group">
             <label htmlFor="txn-desc">
               Description
@@ -205,20 +221,28 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
               className="form-input"
               placeholder="e.g. Office supplies from Staples"
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={event => setDescription(event.target.value)}
               maxLength={512}
               required
             />
           </div>
 
-          {/* Amount */}
           <div className="form-group">
             <label htmlFor="txn-amount">Amount (₹)</label>
             <div className="input-wrapper">
-              <span style={{
-                position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                color: '#475569', fontWeight: 600, pointerEvents: 'none'
-              }}>₹</span>
+              <span
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#475569',
+                  fontWeight: 600,
+                  pointerEvents: 'none',
+                }}
+              >
+                ₹
+              </span>
               <input
                 id="txn-amount"
                 type="number"
@@ -226,7 +250,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
                 style={{ paddingLeft: 28 }}
                 placeholder="0.00"
                 value={amount}
-                onChange={e => setAmount(e.target.value)}
+                onChange={event => setAmount(event.target.value)}
                 min="0.01"
                 step="0.01"
                 required
@@ -234,34 +258,29 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
             </div>
           </div>
 
-          {/* Category */}
           <div className="form-group">
             <label htmlFor="txn-cat">Category (optional)</label>
             <select
               id="txn-cat"
               className="form-select"
               value={categoryId}
-              onChange={e => setCategoryId(e.target.value)}
+              onChange={event => setCategoryId(event.target.value)}
             >
               <option value="">— Select category —</option>
-              {filteredCategories.map(c => (
-                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              {filteredCategories.map(category => (
+                <option key={category.id} value={String(category.id)}>{category.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Footer */}
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={loading}>
-              {loading
-                ? '⏳ Saving…'
-                : isEdit ? '✏️ Update Transaction' : '💾 Save Transaction'}
+              {loading ? '⏳ Saving…' : isEdit ? '✏️ Update Transaction' : '💾 Save Transaction'}
             </button>
           </div>
-
         </form>
       </div>
     </div>

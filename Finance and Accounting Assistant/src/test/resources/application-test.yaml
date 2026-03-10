@@ -1,0 +1,59 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+  datasource:
+    url: jdbc:h2:mem:financeassistant;MODE=PostgreSQL;NON_KEYWORDS=MONTH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect:
+  flyway:
+    enabled: false
+  cache:
+    type: simple
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      repositories:
+        enabled: false
+
+management:
+  health:
+    redis:
+      enabled: false
+    rabbit:
+      enabled: false
+
+jwt:
+  secret: test-secret-key-that-is-long-enough-for-jwt-signing-1234567890
+  expiration-ms: 86400000
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
+  mail:
+    enabled: false
+  rabbit:
+    enabled: false
+
+ai:
+  service:
+    url: http://localhost:5001
+    api:
+      key:
+
+razorpay:
+  key:
+    id:
+    secret:
+  webhook:
+    secret:
+

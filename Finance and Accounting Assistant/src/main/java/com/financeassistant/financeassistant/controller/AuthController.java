@@ -2,35 +2,38 @@ package com.financeassistant.financeassistant.controller;
 
 import com.financeassistant.financeassistant.config.GlobalExceptionHandler.RateLimitException;
 import com.financeassistant.financeassistant.dto.AuthResponse;
+import com.financeassistant.financeassistant.dto.ChangePasswordRequest;
 import com.financeassistant.financeassistant.dto.LoginRequest;
 import com.financeassistant.financeassistant.dto.RegisterRequest;
+import com.financeassistant.financeassistant.entity.User;
+import com.financeassistant.financeassistant.repository.CompanyRepository;
 import com.financeassistant.financeassistant.security.JwtUtil;
 import com.financeassistant.financeassistant.security.LoginRateLimiter;
 import com.financeassistant.financeassistant.security.TokenBlacklistService;
 import com.financeassistant.financeassistant.service.AuthService;
+import com.financeassistant.financeassistant.service.EmailAlertService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Authentication controller — hardened for production.
- *
- * Security features:
- * - Rate limiting: 5 logins/min, 3 registers/10min per IP
- * - Logout blacklists JWT in Redis
- * - Never reveals whether email exists (prevents enumeration)
- * - Input validated via @Valid annotations
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -41,10 +44,9 @@ public class AuthController {
     private final LoginRateLimiter rateLimiter;
     private final TokenBlacklistService blacklistService;
     private final JwtUtil jwtUtil;
+    private final CompanyRepository companyRepository;
+    private final EmailAlertService emailAlertService;
 
-    /**
-     * POST /api/v1/auth/login
-     */
     @PostMapping("/login")
     public ResponseEntity<?> login(
             @Valid @RequestBody LoginRequest req,
@@ -53,7 +55,6 @@ public class AuthController {
 
         String ip = getClientIp(httpReq);
 
-        // Rate limit: 5 attempts per minute per IP
         if (!rateLimiter.tryConsumeLogin(ip)) {
             log.warn("Rate limit exceeded for login from IP: {}", ip);
             throw new RateLimitException("Too many login attempts. Please wait 1 minute.");
@@ -68,14 +69,21 @@ public class AuthController {
                     .secure(true)
                     .path("/")
                     .sameSite("Lax")
-                    .maxAge(30 * 24 * 60 * 60) // 30 days
+                    .maxAge(30L * 24 * 60 * 60)
                     .build();
             httpResp.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
             return ResponseEntity.ok(response);
         } catch (BadCredentialsException e) {
-            // Generic message — don't reveal if email exists
             log.warn("Login failed for {} from IP: {}", req.getEmail(), ip);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Invalid email or password"));
+        } catch (IllegalStateException e) {
+            if ("EMAIL_UNVERIFIED".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "EMAIL_UNVERIFIED"));
+            }
+            log.error("Login state error for {}: {}", req.getEmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Invalid email or password"));
         } catch (Exception e) {
@@ -85,9 +93,6 @@ public class AuthController {
         }
     }
 
-    /**
-     * POST /api/v1/auth/register
-     */
     @PostMapping("/register")
     public ResponseEntity<?> register(
             @Valid @RequestBody RegisterRequest req,
@@ -96,18 +101,15 @@ public class AuthController {
 
         String ip = getClientIp(httpReq);
 
-        // Rate limit: 3 registrations per 10 minutes per IP
         if (!rateLimiter.tryConsumeRegister(ip)) {
             log.warn("Rate limit exceeded for register from IP: {}", ip);
             throw new RateLimitException("Too many registration attempts. Please wait 10 minutes.");
         }
 
         try {
-            AuthResponse response = authService.register(req);
+            AuthService.RegistrationResult result = authService.register(req);
             log.info("Registration success: {} from IP: {}", req.getEmail(), ip);
 
-            // Registration was successful, but they must verify before getting a JWT token.
-            // Clear any lingering cookies just in case.
             ResponseCookie cookie = ResponseCookie.from("jwt_token", "")
                     .httpOnly(true)
                     .secure(true)
@@ -116,8 +118,16 @@ public class AuthController {
                     .build();
             httpResp.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(Map.of("message", "Registered. Please check your email to verify your account."));
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("message", emailAlertService.isMailEnabled()
+                    ? "Registered. Please check your email to verify your account."
+                    : "Registered. Email delivery is disabled in this environment, so use the verification link below.");
+            body.put("emailDeliveryEnabled", emailAlertService.isMailEnabled());
+            if (emailAlertService.shouldExposeActionLinksWhenDisabled()) {
+                body.put("verificationUrl", emailAlertService.buildVerificationUrl(result.verificationToken()));
+            }
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(body);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", e.getMessage()));
@@ -128,10 +138,6 @@ public class AuthController {
         }
     }
 
-    /**
-     * GET /api/v1/auth/verify-email
-     * Completes registration if the token is valid.
-     */
     @GetMapping("/verify-email")
     public ResponseEntity<?> verifyEmail(@RequestParam String token) {
         try {
@@ -142,27 +148,32 @@ public class AuthController {
         }
     }
 
-    /**
-     * POST /api/v1/auth/forgot-password
-     * Initiates the password reset flow.
-     */
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(
             @Valid @RequestBody com.financeassistant.financeassistant.dto.ForgotPasswordRequest req) {
         try {
-            authService.forgotPassword(req.getEmail());
-            return ResponseEntity.ok(Map.of("message", "If that email exists, a password reset link has been sent."));
+            AuthService.PasswordResetInitiationResult result = authService.forgotPassword(req.getEmail());
+            Map<String, Object> body = new LinkedHashMap<>();
+            if (!emailAlertService.isMailEnabled()) {
+                body.put("message", result.accountFound() && emailAlertService.shouldExposeActionLinksWhenDisabled()
+                        ? "Email delivery is disabled in this environment. Use the reset link below if this account exists."
+                        : "Email delivery is disabled in this environment. If that email exists, contact support or enable mail to complete password resets.");
+            } else {
+                body.put("message", "If that email exists, a password reset link has been sent.");
+            }
+            body.put("emailDeliveryEnabled", emailAlertService.isMailEnabled());
+            if (result.accountFound() && emailAlertService.shouldExposeActionLinksWhenDisabled()) {
+                body.put("resetUrl", emailAlertService.buildResetUrl(result.resetToken()));
+            }
+            return ResponseEntity.ok(body);
         } catch (Exception e) {
             log.error("Forgot password error for {}: {}", req.getEmail(), e.getMessage());
-            // Always return success to prevent email enumeration
-            return ResponseEntity.ok(Map.of("message", "If that email exists, a password reset link has been sent."));
+            return ResponseEntity.ok(Map.of(
+                    "message", "If that email exists, a password reset link has been sent.",
+                    "emailDeliveryEnabled", emailAlertService.isMailEnabled()));
         }
     }
 
-    /**
-     * POST /api/v1/auth/reset-password
-     * Completes the password reset provided a valid token.
-     */
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(
             @Valid @RequestBody com.financeassistant.financeassistant.dto.ResetPasswordRequest req) {
@@ -178,13 +189,26 @@ public class AuthController {
         }
     }
 
-    /**
-     * POST /api/v1/auth/logout
-     * Blacklists the current JWT token — user is immediately logged out
-     * even before the token naturally expires.
-     *
-     * Critical for: subscription cancellation, account compromise response.
-     */
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody ChangePasswordRequest req) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+
+        try {
+            authService.changePassword(user.getId(), req.getCurrentPassword(), req.getNewPassword());
+            return ResponseEntity.ok(Map.of("message", "Password updated successfully. Please log in again."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Change password error for {}: {}", user.getEmail(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to change password. Please try again."));
+        }
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<?> logout(
             @CookieValue(value = "jwt_token", required = false) String token,
@@ -201,7 +225,6 @@ public class AuthController {
             log.info("User logged out from IP: {}", getClientIp(httpReq));
         }
 
-        // Clear the cookie by setting maxAge to 0
         ResponseCookie cookie = ResponseCookie.from("jwt_token", "")
                 .httpOnly(true)
                 .secure(true)
@@ -213,27 +236,26 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 
-    /**
-     * GET /api/v1/auth/me
-     * Returns current user info from JWT without hitting the database.
-     */
     @GetMapping("/me")
-    public ResponseEntity<?> me(@CookieValue(value = "jwt_token", required = false) String token) {
-
-        if (token == null || token.isBlank()) {
+    public ResponseEntity<?> me(@AuthenticationPrincipal User user) {
+        if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Not authenticated"));
         }
 
-        String email = jwtUtil.extractEmail(token);
-        Long companyId = jwtUtil.extractCompanyId(token);
+        Long companyId = companyRepository.findFirstByOwnerId(user.getId())
+                .map(company -> company.getId())
+                .orElse(0L);
 
         return ResponseEntity.ok(Map.of(
-                "email", email != null ? email : "",
-                "companyId", companyId != null ? companyId : 0));
+                "email", user.getEmail(),
+                "companyId", companyId,
+                "subscriptionStatus", user.getEffectiveTier(),
+                "trialDaysRemaining", user.trialDaysRemaining(),
+                "aiChatsRemaining", user.getAiChatsRemainingToday(),
+                "hasPremiumAccess", user.hasPremiumAccess()));
     }
 
-    // ── Helper: get real IP (works behind nginx reverse proxy) ───────────────
     private String getClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {

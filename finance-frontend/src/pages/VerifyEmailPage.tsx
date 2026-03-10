@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import axios from 'axios'
 import api from '../api'
 
 export default function VerifyEmailPage() {
@@ -16,21 +17,30 @@ export default function VerifyEmailPage() {
       return
     }
 
-    api.get(`/auth/verify-email?token=${token}`)
-      .then(res => {
+    const verify = async () => {
+      try {
+        const res = await api.get<{ message?: string }>(`/api/v1/auth/verify-email?token=${encodeURIComponent(token)}`)
         setStatus('success')
-        setMessage(res.data.message || 'Email verified successfully! You can now log in.')
-      })
-      .catch(err => {
+        setMessage(res.data.message || 'Email verified successfully. You can now log in.')
+      } catch (error) {
         setStatus('error')
-        setMessage(err.response?.data?.error || 'Verification failed. The token may be expired.')
-      })
+        if (axios.isAxiosError(error)) {
+          const data = error.response?.data as { error?: string; message?: string } | undefined
+          setMessage(data?.error ?? data?.message ?? 'Verification failed. The token may be expired.')
+        } else {
+          setMessage('Verification failed. The token may be expired.')
+        }
+      }
+    }
+
+    void verify()
   }, [searchParams])
 
   return (
-    <div className="login-container">
+    <div className="auth-page">
       <div className="auth-card">
-        <h2 className="auth-title">Email Verification</h2>
+        <h2 className="auth-heading">Email Verification</h2>
+        <p className="auth-subheading">We are confirming your email address now.</p>
 
         <div className={`verification-box ${status}`}>
           {status === 'verifying' && <span className="spinner">⏳</span>}

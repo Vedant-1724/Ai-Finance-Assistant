@@ -1,10 +1,3 @@
-// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/
-//       financeassistant/config/CorsConfig.java
-//
-// FIX: addFilterAfter(subscriptionFilter, JwtAuthFilter.class) instead of
-//      addFilterBefore with same anchor — guarantees JWT validates first,
-//      THEN subscription is checked.
-
 package com.financeassistant.financeassistant.config;
 
 import com.financeassistant.financeassistant.security.JwtAuthFilter;
@@ -52,30 +45,20 @@ public class CorsConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
-                        // ── Public endpoints ──────────────────────────────────────────
                         .requestMatchers(
                                 "/api/v1/auth/login",
-                                "/api/v1/auth/register"
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/verify-email",
+                                "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/reset-password",
+                                "/api/v1/setu/callback"
                         ).permitAll()
-
-                        // Razorpay webhook — public, signature-verified inside controller
                         .requestMatchers("/api/v1/payment/webhook").permitAll()
-
-                        // Health probes
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-
-                        // Everything else requires a valid JWT
                         .anyRequest().authenticated()
                 )
-
-                // ── FIXED: guaranteed order JwtAuthFilter → SubscriptionFilter ────
-                // addFilterBefore puts JwtAuthFilter before UsernamePasswordAuth
-                // addFilterAfter puts SubscriptionFilter AFTER JwtAuthFilter
-                // This ensures JWT is validated before subscription is checked.
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(subscriptionFilter, JwtAuthFilter.class)   // <── FIX
-
-                // ── Security response headers ─────────────────────────────────────
+                .addFilterAfter(subscriptionFilter, JwtAuthFilter.class)
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny())
                         .httpStrictTransportSecurity(hsts -> hsts
@@ -108,7 +91,7 @@ public class CorsConfig {
         config.setAllowedOrigins(Arrays.asList(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With",
-                "X-Razorpay-Signature"));
+                "X-Razorpay-Signature", "X-Skip-401-Redirect"));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

@@ -1,12 +1,12 @@
-version: '3.9'
-
 services:
 
-  # ── PostgreSQL Database ──────────────────────────────────────────────────
+  # -- PostgreSQL Database -------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: finance-postgres
     restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: financedb
       POSTGRES_USER: ${DB_USERNAME}
@@ -25,30 +25,33 @@ services:
           memory: 512M
           cpus: '0.5'
 
-  # ── PostgreSQL Database Backups ──────────────────────────────────────────
+  # -- PostgreSQL Database Backups ----------------------------------------
   pg_backup:
     image: alpine:3.19
     container_name: finance-pg-backup
     restart: unless-stopped
+    profiles: ["backup"]
     environment:
       POSTGRES_DB: financedb
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_REGION: ${AWS_REGION:-us-east-1}
-      S3_BUCKET: ${S3_BUCKET}
+      S3_BUCKET: ${S3_BUCKET:-}
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       sh -c 'apk add --no-cache aws-cli postgresql-client && echo "0 2 * * * PGPASSWORD=\$${POSTGRES_PASSWORD} pg_dump -h postgres -U \$${POSTGRES_USER} \$${POSTGRES_DB} | gzip > /tmp/db_backup.sql.gz && aws s3 cp /tmp/db_backup.sql.gz s3://\$${S3_BUCKET}/db_backup_\$$(date +\%Y\%m\%d).sql.gz" > /etc/crontabs/root && crond -f'
 
-  # ── Redis Cache ──────────────────────────────────────────────────────────
+  # -- Redis Cache ---------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: finance-redis
     restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -60,11 +63,14 @@ services:
           memory: 256M
           cpus: '0.25'
 
-  # ── RabbitMQ Message Broker ──────────────────────────────────────────────
+  # -- RabbitMQ Message Broker --------------------------------------------
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: finance-rabbitmq
     restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -83,7 +89,7 @@ services:
           memory: 512M
           cpus: '0.5'
 
-  # ── Spring Boot Backend ──────────────────────────────────────────────────
+  # -- Spring Boot Backend -------------------------------------------------
   backend:
     build:
       context: "./Finance and Accounting Assistant"
@@ -103,15 +109,22 @@ services:
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: 86400000
-      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-dummy}
-      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-dummy}
-      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-dummy}
+      JWT_EXPIRATION_MS: 86400000
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
       MAIL_HOST: localhost
       MAIL_PORT: 2525
       MAIL_USERNAME: dummy
       MAIL_PASSWORD: dummy
       MAIL_ENABLED: "false"
+      MAIL_EXPOSE_LINKS_WHEN_DISABLED: ${MAIL_EXPOSE_LINKS_WHEN_DISABLED:-true}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost}
+      BANK_SYNC_PROVIDER: ${BANK_SYNC_PROVIDER:-AUTO}
+      SETU_BASE_URL: ${SETU_BASE_URL:-}
+      SETU_CLIENT_ID: ${SETU_CLIENT_ID:-}
+      SETU_CLIENT_SECRET: ${SETU_CLIENT_SECRET:-}
+      SETU_CALLBACK_URL: ${SETU_CALLBACK_URL:-http://localhost:8080/api/v1/setu/callback}
       AI_SERVICE_URL: http://ai-service:5001
       AI_SERVICE_API_KEY: ${INTERNAL_API_KEY}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
@@ -128,13 +141,15 @@ services:
           memory: 1G
           cpus: '1.0'
 
-  # ── Python AI Service ────────────────────────────────────────────────────
+  # -- Python AI Service ---------------------------------------------------
   ai-service:
     build:
       context: ./finance-ai
       dockerfile: Dockerfile
     container_name: finance-ai
     restart: unless-stopped
+    ports:
+      - "${AI_SERVICE_PORT:-5001}:5001"
     environment:
       BACKEND_URL: http://backend:8080
       RABBITMQ_HOST: rabbitmq
@@ -154,7 +169,7 @@ services:
           memory: 1G
           cpus: '1.0'
 
-  # ── React Frontend (Nginx) ───────────────────────────────────────────────
+  # -- React Frontend (Nginx) ----------------------------------------------
   frontend:
     build:
       context: ./finance-frontend
@@ -176,7 +191,7 @@ services:
           memory: 128M
           cpus: '0.25'
 
-  # ── Prometheus Monitoring ────────────────────────────────────────────────
+  # -- Prometheus Monitoring -----------------------------------------------
   prometheus:
     image: prom/prometheus:v2.45.0
     container_name: finance-prometheus
@@ -188,7 +203,7 @@ services:
     depends_on:
       - backend
 
-  # ── Grafana Dashboards ───────────────────────────────────────────────────
+  # -- Grafana Dashboards --------------------------------------------------
   grafana:
     image: grafana/grafana:10.0.1
     container_name: finance-grafana
@@ -203,7 +218,7 @@ services:
     depends_on:
       - prometheus
 
-  # ── Let's Encrypt Certbot ────────────────────────────────────────────────
+  # -- Let's Encrypt Certbot -----------------------------------------------
   certbot:
     image: certbot/certbot
     container_name: certbot

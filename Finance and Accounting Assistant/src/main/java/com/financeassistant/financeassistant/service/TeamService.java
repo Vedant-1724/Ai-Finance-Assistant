@@ -1,9 +1,6 @@
 package com.financeassistant.financeassistant.service;
 
-// PATH: Finance and Accounting Assistant/src/main/java/com/financeassistant/financeassistant/service/TeamService.java
-
 import com.financeassistant.financeassistant.entity.CompanyMember;
-import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.repository.CompanyMemberRepository;
 import com.financeassistant.financeassistant.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,9 +28,7 @@ public class TeamService {
     private String baseUrl;
 
     @Transactional
-    public CompanyMember inviteMember(Long companyId, String companyName,
-                                       String email, CompanyMember.Role role) {
-        // Check not already a member
+    public InviteResult inviteMember(Long companyId, String companyName, String email, CompanyMember.Role role) {
         userRepo.findByEmail(email).ifPresent(u -> {
             if (memberRepo.existsByCompanyIdAndUserId(companyId, u.getId())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "User is already a member");
@@ -50,10 +45,14 @@ public class TeamService {
 
         CompanyMember saved = memberRepo.save(member);
 
-        String inviteUrl = baseUrl + "/join?token=" + token;
+        String inviteUrl = emailAlertService.buildInviteUrl(token);
         emailAlertService.sendTeamInvite(email, companyName, inviteUrl);
 
-        return saved;
+        String message = emailAlertService.isMailEnabled()
+                ? "Invite sent to " + email
+                : "Email delivery is disabled in this environment. Share the invite link manually.";
+
+        return new InviteResult(saved, inviteUrl, emailAlertService.isMailEnabled(), message);
     }
 
     @Transactional
@@ -67,7 +66,7 @@ public class TeamService {
 
         member.setUserId(userId);
         member.setAcceptedAt(LocalDateTime.now());
-        member.setInviteToken(null);   // consume token
+        member.setInviteToken(null);
         memberRepo.save(member);
     }
 
@@ -100,5 +99,8 @@ public class TeamService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot remove owner");
         }
         memberRepo.delete(m);
+    }
+
+    public record InviteResult(CompanyMember member, String inviteUrl, boolean emailDeliveryEnabled, String message) {
     }
 }

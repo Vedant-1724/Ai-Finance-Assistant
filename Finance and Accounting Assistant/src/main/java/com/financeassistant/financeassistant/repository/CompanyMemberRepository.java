@@ -9,5 +9,6 @@ import java.util.Optional;
 public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Long> {
     List<CompanyMember> findByCompanyIdOrderByCreatedAtAsc(Long companyId);
     Optional<CompanyMember> findByInviteToken(String token);
+    Optional<CompanyMember> findByCompanyIdAndUserId(Long companyId, Long userId);
     boolean existsByCompanyIdAndUserId(Long companyId, Long userId);
 }

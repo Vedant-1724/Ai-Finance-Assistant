@@ -1,8 +1,22 @@
 package com.financeassistant.financeassistant.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
 import org.hibernate.annotations.CreationTimestamp;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -17,7 +31,6 @@ public class CompanyMember {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Stored as a plain column so setCompanyId(Long) works directly
     @Column(name = "company_id", nullable = false)
     private Long companyId;
 
@@ -53,6 +66,11 @@ public class CompanyMember {
     private LocalDateTime createdAt;
 
     public enum Role {
-        OWNER, ADMIN, ACCOUNTANT, VIEWER
+        OWNER,
+        EDITOR,
+        VIEWER,
+        ADMIN,
+        ACCOUNTANT
     }
 }
+

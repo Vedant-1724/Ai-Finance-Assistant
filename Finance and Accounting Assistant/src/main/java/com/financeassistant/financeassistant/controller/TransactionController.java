@@ -1,8 +1,10 @@
 package com.financeassistant.financeassistant.controller;
 
+import com.financeassistant.financeassistant.dto.CategorySuggestionDto;
 import com.financeassistant.financeassistant.dto.CreateTransactionRequest;
 import com.financeassistant.financeassistant.dto.TransactionDTO;
 import com.financeassistant.financeassistant.entity.User;
+import com.financeassistant.financeassistant.service.CategoryService;
 import com.financeassistant.financeassistant.service.TransactionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -12,13 +14,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
-/**
- * Full Transaction CRUD with audit logging and company ownership checks.
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/{companyId}/transactions")
@@ -26,6 +33,7 @@ import java.util.List;
 public class TransactionController {
 
     private final TransactionService service;
+    private final CategoryService categoryService;
 
     @GetMapping
     @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
@@ -72,5 +80,15 @@ public class TransactionController {
         service.deleteTransaction(companyId, transactionId,
                 user, httpReq.getRemoteAddr());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/categorize")
+    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    public ResponseEntity<CategorySuggestionDto> categorize(
+            @PathVariable Long companyId,
+            @RequestBody Map<String, String> request) {
+        String description = request.getOrDefault("description", "");
+        String type = request.getOrDefault("type", "expense");
+        return ResponseEntity.ok(categoryService.suggestCategory(companyId, description, type));
     }
 }

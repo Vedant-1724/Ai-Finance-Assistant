@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import api from '../api'                          // ← JWT-aware instance
+import api from '../api'
 import AddTransactionModal from './AddTransactionModal'
-import ChartsSection from './ChartsSection'
 import AnomalyPanel from './AnomalyPanel'
 
-// ── Interfaces ────────────────────────────────────────────────────────────────
 interface Transaction {
   id: number
   date: string
@@ -39,12 +37,12 @@ interface AnomalyAlert {
 
 interface DashboardProps {
   companyId: number
+  onOpenCharts?: () => void
 }
 
 type Period = 'month' | 'quarter' | 'year'
 
-// ── Component ─────────────────────────────────────────────────────────────────
-function Dashboard({ companyId }: DashboardProps) {
+function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [txnLoading, setTxnLoading] = useState(true)
   const [txnError, setTxnError] = useState<string | null>(null)
@@ -60,7 +58,6 @@ function Dashboard({ companyId }: DashboardProps) {
   const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<Transaction | null>(null)
 
-  // ── Fetch transactions ─────────────────────────────────────────────────────
   const fetchTransactions = useCallback(async () => {
     setTxnLoading(true)
     setTxnError(null)
@@ -74,7 +71,6 @@ function Dashboard({ companyId }: DashboardProps) {
     }
   }, [companyId])
 
-  // ── Fetch P&L ──────────────────────────────────────────────────────────────
   const fetchPnL = useCallback(async (period: Period) => {
     setPnlLoading(true)
     setPnlError(null)
@@ -94,7 +90,6 @@ function Dashboard({ companyId }: DashboardProps) {
     }
   }, [companyId])
 
-  // ── Fetch anomalies (polls every 30 s) ────────────────────────────────────
   const fetchAnomalies = useCallback(async () => {
     try {
       const res = await api.get<AnomalyAlert[]>(`/api/v1/${companyId}/anomalies`)
@@ -121,7 +116,6 @@ function Dashboard({ companyId }: DashboardProps) {
     setTimeout(() => setSuccessMsg(null), 3500)
   }
 
-  // ── Delete handler ────────────────────────────────────────────────────────
   const handleDelete = async (tx: Transaction) => {
     try {
       await api.delete(`/api/v1/${companyId}/transactions/${tx.id}`)
@@ -135,13 +129,11 @@ function Dashboard({ companyId }: DashboardProps) {
     }
   }
 
-  // ── Edit handler ──────────────────────────────────────────────────────────
   const handleEdit = (tx: Transaction) => {
     setEditingTxn(tx)
     setShowModal(true)
   }
 
-  // ── Derived metrics ────────────────────────────────────────────────────────
   const liveIncome = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const liveExpense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const liveNet = liveIncome - liveExpense
@@ -150,10 +142,8 @@ function Dashboard({ companyId }: DashboardProps) {
     month: 'This Month', quarter: 'This Quarter', year: 'This Year',
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="dashboard">
-
       {successMsg && (
         <div className="success-toast">
           <span>✅</span> {successMsg}
@@ -166,7 +156,6 @@ function Dashboard({ companyId }: DashboardProps) {
         onDismiss={id => setAnomalies(prev => prev.filter(a => a.id !== id))}
       />
 
-      {/* ── Metric Cards ── */}
       {txnError ? (
         <div className="error">❌ {txnError}</div>
       ) : txnLoading ? (
@@ -202,12 +191,22 @@ function Dashboard({ companyId }: DashboardProps) {
         </div>
       )}
 
-      {/* ── Charts ── */}
       {!txnLoading && !txnError && (
-        <ChartsSection companyId={companyId} />
+        <div className="premium-pnl-container" style={{ marginBottom: 24 }}>
+          <div className="pnl-header">
+            <h3>📈 Interactive Charts</h3>
+            {onOpenCharts && (
+              <button className="btn-refresh" onClick={onOpenCharts}>
+                Open Charts Tab
+              </button>
+            )}
+          </div>
+          <div className="pnl-date-range">
+            Open the Charts tab for income vs expense trends, category splits, and daily balance history.
+          </div>
+        </div>
       )}
 
-      {/* ── P&L Report ── */}
       <div className="premium-pnl-container pnl-section">
         <div className="pnl-header">
           <h3>📊 Profit & Loss Report</h3>
@@ -289,7 +288,6 @@ function Dashboard({ companyId }: DashboardProps) {
         ) : null}
       </div>
 
-      {/* ── Transactions Table ── */}
       <div className="transactions">
         <div className="transactions-header">
           <h3>
@@ -384,7 +382,6 @@ function Dashboard({ companyId }: DashboardProps) {
         )}
       </div>
 
-      {/* ── Add/Edit Transaction Modal ── */}
       {showModal && (
         <AddTransactionModal
           companyId={companyId}
@@ -394,7 +391,6 @@ function Dashboard({ companyId }: DashboardProps) {
         />
       )}
 
-      {/* ── Delete Confirmation Modal ── */}
       {deleteConfirm && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDeleteConfirm(null) }}>
           <div className="modal-box" style={{ maxWidth: 400 }}>

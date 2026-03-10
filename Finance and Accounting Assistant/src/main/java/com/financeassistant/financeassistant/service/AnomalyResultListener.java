@@ -1,12 +1,13 @@
 package com.financeassistant.financeassistant.service;
 
 import com.financeassistant.financeassistant.entity.Anomaly;
-import com.financeassistant.financeassistant.repository.AnomalyRepository;
 import com.financeassistant.financeassistant.entity.Transaction;
+import com.financeassistant.financeassistant.repository.AnomalyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,27 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * AnomalyResultListener — UPDATED for Email Alerts
- *
- * Changes from previous version:
- *   1. Collects all saved Anomaly entities into a list.
- *   2. After saving ALL anomalies, calls emailAlertService.sendAnomalyAlert()
- *      once per message (not per anomaly) — one email summarising all detections.
- *   3. emailAlertService is @Autowired(required = false) so this class still
- *      works even if mail is not configured.
- *
- * Flow:
- *   Python → RabbitMQ (ai.anomaly.results)
- *       → onAnomalyResult()
- *           → save to DB
- *           → sendAnomalyAlert() [async — non-blocking]
- *
- * Place at:
- *   Finance and Accounting Assistant/src/main/java/com/financeassistant/
- *   financeassistant/service/AnomalyResultListener.java
- */
 @Service
+@ConditionalOnProperty(name = "app.rabbit.enabled", havingValue = "true", matchIfMissing = true)
 public class AnomalyResultListener {
 
     private static final Logger log = LoggerFactory.getLogger(AnomalyResultListener.class);
@@ -43,7 +25,6 @@ public class AnomalyResultListener {
     @Autowired
     private AnomalyRepository anomalyRepository;
 
-    // required = false → works even without mail configured
     @Autowired(required = false)
     private EmailAlertService emailAlertService;
 
@@ -63,7 +44,6 @@ public class AnomalyResultListener {
 
             log.warn("Received {} anomaly/anomalies for company {}", anomalyData.size(), companyId);
 
-            // ── Save all anomalies and collect entities ────────────────────────
             List<Anomaly> savedAnomalies = new ArrayList<>();
 
             for (Map<String, Object> a : anomalyData) {
@@ -76,16 +56,13 @@ public class AnomalyResultListener {
                         : BigDecimal.ZERO;
 
                 Anomaly anomaly = new Anomaly(companyId, txnId, amount, LocalDateTime.now());
-                Anomaly saved  = anomalyRepository.save(anomaly);
+                Anomaly saved = anomalyRepository.save(anomaly);
                 savedAnomalies.add(saved);
 
                 log.warn("  ↳ Anomaly saved — txnId={} amount={}", txnId, amount);
             }
 
-            // ── Send one email summarising all detected anomalies ──────────────
-            // Runs async — never blocks the consumer thread
             if (emailAlertService != null) {
-                // Extract the Transaction object from the payload map
                 Transaction anomaly = (Transaction) payload.get("transaction");
                 if (anomaly != null && anomaly.getUser() != null) {
                     emailAlertService.sendAnomalyAlert(

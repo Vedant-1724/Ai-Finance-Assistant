@@ -1,24 +1,39 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import api from '../api'
+
+interface ForgotPasswordResponse {
+  message: string
+  emailDeliveryEnabled: boolean
+  resetUrl?: string
+}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [result, setResult] = useState<ForgotPasswordResponse | null>(null)
   const [message, setMessage] = useState('')
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setStatus('loading')
     setMessage('')
+    setResult(null)
 
     try {
-      const res = await axios.post('/api/v1/auth/forgot-password', { email })
+      const res = await api.post<ForgotPasswordResponse>('/api/v1/auth/forgot-password', { email })
       setStatus('success')
+      setResult(res.data)
       setMessage(res.data.message || 'If that email exists, a password reset link has been sent.')
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('error')
-      setMessage(err.response?.data?.error || 'Failed to send reset email. Please try again.')
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data as { error?: string } | undefined
+        setMessage(data?.error || 'Failed to send reset email. Please try again.')
+      } else {
+        setMessage('Failed to send reset email. Please try again.')
+      }
     }
   }
 
@@ -31,7 +46,19 @@ export default function ForgotPasswordPage() {
         {status === 'success' ? (
           <div className="verification-box success">
             <span className="icon-success">✅</span>
-            <p style={{ marginTop: '1rem' }}>{message}</p>
+            <div style={{ marginTop: '1rem', display: 'grid', gap: 12 }}>
+              <p>{message}</p>
+              {!result?.emailDeliveryEnabled && result?.resetUrl && (
+                <div style={{ display: 'grid', gap: 10, textAlign: 'left' }}>
+                  <a href={result.resetUrl} className="btn-secondary" style={{ textAlign: 'center' }}>
+                    Open Reset Link
+                  </a>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                    Reset link: <a href={result.resetUrl}>{result.resetUrl}</a>
+                  </div>
+                </div>
+              )}
+            </div>
             <Link to="/login" className="btn-primary" style={{ display: 'block', textAlign: 'center', marginTop: '1.5rem', width: '100%' }}>
               Return to Login
             </Link>

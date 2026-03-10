@@ -1,48 +1,71 @@
-// PATH: finance-frontend/src/pages/RegisterPage.tsx
-
-import { useState, type FormEvent } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
-import { useAuth } from '../context/AuthContext'
+import api from '../api'
 
-interface AuthResponse {
-  token: string
-  companyId: number
-  email: string
-  subscriptionStatus: string
-  trialDaysRemaining: number
-  aiChatsRemaining: number
+interface RegisterResponse {
+  message: string
+  emailDeliveryEnabled: boolean
+  verificationUrl?: string
 }
 
 export default function RegisterPage() {
-  const { login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const next = searchParams.get('next') || '/'
+  const loginHref = next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [companyName, setCompany] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<RegisterResponse | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    if (password !== confirm) { setError('Passwords do not match'); return }
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return }
-    setLoading(true)
+  useEffect(() => {
+    if (!success || !success.emailDeliveryEnabled) return
 
+    const timer = window.setTimeout(() => {
+      navigate(loginHref, { replace: true })
+    }, 2500)
+
+    return () => window.clearTimeout(timer)
+  }, [loginHref, navigate, success])
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    setSuccess(null)
+
+    if (password !== confirm) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(password)) {
+      setError('Password must include an uppercase letter, a lowercase letter, and a number.')
+      return
+    }
+
+    setLoading(true)
     try {
-      // The backend returns a status message, not the auth payload.
-      // We set a success message instead of auto-logging in.
-      setError('Registration successful! Please check your email to verify your account before logging in.')
-      // Optional: auto-redirect to login after a few seconds
-      setTimeout(() => navigate('/login'), 5000)
+      const res = await api.post<RegisterResponse>('/api/v1/auth/register', {
+        email,
+        password,
+        companyName,
+      })
+      setSuccess(res.data)
+      setEmail('')
+      setPassword('')
+      setConfirm('')
+      setCompanyName('')
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        const msg = (err.response?.data as { error?: string })?.error
-        setError(msg ?? 'Registration failed. Please try again.')
+        const data = err.response?.data as { error?: string; message?: string } | undefined
+        setError(data?.error ?? data?.message ?? 'Registration failed. Please try again.')
       } else {
-        setError('Could not connect to server.')
+        setError('Could not connect to the server.')
       }
     } finally {
       setLoading(false)
@@ -65,9 +88,27 @@ export default function RegisterPage() {
         </div>
 
         <h1 className="auth-heading">Create your account</h1>
-        <p className="auth-subheading">Start free — no credit card required</p>
+        <p className="auth-subheading">Start free and unlock the 3-day premium trial when you are ready.</p>
 
         {error && <div className="error-box">⚠️ {error}</div>}
+        {success && (
+          <div className="success-box" style={{ display: 'grid', gap: 12 }}>
+            <div>✅ {success.message}{success.emailDeliveryEnabled ? ' Redirecting to login…' : ''}</div>
+            {!success.emailDeliveryEnabled && success.verificationUrl && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                <a href={success.verificationUrl} className="btn-secondary" style={{ textAlign: 'center' }}>
+                  Verify Email Now
+                </a>
+                <div style={{ fontSize: 12, lineHeight: 1.5, wordBreak: 'break-word', color: 'var(--text-secondary)' }}>
+                  Verification link: <a href={success.verificationUrl}>{success.verificationUrl}</a>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  After verification, use the sign-in link below.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-field">
@@ -75,7 +116,7 @@ export default function RegisterPage() {
             <input
               type="text"
               value={companyName}
-              onChange={e => setCompany(e.target.value)}
+              onChange={event => setCompanyName(event.target.value)}
               placeholder="Acme Pvt Ltd"
               required
               autoFocus
@@ -88,7 +129,7 @@ export default function RegisterPage() {
             <input
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={event => setEmail(event.target.value)}
               placeholder="you@example.com"
               required
               className="input-field"
@@ -100,8 +141,8 @@ export default function RegisterPage() {
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Min. 8 characters"
+              onChange={event => setPassword(event.target.value)}
+              placeholder="At least 8 characters with Aa1"
               required
               className="input-field"
             />
@@ -112,16 +153,27 @@ export default function RegisterPage() {
             <input
               type="password"
               value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              onChange={event => setConfirm(event.target.value)}
               placeholder="Repeat your password"
               required
               className="input-field"
             />
           </div>
 
-          <div style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-            ✅ <strong style={{ color: 'var(--text-primary)' }}>Free tier forever</strong> — basic features with no time limit<br />
-            ⭐ <strong style={{ color: 'var(--text-primary)' }}>5-day Premium Trial</strong> — unlock anytime from your dashboard
+          <div
+            style={{
+              background: 'rgba(59,130,246,0.06)',
+              border: '1px solid rgba(59,130,246,0.15)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '12px 14px',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              lineHeight: '1.6',
+            }}
+          >
+            ✅ <strong style={{ color: 'var(--text-primary)' }}>Free tier forever</strong> with core tracking and exports
+            <br />
+            ⭐ <strong style={{ color: 'var(--text-primary)' }}>3-day premium trial</strong> available anytime after signup
           </div>
 
           <button
@@ -135,8 +187,7 @@ export default function RegisterPage() {
         </form>
 
         <p className="auth-footer">
-          Already have an account?{' '}
-          <Link to="/login" className="auth-link">Sign in</Link>
+          Already have an account? <Link to={loginHref} className="auth-link">Sign in</Link>
         </p>
       </div>
     </div>
