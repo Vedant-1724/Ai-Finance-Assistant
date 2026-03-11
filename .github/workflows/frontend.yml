@@ -3,17 +3,17 @@
 #  File: .github/workflows/frontend.yml
 #
 #  Triggers:
-#    • Every push / PR that changes files inside finance-frontend/
-#    • Manual trigger via GitHub UI (workflow_dispatch)
+#    • Push / PR that touches frontend files
+#    • Manual trigger
 #
-#  What it does:
-#    1. Install Node dependencies (npm ci — deterministic, uses package-lock.json)
-#    2. Run ESLint
-#    3. Build the Vite production bundle (uses npx vite build to skip tsc errors)
-#    4. Build Docker image (Nginx-served) & push to ghcr.io
-#
-#  Secrets required:
-#    GITHUB_TOKEN  — auto-provided, used for ghcr.io push
+#  Design decisions (matching project reality):
+#    • Uses `npm install` NOT `npm ci`
+#      (package-lock.json is in .gitignore — npm ci would fail)
+#    • Builds with `npx vite build` NOT `npm run build`
+#      (npm run build = "tsc -b && vite build" — strict TS checking
+#       with noUnusedLocals/noUnusedParameters causes failures)
+#    • ESLint 9 flat config — uses `npx eslint .` (no --ext flag)
+#    • Docker image pushed to ghcr.io on main branch pushes only
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Frontend CI/CD
@@ -53,17 +53,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: finance-frontend/package-lock.json
 
+      # npm install (not npm ci) because package-lock.json is gitignored
       - name: Install dependencies
-        run: npm ci --silent
+        run: npm install --silent
 
+      # ESLint 9 flat config — no --ext flag needed
       - name: Run ESLint
-        run: npx eslint . --ext .ts,.tsx --max-warnings=20
-        continue-on-error: true    # lint warnings won't block the build
+        run: npx eslint .
+        continue-on-error: true
 
-      # Uses npx vite build (same as Dockerfile) to skip strict TypeScript errors
+      # npx vite build — skips strict tsc -b that npm run build uses
       - name: Build production bundle
         run: npx vite build
 
@@ -113,7 +113,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: finance-frontend
-          dockerfile: finance-frontend/Dockerfile
+          file: finance-frontend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

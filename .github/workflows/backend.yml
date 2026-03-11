@@ -3,20 +3,16 @@
 #  File: .github/workflows/backend.yml
 #
 #  Triggers:
-#    • Every push / PR that changes files inside the backend folder
-#    • Manual trigger via GitHub UI (workflow_dispatch)
+#    • Push / PR that touches backend files
+#    • Manual trigger
 #
-#  What it does:
-#    1. Compile & run Maven tests
-#    2. Build the production JAR  (-DskipTests to avoid double-running)
-#    3. Build a multi-platform Docker image
-#    4. Push the image to GitHub Container Registry (ghcr.io)
-#       Tag: ghcr.io/<owner>/<repo>/finance-backend:<sha>
-#            ghcr.io/<owner>/<repo>/finance-backend:latest  (main branch only)
-#
-#  Secrets required (set in GitHub → Settings → Secrets → Actions):
-#    GHCR_TOKEN  — a PAT with  packages:write  scope
-#                  (or use the auto-generated GITHUB_TOKEN — see step below)
+#  Design decisions (matching project reality):
+#    • Uses actions/setup-java with Maven cache — NOT ./mvnw
+#      (maven-wrapper.jar is gitignored, distributionType=only-script)
+#    • Tests run with -Dspring.profiles.active=test
+#      application-test.yaml uses H2 in-memory DB, disables Flyway,
+#      excludes RabbitMQ, and uses simple cache — no external services
+#    • Docker image pushed to ghcr.io on main branch pushes only
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Backend CI/CD
@@ -43,31 +39,8 @@ jobs:
     name: Build & Test (Java 21)
     runs-on: ubuntu-latest
 
-    # Spin up a real PostgreSQL so integration-style tests can run
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: financedb_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: testpassword
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # No external services needed — tests use H2 in-memory DB
+    # (application-test.yaml disables Flyway, RabbitMQ, Redis health)
 
     defaults:
       run:
@@ -82,25 +55,15 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven          # caches ~/.m2 between runs
+          cache: maven
+          cache-dependency-path: 'Finance and Accounting Assistant/pom.xml'
 
-      # Override datasource to point at the CI Postgres service
+      # Tests use @ActiveProfiles("test") → H2 in-memory, no Postgres needed
       - name: Run Maven Tests
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/financedb_test
-          SPRING_DATASOURCE_USERNAME: postgres
-          SPRING_DATASOURCE_PASSWORD: testpassword
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_DATA_REDIS_PORT: 6379
-          SPRING_CACHE_TYPE: redis
-          SPRING_RABBITMQ_HOST: localhost      # RabbitMQ not started; @Autowired(required=false) handles this
-          JWT_SECRET: dGVzdFNlY3JldEtleUZvckNJVGVzdGluZ09ubHkyMDI2
-          JWT_EXPIRATION: 86400000
-          SPRING_FLYWAY_BASELINE_ON_MIGRATE: true
-        run: mvn test -B --quiet
+        run: mvn test -B -Dspring.profiles.active=test
 
       - name: Build JAR (skip tests — already ran above)
-        run: mvn clean package -DskipTests -B --quiet
+        run: mvn clean package -DskipTests -B -q
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
@@ -113,12 +76,12 @@ jobs:
   docker:
     name: Docker Build & Push
     runs-on: ubuntu-latest
-    needs: build-and-test        # only runs if tests pass
-    if: github.event_name != 'pull_request'   # don't push images for PRs
+    needs: build-and-test
+    if: github.event_name != 'pull_request'
 
     permissions:
       contents: read
-      packages: write            # required to push to ghcr.io
+      packages: write
 
     steps:
       - name: Checkout code
@@ -129,7 +92,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}   # auto-provided by GitHub
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata (tags & labels)
         id: meta
@@ -141,16 +104,16 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=branch
 
-      - name: Set up Docker Buildx (multi-platform + cache)
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: "Finance and Accounting Assistant"
-          dockerfile: "Finance and Accounting Assistant/Dockerfile"
+          file: "Finance and Accounting Assistant/Dockerfile"
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha      # GitHub Actions cache
+          cache-from: type=gha
           cache-to: type=gha,mode=max

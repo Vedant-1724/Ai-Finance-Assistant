@@ -1,11 +1,15 @@
 import unittest
+from pathlib import Path
 
 from category_classifier import predict_with_confidence, train_model
+
+FIXTURE_DIR = Path(__file__).resolve().parent / 'fixtures'
 
 
 class CategoryClassifierTests(unittest.TestCase):
     def test_training_and_prediction(self):
-        result = train_model()
+        csv_path = str(FIXTURE_DIR / 'transactions_labeled_test.csv')
+        result = train_model(csv_path)
         self.assertEqual(result['status'], 'ok')
         self.assertIn('modelVersion', result)
         prediction = predict_with_confidence('AWS monthly cloud subscription payment')
@@ -17,3 +21,4 @@ class CategoryClassifierTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
