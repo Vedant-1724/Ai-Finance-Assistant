@@ -1,11 +1,49 @@
+import { useEffect, useState } from 'react'
+import axios from 'axios'
+import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
 interface StatusBannerProps {
   onUpgrade: () => void
 }
 
+interface SubscriptionStatusResponse {
+  trialEligible: boolean
+}
+
 export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
   const { user, isFree, isTrial, isMax } = useAuth()
+  const [trialEligible, setTrialEligible] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!user || !isFree) {
+      setTrialEligible(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const loadStatus = async () => {
+      try {
+        const res = await api.get<SubscriptionStatusResponse>('/api/v1/subscription/status')
+        if (!cancelled) {
+          setTrialEligible(Boolean(res.data.trialEligible))
+        }
+      } catch (error) {
+        if (!cancelled && !(axios.isAxiosError(error) && error.response?.status === 401)) {
+          setTrialEligible(false)
+        }
+      }
+    }
+
+    void loadStatus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, isFree])
 
   if (!user) {
     return null
@@ -65,14 +103,17 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
   return (
     <div className="status-banner banner-free">
       <span className="banner-text">
-        🔓 <strong>Free Plan</strong> — core tracking is active. Upgrade for premium reports, health score, team tools, and AI chat.
+        🔓 <strong>Free Plan</strong> — core tracking is active.{' '}
+        {trialEligible
+          ? 'Start your one-time 3-day trial or upgrade for premium reports, health score, team tools, and AI chat.'
+          : 'Upgrade for premium reports, health score, team tools, and AI chat.'}
       </span>
       <button
         className="btn-gradient"
         style={{ padding: '6px 16px', fontSize: '13px', marginLeft: '12px' }}
         onClick={onUpgrade}
       >
-        🚀 Start 3-Day Trial →
+        {trialEligible ? '🚀 Start 3-Day Trial →' : '⭐ View Plans →'}
       </button>
     </div>
   )

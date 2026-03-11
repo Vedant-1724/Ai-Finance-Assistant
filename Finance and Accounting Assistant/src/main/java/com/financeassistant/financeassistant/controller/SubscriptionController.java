@@ -25,30 +25,21 @@ public class SubscriptionController {
 
     @PostMapping("/start-trial")
     public ResponseEntity<?> startTrial(@AuthenticationPrincipal User user) {
-        boolean started = subscriptionService.startTrial(user);
-        if (!started) {
-            return ResponseEntity.badRequest().body(Map.of(
+        SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
+        return switch (result) {
+            case STARTED -> ResponseEntity.ok(
+                    subscriptionStatusPayloadService.build(user, "Your 3-day free trial has started!"));
+            case ALREADY_USED -> ResponseEntity.badRequest().body(Map.of(
                     "error", "TRIAL_ALREADY_USED",
-                    "message", "Your free trial has already been used. Please upgrade to Pro."));
-        }
-        return ResponseEntity.ok(subscriptionStatusPayloadService.build(user, "Your 3-day free trial has started!"));
+                    "message", "Your free trial has already been used. Please choose Pro or Max."));
+            case FREE_TIER_ONLY -> ResponseEntity.badRequest().body(Map.of(
+                    "error", "TRIAL_FREE_TIER_ONLY",
+                    "message", "Free trial is only available to users on the Free tier."));
+        };
     }
 
     @GetMapping("/status")
     public ResponseEntity<?> getStatus(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(subscriptionStatusPayloadService.build(user, null));
-    }
-
-    @PostMapping("/cancel")
-    public ResponseEntity<?> cancelSubscription(@AuthenticationPrincipal User user) {
-        if (user.getSubscriptionStatus() == User.SubscriptionStatus.FREE) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "NO_ACTIVE_SUBSCRIPTION",
-                    "message", "You don't have an active subscription to cancel."));
-        }
-        subscriptionService.cancelSubscription(user.getEmail());
-        return ResponseEntity.ok(subscriptionStatusPayloadService.build(
-                user,
-                "Your subscription has been cancelled. You've been moved to the Free tier."));
     }
 }

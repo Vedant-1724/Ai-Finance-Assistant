@@ -21,17 +21,35 @@ public class SubscriptionService {
 
     private final UserRepository userRepository;
 
+    public enum TrialStartResult {
+        STARTED,
+        ALREADY_USED,
+        FREE_TIER_ONLY
+    }
+
     @Transactional
-    public boolean startTrial(User user) {
+    public TrialStartResult startTrial(User user) {
+        if (!"FREE".equals(user.getEffectiveTier())) {
+            log.warn("User {} attempted to start trial but is on {}", user.getEmail(), user.getEffectiveTier());
+            return TrialStartResult.FREE_TIER_ONLY;
+        }
+
         if (user.getTrialStartedAt() != null) {
             log.warn("User {} attempted to start trial but already used it", user.getEmail());
-            return false;
+            return TrialStartResult.ALREADY_USED;
         }
+
         user.setTrialStartedAt(Instant.now());
         user.setSubscriptionStatus(SubscriptionStatus.TRIAL);
         userRepository.save(user);
         log.info("Trial started for user {}", user.getEmail());
-        return true;
+        return TrialStartResult.STARTED;
+    }
+
+    public boolean isTrialEligible(User user) {
+        return user != null
+                && "FREE".equals(user.getEffectiveTier())
+                && user.getTrialStartedAt() == null;
     }
 
     public boolean hasPremiumAccess(User user) {
@@ -97,15 +115,6 @@ public class SubscriptionService {
         user.setRazorpaySubscriptionId(razorpayPaymentId);
         userRepository.save(user);
         log.info("Subscription {} RENEWED for {} - new expiry {}", finalStatus, email, newExpiry);
-    }
-
-    @Transactional
-    public void cancelSubscription(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
-        user.setSubscriptionStatus(SubscriptionStatus.CANCELLED);
-        userRepository.save(user);
-        log.info("Subscription CANCELLED for {}", email);
     }
 
     @Transactional

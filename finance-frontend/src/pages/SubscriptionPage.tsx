@@ -18,6 +18,7 @@ interface SubscriptionStatusResponse {
   aiChatDailyLimit: number
   hasPremiumAccess: boolean
   trialAlreadyUsed: boolean
+  trialEligible: boolean
   expiresAt: string
   paymentConfigured: boolean
   paymentMessage?: string
@@ -57,7 +58,7 @@ const PRO_FEATURES = [
   'AI chat: 20 messages per day',
   'Recurring finance workflows',
   'Priority premium feature access',
-  '₹399 per month, cancel anytime',
+  '₹399 per month billed monthly',
 ]
 
 const MAX_FEATURES = [
@@ -65,7 +66,7 @@ const MAX_FEATURES = [
   'AI chat: 50 messages per day',
   'Highest daily usage allowance',
   'Best fit for power users and teams',
-  '₹899 per month, cancel anytime',
+  '₹899 per month billed monthly',
 ]
 
 async function ensureRazorpayLoaded() {
@@ -89,7 +90,6 @@ export default function SubscriptionPage() {
   const [subStatus, setSubStatus] = useState<SubscriptionStatusResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [trialLoading, setTrialLoading] = useState(false)
-  const [cancelLoading, setCancelLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -126,33 +126,6 @@ export default function SubscriptionPage() {
       }
     } finally {
       setTrialLoading(false)
-    }
-  }
-
-  const handleCancelSubscription = async () => {
-    const confirmed = window.confirm('Are you sure you want to cancel your subscription? You will be moved to the Free tier.')
-    if (!confirmed) {
-      return
-    }
-
-    setCancelLoading(true)
-    setError(null)
-    setMsg(null)
-
-    try {
-      const res = await api.post<SubscriptionStatusResponse>('/api/v1/subscription/cancel')
-      setSubStatus(res.data)
-      updateSubscription(res.data.tier, res.data.trialDaysRemaining, res.data.aiChatsRemaining)
-      setMsg(res.data.message ?? 'Your subscription has been cancelled.')
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const data = err.response?.data as { error?: string; message?: string } | undefined
-        setError(data?.message ?? data?.error ?? 'Failed to cancel subscription. Please try again.')
-      } else {
-        setError('Failed to cancel subscription. Please try again.')
-      }
-    } finally {
-      setCancelLoading(false)
     }
   }
 
@@ -221,8 +194,17 @@ export default function SubscriptionPage() {
   const isTrial = currentTier === 'TRIAL'
   const isMax = currentTier === 'MAX'
   const isFree = currentTier === 'FREE'
-  const canCancel = isTrial || isActive || isMax
   const paymentConfigured = subStatus?.paymentConfigured ?? true
+  const trialEligible = subStatus?.trialEligible ?? false
+  const trialStatusKnown = subStatus !== null
+  const showTrialPlan = isFree || isTrial
+  const freeSummary = isFree
+    ? trialEligible
+      ? 'Start with Free, then activate the 3-day premium trial or subscribe when you need AI chat.'
+      : trialStatusKnown
+        ? 'Your free plan is active. The one-time trial is unavailable, so upgrade when you need AI chat.'
+        : 'Your free plan is active. Checking trial eligibility and upgrade options.'
+    : ''
 
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 20px', position: 'relative' }}>
@@ -254,7 +236,7 @@ export default function SubscriptionPage() {
               ? `You are on Pro with ${subStatus?.aiChatsRemaining ?? user?.aiChatsRemaining ?? 0} AI chats left today.`
               : isTrial
                 ? `Premium trial active: ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining.`
-                : 'Start with Free, then activate the 3-day premium trial or subscribe when you need AI chat.'}
+                : freeSummary}
         </p>
         {msg && <div className="success-box" style={{ maxWidth: 520, margin: '16px auto 0', textAlign: 'left' }}>✅ {msg}</div>}
         {error && <div className="error-box" style={{ maxWidth: 520, margin: '16px auto 0', textAlign: 'left' }}>⚠️ {error}</div>}
@@ -278,44 +260,46 @@ export default function SubscriptionPage() {
             ))}
           </ul>
           <button className="btn-secondary" style={{ width: '100%' }} disabled>
-            {isFree ? 'Current Plan' : 'Free Plan'}
+            {isFree ? 'Current Plan' : 'Reference Only'}
           </button>
         </div>
 
-        <div className={`plan-card ${isTrial ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260 }}>
-          {isTrial && <div className="plan-badge">Active Trial</div>}
-          {!isTrial && !subStatus?.trialAlreadyUsed && (
-            <div className="plan-badge" style={{ background: 'rgba(245,158,11,0.9)' }}>Try Free</div>
-          )}
-          <div className="plan-name" style={{ color: 'var(--amber)' }}>Premium Trial</div>
-          <div className="plan-price" style={{ color: 'var(--amber)' }}>₹0</div>
-          <div className="plan-period">for 3 days · one time</div>
-          <ul className="plan-features">
-            {TRIAL_FEATURES.map(feature => (
-              <li key={feature} className="plan-feature"><span className="feat-icon" style={{ color: 'var(--amber)' }}>✓</span> {feature}</li>
-            ))}
-          </ul>
-          {isTrial ? (
-            <button className="btn-secondary" style={{ width: '100%' }} disabled>
-              Trial Active · {subStatus?.trialDaysRemaining ?? 0}d left
-            </button>
-          ) : subStatus?.trialAlreadyUsed ? (
-            <button className="btn-secondary" style={{ width: '100%' }} disabled>
-              Trial Already Used
-            </button>
-          ) : (
-            <button className="btn-gradient" style={{ width: '100%' }} onClick={handleStartTrial} disabled={trialLoading || loading}>
-              {trialLoading ? '⏳ Starting…' : '🚀 Start 3-Day Trial'}
-            </button>
-          )}
-        </div>
+        {showTrialPlan && (
+          <div className={`plan-card ${isTrial ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260 }}>
+            {isTrial && <div className="plan-badge">Active Trial</div>}
+            {!isTrial && trialEligible && (
+              <div className="plan-badge" style={{ background: 'rgba(245,158,11,0.9)' }}>Try Free</div>
+            )}
+            <div className="plan-name" style={{ color: 'var(--amber)' }}>Premium Trial</div>
+            <div className="plan-price" style={{ color: 'var(--amber)' }}>₹0</div>
+            <div className="plan-period">for 3 days · Free tier only</div>
+            <ul className="plan-features">
+              {TRIAL_FEATURES.map(feature => (
+                <li key={feature} className="plan-feature"><span className="feat-icon" style={{ color: 'var(--amber)' }}>✓</span> {feature}</li>
+              ))}
+            </ul>
+            {isTrial ? (
+              <button className="btn-secondary" style={{ width: '100%' }} disabled>
+                Trial Active · {subStatus?.trialDaysRemaining ?? 0}d left
+              </button>
+            ) : trialEligible ? (
+              <button className="btn-gradient" style={{ width: '100%' }} onClick={handleStartTrial} disabled={trialLoading || loading}>
+                {trialLoading ? '⏳ Starting…' : '🚀 Start 3-Day Trial'}
+              </button>
+            ) : (
+              <button className="btn-secondary" style={{ width: '100%' }} disabled>
+                {trialStatusKnown ? (subStatus?.trialAlreadyUsed ? 'Trial Already Used' : 'Free Tier Only') : 'Checking Eligibility…'}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className={`plan-card ${isActive ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260, borderColor: isActive ? 'rgba(59,130,246,0.5)' : undefined }}>
           {isActive && <div className="plan-badge">Current Plan</div>}
           {!isActive && <div className="plan-badge">Recommended</div>}
           <div className="plan-name" style={{ color: 'var(--blue)' }}>Pro</div>
           <div className="plan-price" style={{ color: 'var(--blue)' }}>₹399</div>
-          <div className="plan-period">per month · cancel anytime</div>
+          <div className="plan-period">per month</div>
           <ul className="plan-features">
             {PRO_FEATURES.map(feature => (
               <li key={feature} className="plan-feature"><span className="feat-icon" style={{ color: 'var(--blue)' }}>✓</span> {feature}</li>
@@ -327,7 +311,15 @@ export default function SubscriptionPage() {
             onClick={() => { void handleSubscribe(39900, 'ACTIVE', 'Pro') }}
             disabled={loading || isActive || isMax || !paymentConfigured}
           >
-            {loading ? '⏳ Opening payment…' : isActive ? '✅ Subscribed' : paymentConfigured ? '💳 Subscribe — ₹399/mo' : 'Payments unavailable'}
+            {loading
+              ? '⏳ Opening payment…'
+              : isActive
+                ? '✅ Current Plan'
+                : isMax
+                  ? 'Included in Max'
+                  : paymentConfigured
+                    ? '💳 Subscribe — ₹399/mo'
+                    : 'Payments unavailable'}
           </button>
         </div>
 
@@ -336,7 +328,7 @@ export default function SubscriptionPage() {
           {!isMax && <div className="plan-badge" style={{ background: '#4c1d95', color: '#c4b5fd' }}>Ultimate</div>}
           <div className="plan-name" style={{ color: '#a78bfa' }}>Max</div>
           <div className="plan-price" style={{ color: '#a78bfa' }}>₹899</div>
-          <div className="plan-period">per month · cancel anytime</div>
+          <div className="plan-period">per month</div>
           <ul className="plan-features">
             {MAX_FEATURES.map(feature => (
               <li key={feature} className="plan-feature"><span className="feat-icon" style={{ color: '#a78bfa' }}>✓</span> {feature}</li>
@@ -348,32 +340,16 @@ export default function SubscriptionPage() {
             onClick={() => { void handleSubscribe(89900, 'MAX', 'Max') }}
             disabled={loading || isMax || !paymentConfigured}
           >
-            {loading ? '⏳ Opening payment…' : isMax ? '✅ Subscribed' : paymentConfigured ? '💳 Subscribe — ₹899/mo' : 'Payments unavailable'}
+            {loading
+              ? '⏳ Opening payment…'
+              : isMax
+                ? '✅ Current Plan'
+                : paymentConfigured
+                  ? (isActive ? '⬆️ Upgrade to Max — ₹899/mo' : '💳 Subscribe — ₹899/mo')
+                  : 'Payments unavailable'}
           </button>
         </div>
       </div>
-
-      {canCancel && (
-        <div style={{ maxWidth: 420, margin: '24px auto 0' }}>
-          <button
-            onClick={() => { void handleCancelSubscription() }}
-            disabled={cancelLoading}
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: 8,
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.2)',
-              color: '#f87171',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            {cancelLoading ? '⏳ Cancelling…' : '✕ Cancel Current Plan'}
-          </button>
-        </div>
-      )}
     </div>
   )
 }

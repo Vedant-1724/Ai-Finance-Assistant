@@ -15,6 +15,9 @@ public class SubscriptionStatusPayloadService {
 
     public Map<String, Object> build(User user, String message) {
         Map<String, Object> payload = new LinkedHashMap<>();
+        boolean trialAlreadyUsed = user.getTrialStartedAt() != null;
+        boolean trialEligible = "FREE".equals(user.getEffectiveTier()) && !trialAlreadyUsed;
+
         if (message != null && !message.isBlank()) {
             payload.put("message", message);
         }
@@ -24,7 +27,8 @@ public class SubscriptionStatusPayloadService {
         payload.put("aiChatsRemaining", user.getAiChatsRemainingToday());
         payload.put("aiChatDailyLimit", user.getAiChatDailyLimit());
         payload.put("hasPremiumAccess", user.hasPremiumAccess());
-        payload.put("trialAlreadyUsed", user.getTrialStartedAt() != null);
+        payload.put("trialAlreadyUsed", trialAlreadyUsed);
+        payload.put("trialEligible", trialEligible);
         payload.put("expiresAt", user.getSubscriptionExpiresAt() != null ? user.getSubscriptionExpiresAt().toString() : "");
         payload.put("paymentConfigured", billingConfigurationService.isPaymentConfigured());
         if (!billingConfigurationService.isPaymentConfigured()) {
