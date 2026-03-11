@@ -53,7 +53,7 @@ npm run build
 
 ### 1. Copy environment variables
 
-Copy `.env.example` to `.env` and fill in the values you actually want to enable.
+Copy `.env.example` to `.env` and fill in the values you actually want to enable. Keep real keys only in local `.env` / `finance-ai/.env` / `admin.local.json`; do not commit them.
 
 Important behavior:
 
@@ -113,7 +113,7 @@ The frontend runs on `http://localhost:5173` and proxies `/api` requests to `htt
 
 ### Required for AI-powered features
 
-- `GOOGLE_API_KEY`
+- `GEMINI_API_KEY`
 - `AI_SERVICE_URL` if you are not using the default `http://localhost:5001`
 
 ### Optional provider integrations
@@ -156,4 +156,5 @@ The frontend runs on `http://localhost:5173` and proxies `/api` requests to `htt
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
 

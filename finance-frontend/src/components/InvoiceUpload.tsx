@@ -1,11 +1,8 @@
 import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from 'react'
-import axios from 'axios'                         // kept for reference
-import api from '../api'                          // ← JWT-aware instance for Spring Boot calls
+import axios from 'axios'
+import api from '../api'
 import { useAuth } from '../context/AuthContext'
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Interfaces
-// ─────────────────────────────────────────────────────────────────────────────
 interface InvoiceUploadProps {
   companyId: number
 }
@@ -18,6 +15,9 @@ interface OcrResult {
   currency: string
   raw_text: string
   note?: string
+  warnings?: string[]
+  ocr_confidence?: number
+  reviewRequired?: boolean
 }
 
 interface EditForm {
@@ -29,10 +29,7 @@ interface EditForm {
 
 type Stage = 'idle' | 'uploading' | 'reviewing' | 'saving' | 'saved' | 'error'
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-const ACCEPTED = ['image/png', 'image/jpeg', 'image/jpg']
+const ACCEPTED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'pdf', 'webp', 'bmp', 'tiff', 'heic', 'heif'])
 const TODAY = new Date().toISOString().split('T')[0]
 
 function buildDescription(vendor: string | null, invoiceNo: string | null): string {
@@ -52,9 +49,6 @@ function normaliseDate(raw: string | null): string {
   return TODAY
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
 function DropZone({
   onFile, dragOver, onDragOver, onDragLeave, onDrop,
 }: {
@@ -83,14 +77,14 @@ function DropZone({
       <input
         ref={inputRef}
         type="file"
-        accept=".png,.jpg,.jpeg"
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff,.heic,.heif"
         style={{ display: 'none' }}
         onChange={handleChange}
       />
       <div className="inv-drop-icon">🧾</div>
-      <p className="inv-drop-title">Drop invoice image here</p>
+      <p className="inv-drop-title">Drop invoice here</p>
       <p className="inv-drop-sub">or click to browse</p>
-      <p className="inv-drop-hint">PNG, JPG, JPEG supported</p>
+      <p className="inv-drop-hint">PDF, PNG, JPG, WEBP, TIFF, HEIC supported</p>
     </div>
   )
 }
@@ -113,9 +107,6 @@ function FieldRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Main component
-// ─────────────────────────────────────────────────────────────────────────────
 function InvoiceUpload({ companyId }: InvoiceUploadProps) {
   const { isFree } = useAuth()
   const [stage, setStage] = useState<Stage>('idle')
@@ -127,15 +118,15 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
     description: '', date: TODAY, amount: '', type: 'expense',
   })
 
-  // ── Upload & OCR — calls Python (port 5000), no JWT needed ────────────────
   const uploadFile = useCallback(async (file: File) => {
-    if (!ACCEPTED.includes(file.type)) {
-      setErrorMsg(`Unsupported file type "${file.type}". Please upload PNG or JPG.`)
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+    if (!ACCEPTED_EXTENSIONS.has(ext)) {
+      setErrorMsg(`Unsupported file type ".${ext}". Please upload a PDF or supported image format.`)
       setStage('error')
       return
     }
     if (file.size > 10 * 1024 * 1024) {
-      setErrorMsg('File is too large (max 10 MB). Please compress the image.')
+      setErrorMsg('File is too large (max 10 MB). Please compress the image or PDF.')
       setStage('error')
       return
     }
@@ -147,7 +138,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       const formData = new FormData()
       formData.append('file', file)
 
-      // Use the JWT-aware 'api' instance to call the new backend proxy
       const res = await api.post<OcrResult>(
         `/api/v1/ai/ocr`,
         formData,
@@ -157,7 +147,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       setOcr(result)
       setForm({
         description: buildDescription(result.vendor, result.invoice_no),
-        date: normaliseDate(result.date),
+        date: result.date && /^\d{4}-\d{2}-\d{2}$/.test(result.date) ? result.date : normaliseDate(result.date),
         amount: result.total != null ? String(result.total) : '',
         type: 'expense',
       })
@@ -165,14 +155,13 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
     } catch (e) {
       const msg = axios.isAxiosError(e)
         ? (e.response?.data as { message?: string })?.message ??
-        (e.response?.data as { error?: string })?.error ?? e.message
+          (e.response?.data as { error?: string })?.error ?? e.message
         : String(e)
       setErrorMsg(`OCR failed: ${msg}. Make sure the Python AI server is running on port 5001.`)
       setStage('error')
     }
   }, [])
 
-  // ── Drag-drop handlers ────────────────────────────────────────────────────
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true) }
   const handleDragLeave = () => setDragOver(false)
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -182,7 +171,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
     if (file) void uploadFile(file)
   }
 
-  // ── Save as transaction — calls Spring Boot via JWT-aware api instance ─────
   const saveTransaction = async () => {
     if (!form.description.trim()) return
     const raw = parseFloat(form.amount)
@@ -201,7 +189,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       setStage('saved')
     } catch (e) {
       const msg = axios.isAxiosError(e)
-        ? (e.response?.data as { message?: string })?.message ?? e.message
+        ? (e.response?.data as { message?: string; error?: string })?.message ?? (e.response?.data as { message?: string; error?: string })?.error ?? e.message
         : String(e)
       setErrorMsg(`Save failed: ${msg}. Is Spring Boot running on port 8080?`)
       setStage('error')
@@ -219,7 +207,6 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
   const setField = <K extends keyof EditForm>(key: K, val: EditForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }))
 
-  // ── Render ────────────────────────────────────────────────────────────────
   if (isFree) return (
     <div className="upgrade-gate">
       <div style={{ fontSize: 56 }}>🧾</div>
@@ -231,11 +218,10 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
 
   return (
     <div className="inv-container premium-invoice-wrapper">
-
       <div className="inv-header">
         <div className="inv-header-text">
           <h2 className="inv-title">🧾 Invoice Scanner</h2>
-          <p className="inv-subtitle">Upload an invoice image — AI extracts the details automatically</p>
+          <p className="inv-subtitle">Upload an invoice image or PDF and FinanceAI extracts the details automatically</p>
         </div>
         {stage !== 'idle' && (
           <button className="inv-btn-ghost" onClick={reset}>← Upload another</button>
@@ -261,89 +247,47 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       )}
 
       {stage === 'reviewing' && ocr && (
-        <div className="premium-inv-review">
-          {/* Left Pane: Extracted Info */}
-          <div className="premium-inv-extracted">
-            <div className="premium-section-header">
-              <span className="premium-icon">📷</span> Extracted Details
-            </div>
-            <div className="premium-inv-fields">
-              <FieldRow label="Vendor" value={ocr.vendor ?? '—'} />
-              <FieldRow label="Invoice #" value={ocr.invoice_no ?? '—'} />
-              <FieldRow label="Date found" value={ocr.date ?? '—'} />
-              <FieldRow label="Amount"
-                value={ocr.total != null ? `${ocr.currency} ${ocr.total.toLocaleString('en-IN')}` : '—'} />
-            </div>
+        <div className="inv-review-grid">
+          <div className="inv-card">
+            <h3 className="inv-card-title">AI Extraction</h3>
+            <FieldRow label="Vendor" value={ocr.vendor ?? 'Not detected'} />
+            <FieldRow label="Invoice No." value={ocr.invoice_no ?? 'Not detected'} />
+            <FieldRow label="Date" value={ocr.date ?? 'Not detected'} />
+            <FieldRow label="Total" value={ocr.total != null ? `${ocr.currency} ${ocr.total.toLocaleString('en-IN')}` : 'Not detected'} />
+            <FieldRow label="Confidence" value={`${Math.round((ocr.ocr_confidence ?? 0) * 100)}%`} />
+            {ocr.reviewRequired ? <NoteBar note="This invoice needs manual review before saving." /> : null}
             {ocr.note && <NoteBar note={ocr.note} />}
+            {ocr.warnings?.length ? (
+              <div className="inv-note" style={{ marginTop: 12 }}>
+                <span className="inv-note-icon">⚠️</span>
+                <div>
+                  {ocr.warnings.map(warning => <p key={warning} style={{ margin: 0 }}>{warning}</p>)}
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          {/* Right Pane: Review & Save */}
-          <div className="premium-inv-form">
-            <div className="premium-section-header">
-              <span className="premium-icon">✏️</span> Review & Save
+          <div className="inv-card">
+            <h3 className="inv-card-title">Review before saving</h3>
+            <label className="inv-label">Description</label>
+            <input className="inv-input" value={form.description} onChange={e => setField('description', e.target.value)} />
+
+            <label className="inv-label">Date</label>
+            <input className="inv-input" type="date" value={form.date} onChange={e => setField('date', e.target.value)} />
+
+            <label className="inv-label">Amount</label>
+            <input className="inv-input" value={form.amount} onChange={e => setField('amount', e.target.value)} />
+
+            <label className="inv-label">Type</label>
+            <select className="inv-input" value={form.type} onChange={e => setField('type', e.target.value as EditForm['type'])}>
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+
+            <div className="inv-actions">
+              <button className="inv-btn-ghost" onClick={reset}>Cancel</button>
+              <button className="inv-btn-primary" onClick={() => void saveTransaction()}>Save Transaction</button>
             </div>
-
-            <div className="premium-form-group">
-              <label className="premium-label">Description</label>
-              <input
-                className="premium-input"
-                value={form.description}
-                onChange={e => setField('description', e.target.value)}
-                placeholder="Invoice description"
-              />
-            </div>
-
-            <div className="premium-form-row">
-              <div className="premium-form-group">
-                <label className="premium-label">Date</label>
-                <input
-                  className="premium-input"
-                  type="date"
-                  value={form.date}
-                  onChange={e => setField('date', e.target.value)}
-                />
-              </div>
-              <div className="premium-form-group">
-                <label className="premium-label">Amount (₹)</label>
-                <input
-                  className="premium-input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.amount}
-                  onChange={e => setField('amount', e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            <div className="premium-form-group">
-              <label className="premium-label">Type</label>
-              <div className="premium-type-toggle">
-                <button
-                  className={`premium-type-btn ${form.type === 'expense' ? 'expense-active' : ''}`}
-                  onClick={() => setField('type', 'expense')}
-                >
-                  📉 Expense
-                </button>
-                <button
-                  className={`premium-type-btn ${form.type === 'income' ? 'income-active' : ''}`}
-                  onClick={() => setField('type', 'income')}
-                >
-                  📈 Income
-                </button>
-              </div>
-            </div>
-
-            {errorMsg && <div className="premium-error">{errorMsg}</div>}
-
-            <button
-              className="premium-btn-save"
-              onClick={() => void saveTransaction()}
-              disabled={!form.description.trim() || !form.amount}
-            >
-              💾 Save Transaction
-            </button>
           </div>
         </div>
       )}
@@ -357,31 +301,20 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
 
       {stage === 'saved' && (
         <div className="inv-state-card inv-state-card--success">
-          <div className="inv-success-icon">✅</div>
-          <p className="inv-state-title">Transaction saved!</p>
-          <p className="inv-state-sub">
-            {form.type === 'expense' ? '−' : '+'}₹{parseFloat(form.amount).toLocaleString('en-IN')}
-            {' · '}{form.description}
-          </p>
-          <button className="inv-btn-primary" onClick={reset}>
-            Upload Another Invoice
-          </button>
+          <p className="inv-state-title">Saved successfully</p>
+          <p className="inv-state-sub">The transaction has been added to your books.</p>
         </div>
       )}
 
       {stage === 'error' && (
         <div className="inv-state-card inv-state-card--error">
-          <div className="inv-error-icon">❌</div>
           <p className="inv-state-title">Something went wrong</p>
           <p className="inv-state-sub">{errorMsg}</p>
-          <button className="inv-btn-primary" onClick={reset}>
-            Try Again
-          </button>
         </div>
       )}
-
     </div>
   )
 }
 
 export default InvoiceUpload
+

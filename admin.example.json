@@ -1,0 +1,7 @@
+{
+  "email": "your-admin-email@example.com",
+  "password": "change-me",
+  "companyName": "Your Company",
+  "plan": "MAX",
+  "currency": "INR"
+}

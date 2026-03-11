@@ -74,7 +74,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-      RABBITMQ_ERLANG_COOKIE: "finance-ai-cookie-12345"
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -128,6 +128,11 @@ services:
       AI_SERVICE_URL: http://ai-service:5001
       AI_SERVICE_API_KEY: ${INTERNAL_API_KEY}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      APP_BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      APP_BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      APP_BOOTSTRAP_ADMIN_COMPANY_NAME: ${BOOTSTRAP_ADMIN_COMPANY:-}
+      APP_BOOTSTRAP_ADMIN_PLAN: ${BOOTSTRAP_ADMIN_PLAN:-MAX}
+      APP_BOOTSTRAP_ADMIN_CURRENCY: ${BOOTSTRAP_ADMIN_CURRENCY:-INR}
     depends_on:
       postgres:
         condition: service_healthy
@@ -156,7 +161,10 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASS: ${RABBITMQ_PASSWORD}
       PORT: 5001
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+      GEMINI_STATEMENT_MODEL: ${GEMINI_STATEMENT_MODEL:-gemini-2.5-pro}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     depends_on:
       rabbitmq:
@@ -231,3 +239,4 @@ volumes:
   pg_backups:
   grafana_data:
   rabbitmq_data:
+

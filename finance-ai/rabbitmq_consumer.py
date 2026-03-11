@@ -67,7 +67,7 @@ def fetch_transactions(company_id: int, txn_ids: list) -> list:
 def detect_anomalies(transactions: list) -> list:
     """Run Isolation Forest detection. Returns list of anomaly dicts."""
     try:
-        from anomaly_detector import detect
+        from anomaly_detector import detect_anomalies
         return detect(transactions)
     except Exception as e:
         logger.error("Anomaly detection error: %s", e)

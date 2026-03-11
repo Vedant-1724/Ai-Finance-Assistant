@@ -1,5 +1,6 @@
 package com.financeassistant.financeassistant.service;
 
+import com.financeassistant.financeassistant.dto.BankSyncResultDto;
 import com.financeassistant.financeassistant.dto.BankSyncStatusDto;
 import com.financeassistant.financeassistant.dto.TransactionDTO;
 import com.financeassistant.financeassistant.entity.BankSyncConsent;
@@ -19,11 +20,12 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -35,6 +37,8 @@ public class SetuBankService {
     private final CompanyRepository companyRepository;
     private final BankSyncConsentRepository bankSyncConsentRepository;
     private final List<BankSyncProvider> providers;
+    private final TransactionEventPublisher eventPublisher;
+    private final ReportingService reportingService;
 
     @Value("${bank.sync.provider:AUTO}")
     private String configuredProvider;
@@ -132,7 +136,7 @@ public class SetuBankService {
     }
 
     @Transactional
-    public List<TransactionDTO> syncTransactions(Long companyId) {
+    public BankSyncResultDto syncTransactions(Long companyId) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new IllegalArgumentException("Company not found."));
 
@@ -164,24 +168,47 @@ public class SetuBankService {
 
         try {
             BankSyncProvider.SyncPayload payload = provider.syncTransactions(company, consent);
-            List<Transaction> transactionsToSave = payload.transactions().stream()
-                    .filter(txn -> !transactionRepository.existsByCompany_IdAndDateAndAmountAndDescriptionAndSource(
-                            companyId,
-                            txn.date(),
-                            txn.amount(),
-                            txn.description(),
-                            txn.source()))
-                    .map(txn -> toEntity(company, txn))
-                    .toList();
+            List<Transaction> transactionsToSave = new ArrayList<>();
+            Set<String> batchKeys = new HashSet<>();
+            int duplicates = 0;
+
+            for (BankSyncProvider.FetchedTransaction txn : payload.transactions()) {
+                String source = normalizeSource(txn.source());
+                String description = sanitizeDescription(txn.description());
+                if (txn.amount() == null || txn.amount().signum() == 0 || txn.date() == null || !StringUtils.hasText(description)) {
+                    log.warn("Skipping invalid bank-sync row for company={} provider={} txn={}", companyId, provider.getKey(), txn);
+                    continue;
+                }
+
+                String duplicateKey = txn.date() + "|" + txn.amount().toPlainString() + "|" + description.toLowerCase(Locale.ROOT);
+                boolean exists = transactionRepository.existsByCompany_IdAndDateAndAmountAndDescriptionIgnoreCase(companyId, txn.date(), txn.amount(), description);
+                if (!batchKeys.add(duplicateKey) || exists) {
+                    duplicates++;
+                    continue;
+                }
+
+                transactionsToSave.add(toEntity(company, txn, description, source));
+            }
 
             List<Transaction> saved = transactionRepository.saveAll(transactionsToSave);
+            if (!saved.isEmpty()) {
+                eventPublisher.publishTransactionEvent(companyId, saved.stream().map(Transaction::getId).toList());
+                reportingService.evictPnLCache(companyId);
+            }
+
             consent.setStatus(BankSyncConsent.Status.SYNCED);
             consent.setLastSyncedAt(LocalDateTime.now());
             consent.setLastError(null);
             bankSyncConsentRepository.save(consent);
 
-            log.info("Bank sync completed for company={} provider={} imported={}", companyId, provider.getKey(), saved.size());
-            return saved.stream().map(this::toDto).toList();
+            log.info("Bank sync completed for company={} provider={} imported={} duplicates={}",
+                    companyId, provider.getKey(), saved.size(), duplicates);
+            return new BankSyncResultDto(
+                    saved.size(),
+                    duplicates,
+                    saved.stream().map(this::toDto).toList(),
+                    buildSyncMessage(saved.size(), duplicates)
+            );
         } catch (IllegalStateException ex) {
             consent.setStatus(BankSyncConsent.Status.FAILED);
             consent.setLastError(ex.getMessage());
@@ -237,19 +264,52 @@ public class SetuBankService {
         };
     }
 
-    private Transaction toEntity(Company company, BankSyncProvider.FetchedTransaction txn) {
+    private Transaction toEntity(Company company, BankSyncProvider.FetchedTransaction txn, String description, String source) {
         Transaction transaction = new Transaction();
         transaction.setCompany(company);
         transaction.setDate(txn.date());
         transaction.setAmount(txn.amount());
-        transaction.setDescription(txn.description());
+        transaction.setDescription(description);
         transaction.setReferenceNumber(txn.referenceNumber());
         transaction.setAccount(txn.account());
-        transaction.setSource(txn.source());
+        transaction.setSource(source);
         transaction.setType(txn.amount().signum() < 0
                 ? Transaction.TransactionType.EXPENSE
                 : Transaction.TransactionType.INCOME);
         return transaction;
+    }
+
+    private String normalizeSource(String source) {
+        if (!StringUtils.hasText(source)) {
+            return "BANK_SYNC";
+        }
+        String normalized = source.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        if (normalized.contains("SETU") || normalized.contains("BANK_SYNC") || normalized.contains("MOCK")) {
+            return "BANK_SYNC";
+        }
+        return "BANK_SYNC";
+    }
+
+    private String sanitizeDescription(String description) {
+        if (!StringUtils.hasText(description)) {
+            return "Bank synced transaction";
+        }
+        String trimmed = description.trim().replaceAll("\\s+", " ");
+        return trimmed.substring(0, Math.min(trimmed.length(), 500));
+    }
+
+    private String buildSyncMessage(int imported, int duplicates) {
+        if (imported == 0 && duplicates > 0) {
+            return "No new bank transactions were imported. The synced rows were already present.";
+        }
+        if (imported == 0) {
+            return "No bank transactions were returned by the provider.";
+        }
+        if (duplicates > 0) {
+            return "Imported " + imported + " bank transaction" + (imported == 1 ? "" : "s")
+                    + " and skipped " + duplicates + " duplicate" + (duplicates == 1 ? "" : "s") + ".";
+        }
+        return "Imported " + imported + " bank transaction" + (imported == 1 ? "" : "s") + ".";
     }
 
     private TransactionDTO toDto(Transaction transaction) {
@@ -275,3 +335,4 @@ public class SetuBankService {
         );
     }
 }
+

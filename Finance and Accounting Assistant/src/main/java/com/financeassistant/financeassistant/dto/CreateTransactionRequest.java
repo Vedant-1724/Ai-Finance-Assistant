@@ -25,7 +25,7 @@ public class CreateTransactionRequest {
 
     @NotNull(message = "Description is required")
     @NotBlank(message = "Description cannot be blank")
-    @Size(max = 512, message = "Description is too long")
+    @Size(max = 500, message = "Description is too long")
     private String description;
 
     private Long categoryId;
@@ -35,3 +35,4 @@ public class CreateTransactionRequest {
     private String recurrenceInterval; // DAILY / WEEKLY / MONTHLY / YEARLY
     private LocalDate recurrenceEndDate;
 }
+

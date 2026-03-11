@@ -45,3 +45,7 @@ package-lock.json
 
 # Finance AI Synthetic Data
 finance-ai/data/
+admin.local.json
+secrets/
+backend_logs*.txt
+exceptions*.txt

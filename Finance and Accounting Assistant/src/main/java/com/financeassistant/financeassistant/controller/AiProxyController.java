@@ -54,10 +54,12 @@ public class AiProxyController {
                         "image/jpeg",
                         "image/webp",
                         "image/bmp",
-                        "image/tiff");
+                        "image/tiff",
+                        "image/heic",
+                        "image/heif");
 
         private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-                        "csv", "pdf", "png", "jpg", "jpeg", "webp", "bmp", "tiff");
+                        "csv", "pdf", "png", "jpg", "jpeg", "webp", "bmp", "tiff", "heic", "heif");
 
         private static final long MAX_FILE_BYTES = 10L * 1024 * 1024; // 10 MB
 
@@ -103,7 +105,7 @@ public class AiProxyController {
                         log.warn("Rejected file upload: contentType='{}', extension='{}', company={}",
                                         contentType, extension, companyId);
                         return badRequest(
-                                        "Unsupported file type. Allowed: CSV, PDF, PNG, JPG, WEBP, BMP, TIFF.");
+                                        "Unsupported file type. Allowed: CSV, PDF, PNG, JPG, WEBP, BMP, TIFF, HEIC.");
                 }
 
                 // 4. Forward to Python AI service

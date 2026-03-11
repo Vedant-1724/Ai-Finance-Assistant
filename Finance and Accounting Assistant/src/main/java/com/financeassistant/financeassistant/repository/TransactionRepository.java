@@ -19,6 +19,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         @org.springframework.data.jpa.repository.Query("DELETE FROM Transaction t WHERE t.company.id = :companyId")
         void deleteByCompanyId(@org.springframework.data.repository.query.Param("companyId") Long companyId);
 
+        boolean existsByCompany_IdAndDateAndAmountAndDescriptionIgnoreCase(
+                        Long companyId,
+                        LocalDate date,
+                        BigDecimal amount,
+                        String description);
+
+        boolean existsByCompany_IdAndDateAndAmountAndDescriptionIgnoreCaseAndIdNot(
+                        Long companyId,
+                        LocalDate date,
+                        BigDecimal amount,
+                        String description,
+                        Long id);
+
         boolean existsByCompany_IdAndDateAndAmountAndDescriptionAndSource(
                         Long companyId,
                         LocalDate date,

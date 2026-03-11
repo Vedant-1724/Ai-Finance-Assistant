@@ -1,10 +1,13 @@
-// FIX: Added @DecimalMin / @DecimalMax on amount so Spring's @Valid
-//      catches bad amounts at the HTTP boundary, not just in the service.
-
 package com.financeassistant.financeassistant.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -29,28 +32,17 @@ public class BulkImportRequest {
 
         @NotNull(message = "Description is required")
         @NotBlank(message = "Description cannot be blank")
-        @Size(max = 512, message = "Description too long")
+        @Size(max = 500, message = "Description too long")
         private String description;
 
-        /**
-         * Positive = income, Negative = expense.
-         * FIX: @DecimalMin/@DecimalMax added so HTTP layer validates this,
-         *      not just the service layer.
-         */
         @NotNull(message = "Amount is required")
         @DecimalMin(value = "-10000000.00", message = "Amount below minimum (-₹1 crore)")
-        @DecimalMax(value = "10000000.00",  message = "Amount exceeds maximum (₹1 crore)")
+        @DecimalMax(value = "10000000.00", message = "Amount exceeds maximum (₹1 crore)")
         private BigDecimal amount;
 
-        /**
-         * Source of the transaction: CSV_IMPORT, PDF, UPI_SCREENSHOT, etc.
-         * Stored for audit trail only.
-         */
+        // Source is normalized server-side so parser display labels and legacy values
+        // do not fail import after the user approves the preview.
         @Size(max = 50)
-        @Pattern(
-                regexp = "^(CSV_IMPORT|PDF|UPI_SCREENSHOT|IMAGE|TEXT|IMPORT)?$",
-                message = "Invalid source value"
-        )
         private String source;
     }
 }

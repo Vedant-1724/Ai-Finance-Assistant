@@ -14,14 +14,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class TransactionService {
+
+    private static final String DUPLICATE_MESSAGE = "A transaction with the same date, amount, and description already exists.";
 
     @Autowired
     private TransactionRepository repo;
@@ -42,26 +46,25 @@ public class TransactionService {
     @Transactional
     public TransactionDTO createTransaction(Long companyId, CreateTransactionRequest req,
             User currentUser, String ipAddress) {
+        BigDecimal amount = req.getAmount();
+        String description = sanitizeDescription(req.getDescription());
+        ensureNotDuplicate(companyId, req.getDate(), amount, description, null);
+
         Transaction tx = new Transaction();
         tx.setCompany(em.getReference(Company.class, companyId));
         tx.setDate(req.getDate());
-        tx.setAmount(req.getAmount());
-        tx.setDescription(req.getDescription());
+        tx.setAmount(amount);
+        tx.setDescription(description);
 
-        // Set category if provided
         if (req.getCategoryId() != null) {
             tx.setCategory(em.getReference(Category.class, req.getCategoryId()));
         }
 
-        // Set transaction type based on amount sign
-        tx.setType(req.getAmount().signum() >= 0
+        tx.setType(amount.signum() >= 0
                 ? Transaction.TransactionType.INCOME
                 : Transaction.TransactionType.EXPENSE);
-
-        // Source defaults to MANUAL
         tx.setSource("MANUAL");
 
-        // Recurring support
         if (req.getRecurring() != null && req.getRecurring()) {
             tx.setRecurring(true);
             tx.setRecurrenceInterval(req.getRecurrenceInterval());
@@ -73,16 +76,14 @@ public class TransactionService {
         eventPublisher.publishNewTransaction(companyId, saved.getId());
         reportingService.evictPnLCache(companyId);
 
-        // Audit log
         auditService.log(currentUser != null ? currentUser.getId() : null, companyId,
                 AuditService.CREATE_TRANSACTION, "Transaction", saved.getId(),
-                null, "amount=" + req.getAmount() + " desc=" + req.getDescription(),
+                null, "amount=" + amount + " desc=" + description,
                 ipAddress);
 
         return toDTO(saved);
     }
 
-    /** Backward-compatible overload for code that doesn't have user/ip context */
     @Transactional
     public TransactionDTO createTransaction(Long companyId, CreateTransactionRequest req) {
         return createTransaction(companyId, req, null, null);
@@ -99,23 +100,24 @@ public class TransactionService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
+        BigDecimal amount = req.getAmount();
+        String description = sanitizeDescription(req.getDescription());
+        ensureNotDuplicate(companyId, req.getDate(), amount, description, transactionId);
+
         String oldValue = "amount=" + tx.getAmount() + " desc=" + tx.getDescription();
 
         tx.setDate(req.getDate());
-        tx.setAmount(req.getAmount());
-        tx.setDescription(req.getDescription());
+        tx.setAmount(amount);
+        tx.setDescription(description);
 
-        // Update category
         if (req.getCategoryId() != null) {
             tx.setCategory(em.getReference(Category.class, req.getCategoryId()));
         }
 
-        // Update type based on amount
-        tx.setType(req.getAmount().signum() >= 0
+        tx.setType(amount.signum() >= 0
                 ? Transaction.TransactionType.INCOME
                 : Transaction.TransactionType.EXPENSE);
 
-        // Recurring updates
         if (req.getRecurring() != null) {
             tx.setRecurring(req.getRecurring());
             tx.setRecurrenceInterval(req.getRecurrenceInterval());
@@ -125,7 +127,7 @@ public class TransactionService {
         Transaction saved = repo.save(tx);
         reportingService.evictPnLCache(companyId);
 
-        String newValue = "amount=" + req.getAmount() + " desc=" + req.getDescription();
+        String newValue = "amount=" + amount + " desc=" + description;
         auditService.log(currentUser != null ? currentUser.getId() : null, companyId,
                 AuditService.UPDATE_TRANSACTION, "Transaction", transactionId,
                 oldValue, newValue, ipAddress);
@@ -155,6 +157,23 @@ public class TransactionService {
     @Transactional
     public void deleteTransaction(Long companyId, Long transactionId) {
         deleteTransaction(companyId, transactionId, null, null);
+    }
+
+    private void ensureNotDuplicate(Long companyId, java.time.LocalDate date, BigDecimal amount, String description, Long excludeId) {
+        boolean exists = excludeId == null
+                ? repo.existsByCompany_IdAndDateAndAmountAndDescriptionIgnoreCase(companyId, date, amount, description)
+                : repo.existsByCompany_IdAndDateAndAmountAndDescriptionIgnoreCaseAndIdNot(companyId, date, amount, description, excludeId);
+        if (exists) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, DUPLICATE_MESSAGE);
+        }
+    }
+
+    private String sanitizeDescription(String description) {
+        if (!StringUtils.hasText(description)) {
+            return "Transaction";
+        }
+        String trimmed = description.trim().replaceAll("\\s+", " ");
+        return trimmed.substring(0, Math.min(trimmed.length(), 500));
     }
 
     private TransactionDTO toDTO(Transaction t) {

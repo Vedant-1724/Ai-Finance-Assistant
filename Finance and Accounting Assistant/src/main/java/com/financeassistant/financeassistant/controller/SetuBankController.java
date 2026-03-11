@@ -1,7 +1,7 @@
 package com.financeassistant.financeassistant.controller;
 
+import com.financeassistant.financeassistant.dto.BankSyncResultDto;
 import com.financeassistant.financeassistant.dto.BankSyncStatusDto;
-import com.financeassistant.financeassistant.dto.TransactionDTO;
 import com.financeassistant.financeassistant.service.SetuBankService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @Slf4j
 @RestController
@@ -38,7 +36,7 @@ public class SetuBankController {
 
     @PostMapping("/sync")
     @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
-    public ResponseEntity<List<TransactionDTO>> syncBankData(@PathVariable Long companyId) {
+    public ResponseEntity<BankSyncResultDto> syncBankData(@PathVariable Long companyId) {
         log.info("Triggering Setu AA sync for companyId={}", companyId);
         return ResponseEntity.ok(setuBankService.syncTransactions(companyId));
     }

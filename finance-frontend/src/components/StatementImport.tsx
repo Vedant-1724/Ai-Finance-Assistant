@@ -6,6 +6,10 @@ interface ParsedTransaction {
   description: string
   amount: number
   source: string
+  confidence?: number
+  needsReview?: boolean
+  normalizedSource?: string
+  warnings?: string[]
   selected: boolean
 }
 
@@ -14,8 +18,22 @@ interface ParseResult {
   total_found: number
   skipped: number
   source: string
+  parseMode?: 'csv' | 'pdf_text' | 'pdf_ocr' | 'image_ocr' | 'llm_fallback' | 'unknown'
+  documentConfidence?: number
+  warnings?: string[]
   warning?: string
   error?: string
+}
+
+interface ImportResult {
+  imported: number
+  duplicates: number
+  skipped?: number
+  transactions?: Array<{ id: number; date: string; amount: number; description: string; categoryName: string | null }>
+  warnings?: string[]
+  errors?: string[]
+  message?: string
+  mode?: 'statement' | 'bankSync'
 }
 
 interface StatementImportProps {
@@ -34,7 +52,14 @@ interface BankSyncStatus {
   lastSyncedAt?: string | null
 }
 
-const ALLOWED_EXTENSIONS = new Set(['csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'])
+interface BankSyncResult {
+  imported: number
+  duplicates: number
+  transactions: Array<{ id: number; date: string; amount: number; description: string; categoryName: string | null }>
+  message?: string
+}
+
+const ALLOWED_EXTENSIONS = new Set(['csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff', 'heic', 'heif'])
 const MAX_FILE_SIZE_MB = 10
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
@@ -46,7 +71,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [transactions, setTransactions] = useState<ParsedTransaction[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
-  const [importResult, setImportResult] = useState<{ imported: number } | null>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [setuSyncing, setSetuSyncing] = useState(false)
   const [setuError, setSetuError] = useState<string | null>(null)
@@ -58,13 +83,20 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     }
     const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-      return `Unsupported file type ".${ext}". Please use CSV, PDF, PNG, or JPG.`
+      return `Unsupported file type ".${ext}". Please use CSV, PDF, PNG, JPG, TIFF, or HEIC.`
     }
     return null
   }
 
-  const handleFile = async (file: File) => {
+  const clearTransientState = () => {
     setParseError(null)
+    setSetuError(null)
+    setSetuNotice(null)
+    setImportResult(null)
+  }
+
+  const handleFile = async (file: File) => {
+    clearTransientState()
 
     const validationError = validateFile(file)
     if (validationError) {
@@ -74,6 +106,8 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
 
     setParsing(true)
     setStep('upload')
+    setParseResult(null)
+    setTransactions([])
 
     const formData = new FormData()
     formData.append('file', file)
@@ -92,16 +126,21 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       }
 
       if (!data.transactions || data.transactions.length === 0) {
+        const warningText = data.warnings?.join(' ') || data.warning
         setParseError(
-          data.warning
-            ? `No transactions found. ${data.warning}`
-            : 'No transactions could be detected in this file. Please check the format or try a different file.'
+          warningText
+            ? `No transactions found. ${warningText}`
+            : 'No transactions could be detected in this file. Please check the format or try a clearer export/scan.'
         )
         return
       }
 
       const withSelection: ParsedTransaction[] = data.transactions.map(t => ({
         ...t,
+        confidence: typeof t.confidence === 'number' ? t.confidence : 0.5,
+        needsReview: Boolean(t.needsReview),
+        normalizedSource: t.normalizedSource ?? 'IMPORT',
+        warnings: Array.isArray(t.warnings) ? t.warnings : [],
         selected: true,
       }))
 
@@ -115,7 +154,8 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
       } else if (status === 503) {
         setParseError('AI service is unavailable. Please ensure the Python service is running.')
       } else {
-        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        const msg = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.error
+          ?? (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.message
         setParseError(msg ?? 'Failed to parse statement. Please try a different file.')
       }
     } finally {
@@ -146,6 +186,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   const selectAll = () => setTransactions(prev => prev.map(txn => ({ ...txn, selected: true })))
   const deselectAll = () => setTransactions(prev => prev.map(txn => ({ ...txn, selected: false })))
   const selectedCount = transactions.filter(txn => txn.selected).length
+  const reviewCount = transactions.filter(txn => txn.needsReview).length
 
   const handleImport = async () => {
     const toImport = transactions.filter(txn => txn.selected)
@@ -154,21 +195,25 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     }
 
     setImporting(true)
+    setParseError(null)
     try {
-      const res = await api.post(`/api/v1/${companyId}/transactions/import`, {
-        transactions: toImport.map(({ date, description, amount, source }) => ({
+      const res = await api.post<ImportResult>(`/api/v1/${companyId}/transactions/import`, {
+        transactions: toImport.map(({ date, description, amount, normalizedSource }) => ({
           date,
           description,
           amount,
-          source,
+          source: normalizedSource ?? 'IMPORT',
         })),
       })
-      setImportResult({ imported: res.data.imported })
+      const result = { ...res.data, mode: 'statement' as const }
+      setImportResult(result)
       setStep('done')
-      onImportSuccess()
+      if ((result.imported ?? 0) > 0) {
+        onImportSuccess()
+      }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        ?? 'Import failed. Please try again.'
+      const response = (err as { response?: { data?: { error?: string; message?: string; errors?: string[] } } })?.response?.data
+      const msg = response?.message ?? response?.error ?? response?.errors?.join(' ') ?? 'Import failed. Please try again.'
       setParseError(msg)
     } finally {
       setImporting(false)
@@ -189,9 +234,10 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
   }
 
   const handleSetuSync = async () => {
-    setSetuError(null)
-    setSetuNotice(null)
+    clearTransientState()
     setSetuSyncing(true)
+    setParseResult(null)
+    setTransactions([])
 
     try {
       const consentRes = await api.post<BankSyncStatus>(`/api/v1/${companyId}/setu/consent`)
@@ -215,32 +261,19 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
         setSetuNotice(consent.message)
       }
 
-      const syncRes = await api.post(`/api/v1/${companyId}/setu/sync`)
-      const rawTransactions = Array.isArray(syncRes.data)
-        ? syncRes.data
-        : (syncRes.data?.transactions ?? [])
-
-      const fetched: ParsedTransaction[] = rawTransactions.map((txn: any) => ({
-        date: String(txn.date),
-        description: String(txn.description ?? 'Bank synced transaction'),
-        amount: Number(txn.amount),
-        source: String(txn.source ?? (consent.mockFallback ? 'Setu AA (Mock)' : 'Setu AA')),
-        selected: true,
-      }))
-
-      if (fetched.length === 0) {
-        setSetuError('No transactions found from the bank sync provider.')
-        return
-      }
-
-      setTransactions(fetched)
-      setParseResult({
-        transactions: fetched,
-        total_found: fetched.length,
+      const syncRes = await api.post<BankSyncResult>(`/api/v1/${companyId}/setu/sync`)
+      const result: ImportResult = {
+        ...syncRes.data,
         skipped: 0,
-        source: consent.mockFallback ? 'Setu AA (Mock)' : 'Setu AA',
-      })
-      setStep('preview')
+        warnings: syncRes.data.imported === 0 && syncRes.data.duplicates > 0 ? ['All synced rows were already present, so nothing new was imported.'] : [],
+        errors: [],
+        mode: 'bankSync',
+      }
+      setImportResult(result)
+      setStep('done')
+      if ((result.imported ?? 0) > 0) {
+        onImportSuccess()
+      }
     } catch (err: any) {
       setSetuError(err?.response?.data?.error || err?.response?.data?.message || 'Failed to sync with Setu AA.')
     } finally {
@@ -248,16 +281,18 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
     }
   }
 
+  const outcomeTitle = importResult?.mode === 'bankSync' ? 'Bank Sync Complete' : 'Import Complete'
+
   return (
     <div className="statement-import">
       <div className="import-header">
         <h2>📥 Import Bank Statement</h2>
         <p className="import-subtitle">
-          Upload your UPI history, bank statement CSV, or screenshot. <strong>Sensitive information (account numbers, IFSC, card numbers) is automatically removed — only transaction details are kept.</strong>
+          Upload your UPI history, bank statement export, PDF, or screenshot. <strong>Sensitive information is automatically removed before transactions are shown for review.</strong>
         </p>
         <div className="privacy-badge">
           <span className="privacy-icon">🔒</span>
-          <span>Privacy Protected: Account numbers, IFSC codes, and card numbers are redacted before any data is processed or stored.</span>
+          <span>Privacy Protected: account numbers, IFSC codes, PANs, card numbers, and personal UPI/mobile identifiers are redacted.</span>
         </div>
       </div>
 
@@ -273,13 +308,13 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             {parsing ? (
               <div className="parsing-indicator">
                 <div className="spinner" />
-                <p>Parsing & redacting sensitive data…</p>
+                <p>Parsing statement and redacting sensitive data…</p>
               </div>
             ) : (
               <>
                 <div className="dropzone-icon">📂</div>
                 <p className="dropzone-title">Drop your statement here, or click to browse</p>
-                <p className="dropzone-hint">Supports CSV, PDF, PNG, JPG · Max {MAX_FILE_SIZE_MB}MB</p>
+                <p className="dropzone-hint">Supports CSV, PDF, PNG, JPG, TIFF, HEIC · Max {MAX_FILE_SIZE_MB}MB</p>
                 <div className="supported-sources">
                   <span className="source-tag">🏦 HDFC</span>
                   <span className="source-tag">🏦 SBI</span>
@@ -296,7 +331,7 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff"
+            accept=".csv,.pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff,.heic,.heif"
             style={{ display: 'none' }}
             onChange={handleInputChange}
           />
@@ -375,10 +410,25 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             </div>
           </div>
 
-          {parseResult.warning && <div className="parse-warning">⚠️ {parseResult.warning}</div>}
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 16 }}>
+            <div className="privacy-confirm-badge">🧠 Parse mode: <strong>{parseResult.parseMode ?? 'unknown'}</strong></div>
+            <div className="privacy-confirm-badge">📊 Document confidence: <strong>{Math.round((parseResult.documentConfidence ?? 0) * 100)}%</strong></div>
+            <div className="privacy-confirm-badge">📝 Rows needing review: <strong>{reviewCount}</strong></div>
+          </div>
+
+          {(parseResult.warning || parseResult.warnings?.length) && (
+            <div className="parse-warning">
+              ⚠️ {parseResult.warning ?? 'Review flagged rows before importing.'}
+              {parseResult.warnings?.length ? (
+                <ul style={{ marginTop: 8, marginBottom: 0 }}>
+                  {parseResult.warnings.map(warning => <li key={warning}>{warning}</li>)}
+                </ul>
+              ) : null}
+            </div>
+          )}
 
           <div className="privacy-confirm-badge">
-            ✅ All sensitive data has been redacted. Only transaction details shown below.
+            ✅ Sensitive data has been redacted. Highlighted rows have lower confidence and should be reviewed before import.
           </div>
 
           <div className="preview-controls">
@@ -406,15 +456,17 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
                   <th>Date</th>
                   <th>Description</th>
                   <th>Amount</th>
-                  <th>Type</th>
+                  <th>Confidence</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((txn, index) => (
                   <tr
-                    key={index}
-                    className={txn.selected ? '' : 'row-deselected'}
+                    key={`${txn.date}-${txn.description}-${txn.amount}-${index}`}
+                    className={`${txn.selected ? '' : 'row-deselected'} ${txn.needsReview ? 'row-review' : ''}`.trim()}
                     onClick={() => toggleRow(index)}
+                    style={txn.needsReview ? { background: 'rgba(245, 158, 11, 0.08)' } : undefined}
                   >
                     <td>
                       <input
@@ -425,13 +477,22 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
                       />
                     </td>
                     <td className="date-cell">{txn.date}</td>
-                    <td className="desc-cell">{txn.description}</td>
+                    <td className="desc-cell">
+                      <div>{txn.description}</div>
+                      <div style={{ marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>{txn.source}</div>
+                      {txn.warnings?.length ? (
+                        <div style={{ marginTop: 4, fontSize: 12, color: '#fbbf24' }}>{txn.warnings.join(' ')}</div>
+                      ) : null}
+                    </td>
                     <td className={txn.amount >= 0 ? 'positive' : 'negative'}>
                       {txn.amount >= 0 ? '+' : '−'}₹{Math.abs(txn.amount).toLocaleString('en-IN')}
                     </td>
                     <td>
-                      <span className={`type-badge ${txn.amount >= 0 ? 'income' : 'expense'}`}>
-                        {txn.amount >= 0 ? '📈 Income' : '📉 Expense'}
+                      {Math.round((txn.confidence ?? 0) * 100)}%
+                    </td>
+                    <td>
+                      <span className={`type-badge ${txn.needsReview ? 'expense' : txn.amount >= 0 ? 'income' : 'expense'}`}>
+                        {txn.needsReview ? '🔎 Review' : txn.amount >= 0 ? '📈 Income' : '📉 Expense'}
                       </span>
                     </td>
                   </tr>
@@ -449,13 +510,33 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
           <div className="success-graphic">
             <div className="success-circle">✅</div>
           </div>
-          <h3>Import Complete!</h3>
+          <h3>{outcomeTitle}</h3>
           <p className="done-count">
-            <strong>{importResult.imported}</strong> transactions imported successfully.
+            <strong>{importResult.imported}</strong> new transaction{importResult.imported === 1 ? '' : 's'} saved.
           </p>
-          <p className="done-note">
-            Your dashboard and P&L report have been updated. Anomaly detection will analyze the new transactions in the background.
-          </p>
+          {typeof importResult.duplicates === 'number' && (
+            <p className="done-note">
+              <strong>{importResult.duplicates}</strong> duplicate transaction{importResult.duplicates === 1 ? '' : 's'} skipped.
+              {typeof importResult.skipped === 'number' ? ` ${importResult.skipped} invalid row${importResult.skipped === 1 ? '' : 's'} skipped.` : ''}
+            </p>
+          )}
+          {importResult.message && <p className="done-note">{importResult.message}</p>}
+          {importResult.warnings?.length ? (
+            <div className="parse-warning" style={{ marginTop: 16, textAlign: 'left' }}>
+              ⚠️ Review notes:
+              <ul style={{ marginTop: 8, marginBottom: 0 }}>
+                {importResult.warnings.map(warning => <li key={warning}>{warning}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          {importResult.errors?.length ? (
+            <div className="parse-error" style={{ marginTop: 16, textAlign: 'left' }}>
+              ❌ Some rows could not be imported:
+              <ul style={{ marginTop: 8, marginBottom: 0 }}>
+                {importResult.errors.map(error => <li key={error}>{error}</li>)}
+              </ul>
+            </div>
+          ) : null}
           <div className="done-actions">
             <button className="btn-import-more" onClick={reset}>
               📥 Import Another Statement

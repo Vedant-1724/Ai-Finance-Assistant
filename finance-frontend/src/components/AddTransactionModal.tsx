@@ -222,7 +222,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
               placeholder="e.g. Office supplies from Staples"
               value={description}
               onChange={event => setDescription(event.target.value)}
-              maxLength={512}
+              maxLength={500}
               required
             />
           </div>
@@ -286,3 +286,4 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
     </div>
   )
 }
+

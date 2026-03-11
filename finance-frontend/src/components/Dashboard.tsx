@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { Suspense, lazy, useEffect, useState, useCallback } from 'react'
 import api from '../api'
 import AddTransactionModal from './AddTransactionModal'
 import AnomalyPanel from './AnomalyPanel'
@@ -39,6 +39,8 @@ interface DashboardProps {
   companyId: number
   onOpenCharts?: () => void
 }
+
+const ChartsSection = lazy(() => import('./ChartsSection'))
 
 type Period = 'month' | 'quarter' | 'year'
 
@@ -161,50 +163,53 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
       ) : txnLoading ? (
         <div className="loading">⏳ Loading financial data...</div>
       ) : (
-        <div className="premium-metric-container">
-          <div className="premium-metric-card income">
-            <div className="premium-metric-header">
-              <div className="premium-metric-icon">📈</div>
-              <label className="premium-metric-label">Total Income</label>
+        <>
+          <div className="premium-metric-container">
+            <div className="premium-metric-card income">
+              <div className="premium-metric-header">
+                <div className="premium-metric-icon">📈</div>
+                <label className="premium-metric-label">Total Income</label>
+              </div>
+              <div className="premium-metric-value">₹{liveIncome.toLocaleString('en-IN')}</div>
             </div>
-            <div className="premium-metric-value">₹{liveIncome.toLocaleString('en-IN')}</div>
+            <div className="premium-metric-card expense">
+              <div className="premium-metric-header">
+                <div className="premium-metric-icon">📉</div>
+                <label className="premium-metric-label">Total Expenses</label>
+              </div>
+              <div className="premium-metric-value">₹{liveExpense.toLocaleString('en-IN')}</div>
+            </div>
+            <div className="premium-metric-card net">
+              <div className="premium-metric-header">
+                <div className="premium-metric-icon">💰</div>
+                <label className="premium-metric-label">Net Cash Flow</label>
+              </div>
+              <div
+                className="premium-metric-value"
+                style={{ color: liveNet >= 0 ? 'var(--accent-bright)' : 'var(--expense)' }}
+              >
+                ₹{liveNet.toLocaleString('en-IN')}
+              </div>
+            </div>
           </div>
-          <div className="premium-metric-card expense">
-            <div className="premium-metric-header">
-              <div className="premium-metric-icon">📉</div>
-              <label className="premium-metric-label">Total Expenses</label>
-            </div>
-            <div className="premium-metric-value">₹{liveExpense.toLocaleString('en-IN')}</div>
-          </div>
-          <div className="premium-metric-card net">
-            <div className="premium-metric-header">
-              <div className="premium-metric-icon">💰</div>
-              <label className="premium-metric-label">Net Cash Flow</label>
-            </div>
-            <div
-              className="premium-metric-value"
-              style={{ color: liveNet >= 0 ? 'var(--accent-bright)' : 'var(--expense)' }}
-            >
-              ₹{liveNet.toLocaleString('en-IN')}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {!txnLoading && !txnError && (
-        <div className="premium-pnl-container" style={{ marginBottom: 24 }}>
-          <div className="pnl-header">
-            <h3>📈 Interactive Charts</h3>
-            {onOpenCharts && (
-              <button className="btn-refresh" onClick={onOpenCharts}>
-                Open Charts Tab
-              </button>
-            )}
+          <div className="premium-pnl-container" style={{ marginBottom: 24 }}>
+            <div className="pnl-header">
+              <h3>📈 Interactive Charts</h3>
+              {onOpenCharts && (
+                <button className="btn-refresh" onClick={onOpenCharts}>
+                  Open Charts Tab
+                </button>
+              )}
+            </div>
+            <div className="pnl-date-range">
+              Live charts are active below. Use the full Charts tab for a dedicated expanded view.
+            </div>
+            <Suspense fallback={<div className="loading">⏳ Loading charts...</div>}>
+              <ChartsSection companyId={companyId} embedded />
+            </Suspense>
           </div>
-          <div className="pnl-date-range">
-            Open the Charts tab for income vs expense trends, category splits, and daily balance history.
-          </div>
-        </div>
+        </>
       )}
 
       <div className="premium-pnl-container pnl-section">
