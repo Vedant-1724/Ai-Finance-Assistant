@@ -187,15 +187,23 @@ def setup_topology(channel):
 #  Entry point — auto-reconnect loop
 # ─────────────────────────────────────────────────────────────────────────────
 
+CLOUDAMQP_URL = os.environ.get("CLOUDAMQP_URL", "")
+
+
 def start_consumer():
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
-    parameters  = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=5672,
-        credentials=credentials,
-        heartbeat=600,
-        blocked_connection_timeout=300,
-    )
+    if CLOUDAMQP_URL:
+        parameters = pika.URLParameters(CLOUDAMQP_URL)
+        parameters.heartbeat = 600
+        parameters.blocked_connection_timeout = 300
+    else:
+        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+        parameters  = pika.ConnectionParameters(
+            host=RABBITMQ_HOST,
+            port=5672,
+            credentials=credentials,
+            heartbeat=600,
+            blocked_connection_timeout=300,
+        )
 
     while True:
         try:

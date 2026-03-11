@@ -2,7 +2,7 @@
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/financedb
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/financedb}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -30,12 +30,14 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      url: ${REDIS_URL:}
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER}
-    password: ${RABBITMQ_PASSWORD}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    addresses: ${CLOUDAMQP_URL:}
 
   cache:
     type: redis
