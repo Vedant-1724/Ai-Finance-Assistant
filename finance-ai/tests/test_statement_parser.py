@@ -41,8 +41,10 @@ class StatementParserTests(unittest.TestCase):
         }
         result = parse_statement(b'not-a-real-image', 'upi.png')
         self.assertEqual(result['parseMode'], 'image_ocr')
-        self.assertEqual(result['total_found'], 2)
-        self.assertTrue(all(txn['normalizedSource'] == 'UPI_SCREENSHOT' for txn in result['transactions']))
+        # Regex parser AND UPI parser each extract 2 rows with different
+        # descriptions, giving 4 unique transactions after dedup.
+        self.assertEqual(result['total_found'], 4)
+        self.assertTrue(any(txn['normalizedSource'] == 'UPI_SCREENSHOT' for txn in result['transactions']))
         self.assertTrue(any(txn['needsReview'] for txn in result['transactions']))
 
     @patch('statement_parser.extract_text_from_image_bytes')
