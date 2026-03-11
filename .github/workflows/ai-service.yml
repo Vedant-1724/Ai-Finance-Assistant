@@ -79,6 +79,7 @@ jobs:
       # Run tests with required environment variables
       - name: Run pytest
         env:
+          PYTHONPATH: .
           INTERNAL_API_KEY: "ci-test-key"
           GEMINI_API_KEY: "test-key-placeholder"
           BACKEND_URL: "http://localhost:8080"
