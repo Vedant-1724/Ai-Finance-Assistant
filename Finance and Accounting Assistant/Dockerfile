@@ -27,10 +27,19 @@ EXPOSE 8080
 # Startup script: conditionally inject cloud service URLs only when set
 RUN printf '#!/bin/sh\n\
 EXTRA=""\n\
-# Database URL: auto-prepend jdbc: if needed\n\
+# Database URL: parse postgresql://user:pass@host:port/db into JDBC components\n\
 if [ -n "$DATABASE_URL" ]; then\n\
-  JDBC_URL=$(echo "$DATABASE_URL" | sed "s|^postgresql://|jdbc:postgresql://|")\n\
+  # Strip scheme\n\
+  STRIPPED=$(echo "$DATABASE_URL" | sed "s|^postgres://||;s|^postgresql://||")\n\
+  # Extract user:pass and host:port/db\n\
+  USERINFO=$(echo "$STRIPPED" | cut -d@ -f1)\n\
+  HOSTPART=$(echo "$STRIPPED" | cut -d@ -f2)\n\
+  DB_USER=$(echo "$USERINFO" | cut -d: -f1)\n\
+  DB_PASS=$(echo "$USERINFO" | cut -d: -f2-)\n\
+  JDBC_URL="jdbc:postgresql://$HOSTPART"\n\
   EXTRA="$EXTRA -Dspring.datasource.url=$JDBC_URL"\n\
+  EXTRA="$EXTRA -Dspring.datasource.username=$DB_USER"\n\
+  EXTRA="$EXTRA -Dspring.datasource.password=$DB_PASS"\n\
 fi\n\
 # Redis URL: only inject when set (empty string crashes Spring Boot)\n\
 if [ -n "$REDIS_URL" ]; then\n\
