@@ -24,4 +24,4 @@ COPY --from=build /app/target/*.jar app.jar
 ENV JAVA_OPTS="-Xmx448m -Xms256m -XX:MaxMetaspaceSize=128m"
 EXPOSE 8080
 
-ENTRYPOINT ["sh", "-c", "export JDBC_URL=$(echo ${DATABASE_URL:-jdbc:postgresql://localhost:5432/financedb} | sed 's|^postgresql://|jdbc:postgresql://|'); echo \"Starting with DB URL: ${JDBC_URL%:*}:****\"; java $JAVA_OPTS -Dserver.port=${PORT:-8080} -Dspring.datasource.url=\"$JDBC_URL\" -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "export JDBC_URL=$(echo \"${DATABASE_URL:-jdbc:postgresql://localhost:5432/financedb}\" | sed 's|^postgresql://|jdbc:postgresql://|'); echo \"Starting with DB URL: ${JDBC_URL%:*}:****\"; java $JAVA_OPTS -Dserver.port=${PORT:-8080} -Dspring.datasource.url=\"$JDBC_URL\" -jar app.jar"]
