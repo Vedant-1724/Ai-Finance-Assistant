@@ -36,7 +36,7 @@ if [ -n "$DATABASE_URL" ]; then\n\
   HOSTPART=$(echo "$STRIPPED" | cut -d@ -f2)\n\
   DB_USER=$(echo "$USERINFO" | cut -d: -f1)\n\
   DB_PASS=$(echo "$USERINFO" | cut -d: -f2-)\n\
-  JDBC_URL="jdbc:postgresql://$HOSTPART"\n\
+  JDBC_URL="jdbc:postgresql://$HOSTPART?prepareThreshold=0"\n\
   EXTRA="$EXTRA -Dspring.datasource.url=$JDBC_URL"\n\
   EXTRA="$EXTRA -Dspring.datasource.username=$DB_USER"\n\
   EXTRA="$EXTRA -Dspring.datasource.password=$DB_PASS"\n\
