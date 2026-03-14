@@ -2,16 +2,18 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 
+# Limit Maven memory to fit in free tier builders
+ENV MAVEN_OPTS="-Xmx512m -XX:MaxMetaspaceSize=256m"
+
 # Copy Maven wrapper and pom first (better caching)
 COPY mvnw ./
 COPY .mvn .mvn
 COPY pom.xml ./
 RUN chmod +x mvnw
-RUN ./mvnw dependency:go-offline -q
 
-# Copy source and build
+# Copy source and build (combined for stability)
 COPY src ./src
-RUN ./mvnw clean package -DskipTests -q
+RUN ./mvnw clean package -DskipTests -B -q
 
 # ── Stage 2: Run ─────────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre
