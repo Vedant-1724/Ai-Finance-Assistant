@@ -3,8 +3,8 @@
 spring:
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/financedb}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -68,20 +68,20 @@ spring:
         size: 4
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:default-jwt-secret-change-me-in-production-1234567890abcdef}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 razorpay:
   key:
-    id: ${RAZORPAY_KEY_ID}
-    secret: ${RAZORPAY_KEY_SECRET}
+    id: ${RAZORPAY_KEY_ID:}
+    secret: ${RAZORPAY_KEY_SECRET:}
   webhook:
-    secret: ${RAZORPAY_WEBHOOK_SECRET}
+    secret: ${RAZORPAY_WEBHOOK_SECRET:}
 
 ai:
   service:
     url: ${AI_SERVICE_URL:http://localhost:5001}
-    api.key: ${AI_SERVICE_API_KEY}
+    api.key: ${AI_SERVICE_API_KEY:${INTERNAL_API_KEY:}}
 
 bank:
   sync:
@@ -98,7 +98,7 @@ setu:
 app:
   base-url: ${APP_BASE_URL:http://localhost:5173}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   free-tier:
     max-transactions: 20
     max-transactions-view: 10
