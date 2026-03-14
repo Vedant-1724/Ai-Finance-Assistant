@@ -24,4 +24,24 @@ COPY --from=build /app/target/*.jar app.jar
 ENV JAVA_OPTS="-Xmx448m -Xms256m -XX:MaxMetaspaceSize=128m"
 EXPOSE 8080
 
-ENTRYPOINT ["sh", "-c", "export JDBC_URL=$(echo \"${DATABASE_URL:-jdbc:postgresql://localhost:5432/financedb}\" | sed 's|^postgresql://|jdbc:postgresql://|'); echo \"Starting with DB URL: ${JDBC_URL%:*}:****\"; java $JAVA_OPTS -Dserver.port=${PORT:-8080} -Dspring.datasource.url=\"$JDBC_URL\" -jar app.jar"]
+# Startup script: conditionally inject cloud service URLs only when set
+RUN printf '#!/bin/sh\n\
+EXTRA=""\n\
+# Database URL: auto-prepend jdbc: if needed\n\
+if [ -n "$DATABASE_URL" ]; then\n\
+  JDBC_URL=$(echo "$DATABASE_URL" | sed "s|^postgresql://|jdbc:postgresql://|")\n\
+  EXTRA="$EXTRA -Dspring.datasource.url=$JDBC_URL"\n\
+fi\n\
+# Redis URL: only inject when set (empty string crashes Spring Boot)\n\
+if [ -n "$REDIS_URL" ]; then\n\
+  EXTRA="$EXTRA -Dspring.data.redis.url=$REDIS_URL"\n\
+fi\n\
+# CloudAMQP URL: only inject when set\n\
+if [ -n "$CLOUDAMQP_URL" ]; then\n\
+  EXTRA="$EXTRA -Dspring.rabbitmq.addresses=$CLOUDAMQP_URL"\n\
+fi\n\
+echo "Starting backend on port ${PORT:-8080}..."\n\
+exec java $JAVA_OPTS -Dserver.port=${PORT:-8080} $EXTRA -jar app.jar\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+ENTRYPOINT ["/app/start.sh"]
