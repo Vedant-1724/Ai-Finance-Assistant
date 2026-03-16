@@ -11,8 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- ── Security headers (additional layer on top of server headers) ──── -->
-    <!-- Prevents clickjacking -->
-    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <!-- Prevents clickjacking (Note: X-Frame-Options should be sent via HTTP headers) -->
     <!-- Prevents MIME-type sniffing -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <!-- Forces HTTPS in production -->
