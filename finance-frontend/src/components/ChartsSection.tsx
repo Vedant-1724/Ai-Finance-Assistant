@@ -26,7 +26,12 @@ export default function ChartsSection({ companyId, embedded = false }: { company
     setError(null)
     try {
       const res = await api.get<ChartData>(`/api/v1/${companyId}/charts?months=${months}`)
-      setData(res.data)
+      const d = res.data
+      setData({
+        monthly: Array.isArray(d?.monthly) ? d.monthly : [],
+        categoryBreakdown: Array.isArray(d?.categoryBreakdown) ? d.categoryBreakdown : [],
+        dailyBalance: Array.isArray(d?.dailyBalance) ? d.dailyBalance : [],
+      })
     } catch (err: any) {
       if (err?.response?.status === 402) setError('UPGRADE_REQUIRED')
       else setError('Failed to load chart data')
@@ -54,8 +59,12 @@ export default function ChartsSection({ companyId, embedded = false }: { company
     </button>
   )
 
-  const totalIncome = data.monthly.reduce((sum, month) => sum + month.income, 0)
-  const totalExpense = data.monthly.reduce((sum, month) => sum + month.expense, 0)
+  const monthly = data.monthly ?? []
+  const categoryBreakdown = data.categoryBreakdown ?? []
+  const dailyBalance = data.dailyBalance ?? []
+
+  const totalIncome = monthly.reduce((sum, month) => sum + month.income, 0)
+  const totalExpense = monthly.reduce((sum, month) => sum + month.expense, 0)
   const netProfit = totalIncome - totalExpense
 
   return (
@@ -95,7 +104,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
       <div className="chart-card">
         <h3 className="chart-title">📊 Monthly Income vs Expense</h3>
         <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={data.monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <BarChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
             <XAxis dataKey="month" tick={{ fill: TEXT, fontSize: 12 }} />
             <YAxis tickFormatter={value => '₹' + (value / 1000).toFixed(0) + 'k'} tick={{ fill: TEXT, fontSize: 11 }} />
@@ -110,13 +119,13 @@ export default function ChartsSection({ companyId, embedded = false }: { company
       <div className="charts-row">
         <div className="chart-card" style={{ flex: 1, minWidth: 280 }}>
           <h3 className="chart-title">🥧 Expense by Category</h3>
-          {data.categoryBreakdown.length === 0 ? (
+          {categoryBreakdown.length === 0 ? (
             <div className="empty-state" style={{ padding: 40 }}>No expense categories yet</div>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie
-                  data={data.categoryBreakdown}
+                  data={categoryBreakdown}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
@@ -125,7 +134,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
                   label={({ name, percent }) => `${name} ${percent.toFixed(0)}%`}
                   labelLine={{ stroke: TEXT }}
                 >
-                  {data.categoryBreakdown.map((_, index) => (
+                  {categoryBreakdown.map((_, index) => (
                     <Cell key={index} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -138,7 +147,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
         <div className="chart-card" style={{ flex: 2, minWidth: 300 }}>
           <h3 className="chart-title">📉 Daily Balance (Last 60 Days)</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={data.dailyBalance} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={dailyBalance} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id={embedded ? 'balGradEmbedded' : 'balGrad'} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -158,7 +167,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
       <div className="chart-card">
         <h3 className="chart-title">📈 Monthly Net Profit Trend</h3>
         <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data.monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <LineChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
             <XAxis dataKey="month" tick={{ fill: TEXT, fontSize: 12 }} />
             <YAxis tickFormatter={value => '₹' + (value / 1000).toFixed(0) + 'k'} tick={{ fill: TEXT, fontSize: 11 }} />
