@@ -132,7 +132,7 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            log.error("Register error for {}: {}", req.getEmail(), e.getMessage());
+            log.error("Register error for {}: {}", req.getEmail(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Registration failed. Please try again."));
         }

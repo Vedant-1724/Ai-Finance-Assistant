@@ -66,7 +66,12 @@ public class AuthService implements UserDetailsService {
         EmailVerificationToken tokenEntity = new EmailVerificationToken(rawToken, savedUser,
                 LocalDateTime.now().plusHours(24));
         tokenRepository.save(tokenEntity);
-        emailService.sendEmailVerification(savedUser.getEmail(), rawToken);
+
+        try {
+            emailService.sendEmailVerification(savedUser.getEmail(), rawToken);
+        } catch (Exception e) {
+            log.warn("Email verification send failed (non-fatal): {}", e.getMessage());
+        }
 
         log.info("Registered new FREE user (Unverified): {}", savedUser.getEmail());
         return new RegistrationResult(buildAuthResponse("", savedCompany.getId(), savedUser), rawToken);
