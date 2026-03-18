@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import api from '../api'
 
@@ -88,10 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (cancelled) return
 
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          setUser(null)
-          localStorage.removeItem('auth_user')
-        }
+        // On ANY error (401, network failure, DNS error), clear stale session
+        setUser(null)
+        localStorage.removeItem('auth_user')
       } finally {
         if (!cancelled) {
           setAuthReady(true)

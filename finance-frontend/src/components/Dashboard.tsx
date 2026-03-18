@@ -65,7 +65,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
     setTxnError(null)
     try {
       const res = await api.get<Transaction[]>(`/api/v1/${companyId}/transactions`)
-      setTransactions(res.data)
+      setTransactions(Array.isArray(res.data) ? res.data : [])
     } catch {
       setTxnError('Cannot connect to backend. Make sure Spring Boot is running on port 8080.')
     } finally {
@@ -95,7 +95,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
   const fetchAnomalies = useCallback(async () => {
     try {
       const res = await api.get<AnomalyAlert[]>(`/api/v1/${companyId}/anomalies`)
-      setAnomalies(res.data)
+      setAnomalies(Array.isArray(res.data) ? res.data : [])
     } catch {
       setAnomalies([])
     }
@@ -136,8 +136,9 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
     setShowModal(true)
   }
 
-  const liveIncome = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
-  const liveExpense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+  const safeTransactions = Array.isArray(transactions) ? transactions : []
+  const liveIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const liveExpense = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const liveNet = liveIncome - liveExpense
 
   const periodLabel: Record<Period, string> = {
