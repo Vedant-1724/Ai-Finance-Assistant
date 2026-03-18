@@ -27,7 +27,7 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
     try {
       const res = await api.get<BudgetVariance[]>(
         `/api/v1/${companyId}/budgets/variance?year=${form.year}&month=${form.month}`)
-      setVariances(res.data)
+      setVariances(Array.isArray(res.data) ? res.data : [])
     } catch { setVariances([]) } finally { setLoading(false) }
   }, [companyId, form.year, form.month])
 

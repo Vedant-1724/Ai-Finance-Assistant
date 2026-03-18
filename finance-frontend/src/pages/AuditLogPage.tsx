@@ -20,7 +20,12 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
     setLoading(true)
     try {
       const res = await api.get<PageResponse>(`/api/v1/${companyId}/audit?page=${page}&size=50`)
-      setData(res.data)
+      const d = res.data
+      setData({
+        content: Array.isArray(d?.content) ? d.content : [],
+        totalPages: d?.totalPages ?? 0,
+        number: d?.number ?? 0,
+      })
     } catch (e: any) {
       if (e?.response?.status === 402) setError('UPGRADE_REQUIRED')
       else setError('Failed to load audit log')
@@ -54,7 +59,7 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
             <tr><th>Time</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th></tr>
           </thead>
           <tbody>
-            {data?.content.map(e => (
+            {(data?.content ?? []).map(e => (
               <tr key={e.id}>
                 <td style={{ color: '#64748b', fontSize: 12, whiteSpace: 'nowrap' }}>
                   {new Date(e.createdAt).toLocaleString('en-IN')}

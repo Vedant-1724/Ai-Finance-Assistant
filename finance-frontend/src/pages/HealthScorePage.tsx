@@ -60,7 +60,8 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
       const res = await api.get<HealthScore>(
         `/api/v1/${companyId}/health/score?month=${month}`
       )
-      setData(res.data)
+      const raw = res.data
+      setData(raw ? { ...raw, breakdown: Array.isArray(raw.breakdown) ? raw.breakdown : [] } : null)
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')
@@ -184,7 +185,7 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
             {/* ── Breakdown bars ──────────────────────────────────────────── */}
             <div className="health-breakdown-card" style={{ flex: 1 }}>
               <div className="card-title" style={{ marginBottom: 20 }}>Score Breakdown</div>
-              {data.breakdown.map(item => (
+              {(data.breakdown ?? []).map(item => (
                 <div key={item.label} className="health-bar-item">
                   <div className="health-bar-label">
                     <span>{item.label}</span>

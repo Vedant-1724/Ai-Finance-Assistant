@@ -51,7 +51,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
     setError(null)
     try {
       const res = await api.get<Member[]>(`/api/v1/${companyId}/team`)
-      setMembers(res.data)
+      setMembers(Array.isArray(res.data) ? res.data : [])
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')

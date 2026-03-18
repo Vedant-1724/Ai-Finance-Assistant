@@ -59,7 +59,8 @@ export default function TaxPage({ companyId }: { companyId: number }) {
       const res = await api.get<TaxSummary>(
         `/api/v1/${companyId}/tax?year=${encodeURIComponent(year)}&quarter=${quarter.slice(0, 2)}`
       )
-      setData(res.data)
+      const raw = res.data
+      setData(raw ? { ...raw, breakdown: Array.isArray(raw.breakdown) ? raw.breakdown : [] } : null)
     } catch (e: unknown) {
       const status = (e as { response?: { status?: number } })?.response?.status
       if (status === 402) setError('UPGRADE_REQUIRED')
@@ -157,7 +158,7 @@ export default function TaxPage({ companyId }: { companyId: number }) {
               Payable = Output Tax − Input Tax Credit
             </span>
           </div>
-          {data.breakdown.length === 0 ? (
+          {(data.breakdown ?? []).length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">📂</div>
               <p className="empty-title">No data for this period</p>
@@ -176,7 +177,7 @@ export default function TaxPage({ companyId }: { companyId: number }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.breakdown.map((row, i) => (
+                  {(data.breakdown ?? []).map((row, i) => (
                     <tr key={i}>
                       <td>{row.categoryName}</td>
                       <td>

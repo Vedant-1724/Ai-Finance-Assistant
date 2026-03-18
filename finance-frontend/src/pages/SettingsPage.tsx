@@ -41,7 +41,19 @@ export default function SettingsPage() {
     setLoading(true)
     try {
       const res = await api.get<UserSettings>('/api/v1/settings')
-      setSettings(res.data)
+      const d = res.data
+      setSettings({
+        email: d?.email ?? user?.email ?? '',
+        companyName: d?.companyName ?? 'My Company',
+        currency: d?.currency ?? 'INR',
+        emailPrefs: {
+          anomalyAlerts: d?.emailPrefs?.anomalyAlerts ?? true,
+          forecastAlerts: d?.emailPrefs?.forecastAlerts ?? true,
+          budgetAlerts: d?.emailPrefs?.budgetAlerts ?? true,
+          weeklySummary: d?.emailPrefs?.weeklySummary ?? true,
+          trialReminders: d?.emailPrefs?.trialReminders ?? true,
+        },
+      })
     } catch {
       setSettings({
         email: user?.email ?? '',
@@ -171,8 +183,8 @@ export default function SettingsPage() {
     setSettings(current => current ? {
       ...current,
       emailPrefs: {
-        ...current.emailPrefs,
-        [key]: !current.emailPrefs[key],
+        ...(current.emailPrefs ?? { anomalyAlerts: true, forecastAlerts: true, budgetAlerts: true, weeklySummary: true, trialReminders: true }),
+        [key]: !(current.emailPrefs?.[key] ?? true),
       },
     } : current)
   }
@@ -261,7 +273,7 @@ export default function SettingsPage() {
             <label className="toggle-switch">
               <input
                 type="checkbox"
-                checked={settings.emailPrefs[key]}
+                checked={settings.emailPrefs?.[key] ?? true}
                 onChange={() => togglePref(key)}
               />
               <span className="toggle-slider" />
