@@ -70,6 +70,21 @@ class StatementParserTests(unittest.TestCase):
         self.assertTrue(all(txn['normalizedSource'] == 'LLM_FALLBACK' for txn in result['transactions']))
         self.assertTrue(all(txn['needsReview'] for txn in result['transactions']))
 
+    @patch('statement_parser.extract_text_from_pdf_bytes')
+    def test_gpay_statement_parsing(self, mock_extract):
+        mock_extract.return_value = {
+            'text': 'Date & time Transaction details Amount\n01 Feb, 2026 Paid to MANGAL TRADERS ₹3\n04:08 PM UPI Transaction ID: 639875292369\nPaid by Bank Of Maharashtra 0640\n03 Feb, 2026 Received from Anil Joshi ₹500\n04:30 PM UPI Transaction ID: 603492497813',
+            'warnings': [],
+        }
+        result = parse_statement(b'%PDF fake', 'gpay.pdf')
+        
+        self.assertIn(result['parseMode'], ['pdf_text', 'pdf_ocr'])
+        self.assertEqual(result['total_found'], 2)
+        self.assertEqual(result['transactions'][0]['date'], '2026-02-01')
+        self.assertEqual(result['transactions'][0]['amount'], -3.0)
+        self.assertEqual(result['transactions'][1]['date'], '2026-02-03')
+        self.assertEqual(result['transactions'][1]['amount'], 500.0)
+
 
 if __name__ == '__main__':
     unittest.main()

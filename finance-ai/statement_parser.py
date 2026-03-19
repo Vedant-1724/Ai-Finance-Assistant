@@ -24,12 +24,13 @@ _DATE_FORMATS = [
     '%d %b %Y', '%d %B %Y',
     '%d %b %y', '%d %B %y',
     '%b %d, %Y', '%B %d, %Y',
+    '%d %b, %Y', '%d %B, %Y',
 ]
 
 _DATE_COLS = {
     'date', 'txn date', 'transaction date', 'value date', 'posting date', 'trans date',
     'transaction date/time', 'transaction date time', 'transaction_date', 'txn date.',
-    'txn. date', 'tran date'
+    'txn. date', 'tran date', 'date time'
 }
 _DESC_COLS = {
     'description', 'narration', 'particulars', 'remarks', 'details', 'trans description',
@@ -49,7 +50,7 @@ _DEBIT_KEYWORDS = {
 }
 _AMOUNT_PATTERN = re.compile(r'(?<!\d)(?:[+\-]?\(?₹?\s*[\d,]+(?:\.\d{1,2})?\)?)(?!\d)')
 _DATE_ANYWHERE_PATTERN = re.compile(
-    r'(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{2,4})',
+    r'(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[\s,]+\d{2,4})',
     re.IGNORECASE,
 )
 _CANONICAL_SOURCE_LABELS = {
