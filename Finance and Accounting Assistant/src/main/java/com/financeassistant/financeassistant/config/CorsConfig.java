@@ -54,7 +54,7 @@ public class CorsConfig {
                                 "/api/v1/setu/callback"
                         ).permitAll()
                         .requestMatchers("/api/v1/payment/webhook").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

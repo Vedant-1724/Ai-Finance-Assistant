@@ -205,8 +205,8 @@ services:
     image: prom/prometheus:v2.45.0
     container_name: finance-prometheus
     restart: unless-stopped
-    expose:
-      - "9090"
+    ports:
+      - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
@@ -217,8 +217,8 @@ services:
     image: grafana/grafana:10.0.1
     container_name: finance-grafana
     restart: unless-stopped
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     volumes:

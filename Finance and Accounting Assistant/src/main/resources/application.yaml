@@ -1,6 +1,8 @@
 # PATH: Finance and Accounting Assistant/src/main/resources/application.yaml
 
 spring:
+  application:
+    name: FinanceAssistant
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/financedb}
     username: ${DB_USERNAME:postgres}
