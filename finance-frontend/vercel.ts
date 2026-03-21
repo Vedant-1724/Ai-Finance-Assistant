@@ -1,9 +1,12 @@
 export const config = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
-  rewrites: [
+  routes: [
     {
-      source: '/(.*)',
-      destination: '/index.html',
+      handle: 'filesystem',
+    },
+    {
+      src: '/(.*)',
+      dest: '/index.html',
     },
   ],
 }
