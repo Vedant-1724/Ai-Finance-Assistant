@@ -54,6 +54,9 @@ Deploy the AI Finance Assistant using **100% free tiers**.
 | Variable | Value |
 |---|---|
 | `DATABASE_URL` | Your Supabase connection string |
+| `SPRING_DATASOURCE_URL` | Optional explicit JDBC URL if you prefer to skip `DATABASE_URL` parsing |
+| `SPRING_DATASOURCE_USERNAME` | Optional explicit DB username override |
+| `SPRING_DATASOURCE_PASSWORD` | Optional explicit DB password override |
 | `DB_USERNAME` | `postgres` |
 | `DB_PASSWORD` | Your Supabase DB password |
 | `REDIS_URL` | Your Upstash Redis URL |
@@ -119,9 +122,11 @@ Deploy the AI Finance Assistant using **100% free tiers**.
 
 | Variable | Value |
 |---|---|
-| `VITE_API_BASE_URL` | Your Railway backend URL (e.g., `https://xxx.up.railway.app`) |
+| `API_BASE_URL` | Your Railway backend URL without a trailing slash (e.g., `https://xxx.up.railway.app`) |
+| `VITE_API_BASE_URL` | Optional compatibility alias for `API_BASE_URL` if you already use that variable in Vercel |
 
 5. Deploy!
+   - The frontend now proxies `/api/*` and `/actuator/*` through Vercel using `finance-frontend/vercel.ts`, so cookie-based auth works cleanly on the Vercel domain.
 6. **Go back to Railway** and update:
    - `CORS_ALLOWED_ORIGINS` = `https://your-app.vercel.app`
    - `APP_BASE_URL` = `https://your-app.vercel.app`
@@ -135,7 +140,7 @@ Deploy the AI Finance Assistant using **100% free tiers**.
 - [ ] Create a test transaction → verify it appears
 - [ ] Test AI chat feature
 - [ ] Check Supabase dashboard to verify data is stored
-- [ ] (Optional) Set up Razorpay webhook URL: `https://your-railway-url/api/v1/razorpay/webhook`
+- [ ] (Optional) Set up Razorpay webhook URL: `https://your-railway-url/api/v1/payment/webhook`
 
 ---
 
@@ -144,10 +149,12 @@ Deploy the AI Finance Assistant using **100% free tiers**.
 ### Backend won't start on Railway
 - Check **Deploy Logs** in Railway dashboard
 - Verify `DATABASE_URL` is correct and Supabase project is active
+- If your Supabase password contains special URL characters or you want to avoid URI parsing entirely, set `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD` directly instead of relying only on `DATABASE_URL`
 - Ensure Railway is using the `Finance and Accounting Assistant` subdirectory
 
 ### Frontend shows blank page or API errors
-- Verify `VITE_API_BASE_URL` is set correctly (no trailing slash)
+- Verify `API_BASE_URL` is set correctly in Vercel (no trailing slash)
+- If you still use `VITE_API_BASE_URL`, keep it aligned with `API_BASE_URL`
 - Check browser DevTools → Network tab for CORS errors
 - Ensure `CORS_ALLOWED_ORIGINS` in Railway includes your exact Vercel URL
 
