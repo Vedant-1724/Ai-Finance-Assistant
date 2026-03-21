@@ -32,9 +32,8 @@ export default function ChartsSection({ companyId, embedded = false }: { company
         categoryBreakdown: Array.isArray(d?.categoryBreakdown) ? d.categoryBreakdown : [],
         dailyBalance: Array.isArray(d?.dailyBalance) ? d.dailyBalance : [],
       })
-    } catch (err: any) {
-      if (err?.response?.status === 402) setError('UPGRADE_REQUIRED')
-      else setError('Failed to load chart data')
+    } catch {
+      setError('Failed to load chart data')
     } finally {
       setLoading(false)
     }
@@ -43,14 +42,6 @@ export default function ChartsSection({ companyId, embedded = false }: { company
   useEffect(() => { void fetchData() }, [fetchData])
 
   if (loading) return <div className="loading">⏳ Loading charts...</div>
-  if (error === 'UPGRADE_REQUIRED') return (
-    <div className="upgrade-gate">
-      <div style={{ fontSize: 48 }}>📈</div>
-      <h2>Live Charts require Trial or Pro</h2>
-      <p>Upgrade to see income vs expense trends, category breakdowns, and daily balance charts.</p>
-      <a href="/subscription" className="btn-primary">Upgrade Now</a>
-    </div>
-  )
   if (error || !data) return <div className="error">❌ {error}</div>
 
   const PeriodBtn = ({ v, label }: { v: number; label: string }) => (

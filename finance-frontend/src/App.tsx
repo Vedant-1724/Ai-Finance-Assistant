@@ -124,7 +124,7 @@ function ProtectedApp() {
         <nav className="app-nav">
           <div className="nav-section-label">Main</div>
           <NavBtn tab="dashboard" label="Dashboard" icon="📊" />
-          <NavBtn tab="charts" label="Charts" icon="📈" locked={isFree} />
+          <NavBtn tab="charts" label="Charts" icon="📈" />
           <NavBtn tab="budget" label="Budget" icon="🎯" />
           <NavBtn tab="chat" label="AI Assistant" icon="🤖" locked={isFree || isTrial} />
 

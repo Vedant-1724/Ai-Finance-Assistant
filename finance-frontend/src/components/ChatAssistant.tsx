@@ -22,7 +22,7 @@ export default function ChatAssistant() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const chatsRemaining = user?.aiChatsRemaining ?? 0
-  const dailyLimit = user?.subscriptionTier === 'ACTIVE' ? 50 : user?.subscriptionTier === 'TRIAL' ? 10 : 3
+  const dailyLimit = user?.subscriptionTier === 'MAX' ? 50 : user?.subscriptionTier === 'ACTIVE' ? 20 : 0
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -55,9 +55,14 @@ export default function ChatAssistant() {
     } catch (err: any) {
       const errCode = err?.response?.data?.error
       if (errCode === 'DAILY_LIMIT_EXCEEDED') {
+        const limitMessage = user?.subscriptionTier === 'ACTIVE'
+          ? 'Upgrade to Max for 50 chats/day.'
+          : user?.subscriptionTier === 'MAX'
+            ? 'Your Max allowance resets at midnight.'
+            : 'AI chat is available on Pro and Max.'
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `⚠️ You've used all ${dailyLimit} AI chats for today. Your limit resets at midnight.\n\n${user?.subscriptionTier === 'FREE' ? 'Upgrade to Trial or Pro for more daily messages!' : 'Upgrade to Pro for 50 chats/day!'}`
+          content: `⚠️ You've used all ${dailyLimit} AI chats for today. Your limit resets at midnight.\n\n${limitMessage}`
         }])
         updateAiChats(0)
       } else {

@@ -47,6 +47,8 @@ public class BudgetService {
         budget.setAmount(req.amount());
         if (req.categoryId() != null) {
             budget.setCategory(em.getReference(com.financeassistant.financeassistant.entity.Category.class, req.categoryId()));
+        } else {
+            budget.setCategory(null);
         }
 
         Budget saved = budgetRepo.save(budget);
@@ -61,17 +63,20 @@ public class BudgetService {
         List<Budget> budgets = budgetRepo.findByCompanyIdAndMonthOrderByCategoryIdAsc(companyId, firstDay);
 
         // Get actual spend per category
-        List<Object[]> actuals = txnRepo.sumByCategory(companyId, firstDay, lastDay);
+        List<Object[]> actuals = txnRepo.sumExpenseByCategory(companyId, firstDay, lastDay);
         Map<String, BigDecimal> actualMap = actuals.stream()
                 .collect(Collectors.toMap(
                         r -> r[0] != null ? (String) r[0] : "Uncategorised",
-                        r -> ((BigDecimal) r[1]).abs()
+                        r -> (BigDecimal) r[1]
                 ));
+        BigDecimal totalSpent = txnRepo.sumExpense(companyId, firstDay, lastDay).abs();
 
         List<BudgetVarianceDTO> result = new ArrayList<>();
         for (Budget b : budgets) {
             String catName = b.getCategory() != null ? b.getCategory().getName() : "Overall";
-            BigDecimal actual = actualMap.getOrDefault(catName, BigDecimal.ZERO);
+            BigDecimal actual = b.getCategory() == null
+                    ? totalSpent
+                    : actualMap.getOrDefault(catName, BigDecimal.ZERO);
             BigDecimal variance = b.getAmount().subtract(actual);
             int pct = b.getAmount().compareTo(BigDecimal.ZERO) == 0 ? 0 :
                       actual.multiply(BigDecimal.valueOf(100))

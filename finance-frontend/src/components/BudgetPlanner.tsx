@@ -12,10 +12,16 @@ interface BudgetVariance {
 interface BudgetDTO {
   id: number; categoryName: string; categoryId: number | null; year: number; month: number; amount: number; spent: number
 }
+interface CategoryOption {
+  id: number
+  name: string
+  type: 'INCOME' | 'EXPENSE'
+}
 
 export default function BudgetPlanner({ companyId }: { companyId: number }) {
 
   const [variances, setVariances] = useState<BudgetVariance[]>([])
+  const [categories, setCategories] = useState<CategoryOption[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ categoryId: '', amount: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1 })
@@ -32,6 +38,14 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
   }, [companyId, form.year, form.month])
 
   useEffect(() => { void fetchVariances() }, [fetchVariances])
+  useEffect(() => {
+    api.get<CategoryOption[]>(`/api/v1/${companyId}/categories`)
+      .then(res => {
+        const options = Array.isArray(res.data) ? res.data : []
+        setCategories(options.filter(option => option.type === 'EXPENSE'))
+      })
+      .catch(() => setCategories([]))
+  }, [companyId])
 
   const handleSave = async () => {
     if (!form.amount) return
@@ -39,7 +53,7 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
     try {
       await api.post<BudgetDTO>(`/api/v1/${companyId}/budgets`, {
         year: form.year, month: form.month,
-        categoryId: form.categoryId || null,
+        categoryId: form.categoryId ? parseInt(form.categoryId, 10) : null,
         amount: parseFloat(form.amount)
       })
       setMsg('Budget saved! ✅'); setShowForm(false); setForm({ ...form, amount: '', categoryId: '' })
@@ -49,6 +63,8 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
   }
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const currentYear = new Date().getFullYear()
+  const yearOptions = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2]
 
   return (
     <div className="budget-page">
@@ -64,7 +80,7 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
           </select>
           <select value={form.year} onChange={e => setForm({ ...form, year: +e.target.value })}
             className="select-sm">
-            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
           <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
             + Set Budget
@@ -85,9 +101,17 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
               </select>
             </div>
             <div className="form-group">
-              <label>Category (optional — leave blank for "Overall")</label>
-              <input className="form-input" placeholder="e.g. Marketing, Utilities"
-                value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })} />
+              <label>Category</label>
+              <select
+                className="form-input"
+                value={form.categoryId}
+                onChange={e => setForm({ ...form, categoryId: e.target.value })}
+              >
+                <option value="">Overall spending</option>
+                {categories.map(category => (
+                  <option key={category.id} value={String(category.id)}>{category.name}</option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label>Budget Amount (₹)</label>
@@ -152,4 +176,3 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
     </div>
   )
 }
-

@@ -197,6 +197,21 @@ export default function SettingsPage() {
     return null
   }
 
+  const notificationOptions: Array<{ key: keyof EmailPrefs; label: string; desc: string }> = [
+    { key: 'anomalyAlerts', label: 'Anomaly Alerts', desc: 'Email when unusual transactions are detected' },
+    { key: 'forecastAlerts', label: 'Forecast Alerts', desc: 'Weekly cash flow forecast summary' },
+    { key: 'budgetAlerts', label: 'Budget Alerts', desc: 'Alert when spending exceeds budget limits' },
+    { key: 'weeklySummary', label: 'Weekly Summary', desc: 'Monday morning P&L and health score digest' },
+  ]
+
+  if (user?.subscriptionTier !== 'ACTIVE' && user?.subscriptionTier !== 'MAX') {
+    notificationOptions.push({
+      key: 'trialReminders',
+      label: 'Trial Reminders',
+      desc: 'Reminder emails before your trial expires',
+    })
+  }
+
   return (
     <div className="settings-page">
       <div className="page-header">
@@ -256,15 +271,7 @@ export default function SettingsPage() {
           Control which emails FinanceAI sends to {settings.email}.
         </div>
 
-        {(
-          [
-            { key: 'anomalyAlerts', label: 'Anomaly Alerts', desc: 'Email when unusual transactions are detected' },
-            { key: 'forecastAlerts', label: 'Forecast Alerts', desc: 'Weekly cash flow forecast summary' },
-            { key: 'budgetAlerts', label: 'Budget Alerts', desc: 'Alert when spending exceeds budget limits' },
-            { key: 'weeklySummary', label: 'Weekly Summary', desc: 'Monday morning P&L and health score digest' },
-            { key: 'trialReminders', label: 'Trial Reminders', desc: 'Reminder emails before your trial expires' },
-          ] as { key: keyof EmailPrefs; label: string; desc: string }[]
-        ).map(({ key, label, desc }) => (
+        {notificationOptions.map(({ key, label, desc }) => (
           <div key={key} className="settings-row">
             <div>
               <div className="settings-row-label">{label}</div>

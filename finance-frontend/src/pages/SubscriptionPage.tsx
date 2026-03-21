@@ -40,14 +40,14 @@ interface PaymentOrderResponse {
 const FREE_FEATURES = [
   'Manual transaction tracking',
   'Statement import and CSV export',
-  'Budget planner and core dashboard',
+  'Interactive charts, budget planner, and core dashboard',
   'Account settings and security tools',
   'No AI chat',
 ]
 
 const TRIAL_FEATURES = [
   'Premium reports for 3 days',
-  'Charts, analytics, tax tools, and health score',
+  'Advanced analytics, tax tools, and health score',
   'Team workspace and audit log',
   'Forecasts and anomaly detection',
   'AI chat unlocks on Pro and Max',
@@ -296,7 +296,7 @@ export default function SubscriptionPage() {
 
         <div className={`plan-card ${isActive ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260, borderColor: isActive ? 'rgba(59,130,246,0.5)' : undefined }}>
           {isActive && <div className="plan-badge">Current Plan</div>}
-          {!isActive && <div className="plan-badge">Recommended</div>}
+          {!isActive && !isMax && <div className="plan-badge">Recommended</div>}
           <div className="plan-name" style={{ color: 'var(--blue)' }}>Pro</div>
           <div className="plan-price" style={{ color: 'var(--blue)' }}>₹399</div>
           <div className="plan-period">per month</div>

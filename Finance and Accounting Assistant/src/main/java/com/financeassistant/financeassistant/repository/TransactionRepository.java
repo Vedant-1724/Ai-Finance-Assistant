@@ -71,6 +71,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                         @Param("startDate") LocalDate startDate,
                         @Param("endDate") LocalDate endDate);
 
+        @Query("SELECT COALESCE(c.name, 'Uncategorized'), COALESCE(SUM(ABS(t.amount)), 0) " +
+                        "FROM Transaction t LEFT JOIN t.category c " +
+                        "WHERE t.company.id = :companyId " +
+                        "AND t.amount < 0 " +
+                        "AND t.date >= :startDate " +
+                        "AND t.date <= :endDate " +
+                        "GROUP BY c.name " +
+                        "ORDER BY SUM(ABS(t.amount)) DESC")
+        List<Object[]> sumExpenseByCategory(
+                        @Param("companyId") Long companyId,
+                        @Param("startDate") LocalDate startDate,
+                        @Param("endDate") LocalDate endDate);
+
         @Query("SELECT COUNT(t) FROM Transaction t " +
                         "WHERE t.company.id = :companyId " +
                         "AND t.date >= :startDate " +
