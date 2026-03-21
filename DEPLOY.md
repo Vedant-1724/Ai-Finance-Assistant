@@ -126,7 +126,9 @@ Deploy the AI Finance Assistant using **100% free tiers**.
 | `VITE_API_BASE_URL` | Optional compatibility alias for `API_BASE_URL` if you already use that variable in Vercel |
 
 5. Deploy!
-   - The frontend now proxies `/api/*` through Vercel using `finance-frontend/api/[...path].js`, so cookie-based auth works cleanly on the Vercel domain even when the app itself uses relative API paths.
+   - The frontend now proxies `/api/*` through Vercel using `finance-frontend/api/[...path].js`.
+   - `finance-frontend/vercel.json` is intentionally filesystem-first so the `/api` function wins before the SPA fallback route.
+   - Keep `API_BASE_URL` set in Vercel even if you also set `VITE_API_BASE_URL`.
 6. **Go back to Railway** and update:
    - `CORS_ALLOWED_ORIGINS` = `https://your-app.vercel.app`
    - `APP_BASE_URL` = `https://your-app.vercel.app`
