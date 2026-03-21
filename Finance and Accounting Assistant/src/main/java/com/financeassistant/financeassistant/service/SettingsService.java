@@ -27,10 +27,11 @@ public class SettingsService {
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
     private final UserEmailPrefsRepository userEmailPrefsRepository;
+    private final WorkspaceAccessService workspaceAccessService;
 
     @Transactional(readOnly = true)
     public UserSettingsDto getSettings(User user) {
-        Company company = findCompanyForUser(user.getId());
+        Company company = findCompanyForUser(user);
         UserEmailPrefs prefs = userEmailPrefsRepository.findByUserId(user.getId())
                 .orElseGet(() -> buildDefaultPrefs(user.getId()));
         return toDto(user, company, prefs);
@@ -38,7 +39,8 @@ public class SettingsService {
 
     @Transactional
     public UserSettingsDto updateSettings(User user, UserSettingsDto request) {
-        Company company = findCompanyForUser(user.getId());
+        WorkspaceAccessService.WorkspaceContext workspace = workspaceAccessService.getRequiredWorkspace(user);
+        Company company = findCompanyForUser(user);
         User managedUser = userRepository.findById(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "User not found"));
 
@@ -51,11 +53,13 @@ public class SettingsService {
         managedUser.setEmail(normalizedEmail);
         userRepository.save(managedUser);
 
-        if (request.getCompanyName() != null && !request.getCompanyName().isBlank()) {
-            company.setName(request.getCompanyName().trim());
+        if (workspace.isOwner()) {
+            if (request.getCompanyName() != null && !request.getCompanyName().isBlank()) {
+                company.setName(request.getCompanyName().trim());
+            }
+            company.setCurrency(normalizeCurrency(request.getCurrency(), company.getCurrency()));
+            companyRepository.save(company);
         }
-        company.setCurrency(normalizeCurrency(request.getCurrency(), company.getCurrency()));
-        companyRepository.save(company);
 
         UserEmailPrefs prefs = userEmailPrefsRepository.findByUserId(user.getId())
                 .orElseGet(() -> buildDefaultPrefs(user.getId()));
@@ -65,8 +69,9 @@ public class SettingsService {
         return toDto(managedUser, company, prefs);
     }
 
-    private Company findCompanyForUser(Long userId) {
-        return companyRepository.findFirstByOwnerId(userId)
+    private Company findCompanyForUser(User user) {
+        Long companyId = workspaceAccessService.getRequiredWorkspace(user).companyId();
+        return companyRepository.findById(companyId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Company not found"));
     }
 

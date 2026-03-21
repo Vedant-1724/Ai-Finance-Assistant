@@ -45,11 +45,11 @@ public class AiController {
         // Check and consume daily limit
         int remaining = subscriptionService.consumeAiChatMessage(user);
         if (remaining == -1) {
-            int limit = user.getAiChatDailyLimit();
+            int limit = subscriptionService.getAiChatDailyLimit(user);
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
                     "error", "DAILY_LIMIT_EXCEEDED",
                     "message", "You've used all " + limit + " AI chats for today. Resets at midnight.",
-                    "tier", user.getEffectiveTier(),
+                    "tier", subscriptionService.getWorkspaceTier(user),
                     "dailyLimit", limit,
                     "upgradeUrl", "/subscription"));
         }
@@ -73,7 +73,7 @@ public class AiController {
                 responseBody.putAll(aiResponse.getBody());
             }
             responseBody.put("aiChatsRemaining", remaining);
-            responseBody.put("aiChatDailyLimit", user.getAiChatDailyLimit());
+            responseBody.put("aiChatDailyLimit", subscriptionService.getAiChatDailyLimit(user));
 
             return ResponseEntity.ok(responseBody);
 

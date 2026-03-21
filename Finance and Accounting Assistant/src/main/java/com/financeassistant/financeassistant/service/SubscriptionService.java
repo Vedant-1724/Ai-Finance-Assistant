@@ -20,44 +20,65 @@ public class SubscriptionService {
     public static final int TRIAL_DAYS = 3;
 
     private final UserRepository userRepository;
+    private final WorkspaceAccessService workspaceAccessService;
 
     public enum TrialStartResult {
         STARTED,
         ALREADY_USED,
-        FREE_TIER_ONLY
+        FREE_TIER_ONLY,
+        OWNER_ONLY
     }
 
     @Transactional
     public TrialStartResult startTrial(User user) {
-        if (!"FREE".equals(user.getEffectiveTier())) {
-            log.warn("User {} attempted to start trial but is on {}", user.getEmail(), user.getEffectiveTier());
+        if (!workspaceAccessService.isWorkspaceOwner(user)) {
+            log.warn("User {} attempted to start trial without owner access", user.getEmail());
+            return TrialStartResult.OWNER_ONLY;
+        }
+
+        User billingUser = getBillingUser(user);
+        String workspaceTier = billingUser.getEffectiveTier();
+        if (!"FREE".equals(workspaceTier)) {
+            log.warn("User {} attempted to start trial but workspace is on {}", user.getEmail(), workspaceTier);
             return TrialStartResult.FREE_TIER_ONLY;
         }
 
-        if (user.getTrialStartedAt() != null) {
+        if (billingUser.getTrialStartedAt() != null) {
             log.warn("User {} attempted to start trial but already used it", user.getEmail());
             return TrialStartResult.ALREADY_USED;
         }
 
-        user.setTrialStartedAt(Instant.now());
-        user.setSubscriptionStatus(SubscriptionStatus.TRIAL);
-        userRepository.save(user);
+        billingUser.setTrialStartedAt(Instant.now());
+        billingUser.setSubscriptionStatus(SubscriptionStatus.TRIAL);
+        userRepository.save(billingUser);
         log.info("Trial started for user {}", user.getEmail());
         return TrialStartResult.STARTED;
     }
 
     public boolean isTrialEligible(User user) {
-        return user != null
-                && "FREE".equals(user.getEffectiveTier())
-                && user.getTrialStartedAt() == null;
+        if (user == null || !workspaceAccessService.isWorkspaceOwner(user)) {
+            return false;
+        }
+
+        User billingUser = getBillingUser(user);
+        return "FREE".equals(billingUser.getEffectiveTier())
+                && billingUser.getTrialStartedAt() == null;
     }
 
     public boolean hasPremiumAccess(User user) {
-        return user.hasPremiumAccess();
+        return !"FREE".equals(getWorkspaceTier(user));
     }
 
     public long trialDaysRemaining(User user) {
-        return user.trialDaysRemaining();
+        return getBillingUser(user).trialDaysRemaining();
+    }
+
+    public String getWorkspaceTier(User user) {
+        return getBillingUser(user).getEffectiveTier();
+    }
+
+    public int getAiChatDailyLimit(User user) {
+        return limitForTier(getWorkspaceTier(user));
     }
 
     @Transactional
@@ -69,9 +90,9 @@ public class SubscriptionService {
             user.setAiChatResetDate(today);
         }
 
-        int limit = user.getAiChatDailyLimit();
+        int limit = getAiChatDailyLimit(user);
         if (user.getAiChatsUsedToday() >= limit || limit <= 0) {
-            log.warn("AI chat limit exceeded for user {} (tier: {})", user.getEmail(), user.getEffectiveTier());
+            log.warn("AI chat limit exceeded for user {} (tier: {})", user.getEmail(), getWorkspaceTier(user));
             return -1;
         }
 
@@ -81,7 +102,12 @@ public class SubscriptionService {
     }
 
     public int getAiChatsRemaining(User user) {
-        return user.getAiChatsRemainingToday();
+        LocalDate today = LocalDate.now();
+        int limit = getAiChatDailyLimit(user);
+        if (user.getAiChatResetDate() == null || !user.getAiChatResetDate().equals(today)) {
+            return limit;
+        }
+        return Math.max(0, limit - user.getAiChatsUsedToday());
     }
 
     @Transactional
@@ -119,10 +145,23 @@ public class SubscriptionService {
 
     @Transactional
     public void expireTrialIfEnded(User user) {
-        if (user.getSubscriptionStatus() == SubscriptionStatus.TRIAL && !user.hasPremiumAccess()) {
-            user.setSubscriptionStatus(SubscriptionStatus.EXPIRED);
-            userRepository.save(user);
-            log.info("Trial EXPIRED for {}", user.getEmail());
+        User billingUser = getBillingUser(user);
+        if (billingUser.getSubscriptionStatus() == SubscriptionStatus.TRIAL && !billingUser.hasPremiumAccess()) {
+            billingUser.setSubscriptionStatus(SubscriptionStatus.EXPIRED);
+            userRepository.save(billingUser);
+            log.info("Trial EXPIRED for {}", billingUser.getEmail());
         }
+    }
+
+    private User getBillingUser(User user) {
+        return workspaceAccessService.getRequiredWorkspace(user).workspaceOwner();
+    }
+
+    private int limitForTier(String tier) {
+        return switch (tier) {
+            case "MAX" -> 50;
+            case "ACTIVE" -> 20;
+            default -> 0;
+        };
     }
 }

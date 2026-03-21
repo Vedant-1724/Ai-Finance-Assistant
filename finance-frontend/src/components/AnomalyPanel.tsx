@@ -13,10 +13,11 @@ interface AnomalyAlert {
 interface Props {
   companyId: number
   anomalies: AnomalyAlert[]
-  onDismiss: (id: number) => void
+  canDismiss?: boolean
+  onDismiss?: (id: number) => void
 }
 
-export default function AnomalyPanel({ anomalies, onDismiss }: Props) {
+export default function AnomalyPanel({ anomalies, canDismiss = false, onDismiss }: Props) {
   if (anomalies.length === 0) return null
 
   const formatDate = (iso: string) => {
@@ -61,14 +62,16 @@ export default function AnomalyPanel({ anomalies, onDismiss }: Props) {
             }}>
               ANOMALY
             </span>
-            <button
-              className="btn-dismiss"
-              onClick={() => onDismiss(a.id)}
-              title="Dismiss alert"
-              aria-label="Dismiss anomaly alert"
-            >
-              ✕
-            </button>
+            {canDismiss && onDismiss ? (
+              <button
+                className="btn-dismiss"
+                onClick={() => onDismiss(a.id)}
+                title="Dismiss alert"
+                aria-label="Dismiss anomaly alert"
+              >
+                ✕
+              </button>
+            ) : null}
           </div>
         </div>
       ))}

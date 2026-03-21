@@ -1,6 +1,7 @@
 // PATH: finance-frontend/src/pages/AuditLogPage.tsx
 import { useEffect, useState, useCallback } from 'react'
 import api from '../api'
+import { useAuth } from '../context/AuthContext'
 
 
 interface AuditEntry {
@@ -10,6 +11,7 @@ interface AuditEntry {
 interface PageResponse { content: AuditEntry[]; totalPages: number; number: number }
 
 export default function AuditLogPage({ companyId }: { companyId: number }) {
+  const { capabilities } = useAuth()
 
   const [data, setData] = useState<PageResponse | null>(null)
   const [page, setPage] = useState(0)
@@ -33,6 +35,14 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
   }, [companyId, page])
 
   useEffect(() => { void load() }, [load])
+
+  if (!capabilities.canViewAudit) return (
+    <div className="upgrade-gate">
+      <div style={{ fontSize: 48 }}>📋</div>
+      <h2>Audit log is owner-only</h2>
+      <p>Only the workspace owner can review the full audit trail for billing, exports, and finance changes.</p>
+    </div>
+  )
 
   if (loading) return <div className="loading">⏳ Loading audit log...</div>
   if (error === 'UPGRADE_REQUIRED') return (
@@ -85,4 +95,3 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
     </div>
   )
 }
-

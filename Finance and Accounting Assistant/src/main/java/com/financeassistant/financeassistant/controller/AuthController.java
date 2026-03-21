@@ -6,7 +6,6 @@ import com.financeassistant.financeassistant.dto.ChangePasswordRequest;
 import com.financeassistant.financeassistant.dto.LoginRequest;
 import com.financeassistant.financeassistant.dto.RegisterRequest;
 import com.financeassistant.financeassistant.entity.User;
-import com.financeassistant.financeassistant.repository.CompanyRepository;
 import com.financeassistant.financeassistant.security.JwtUtil;
 import com.financeassistant.financeassistant.security.LoginRateLimiter;
 import com.financeassistant.financeassistant.security.TokenBlacklistService;
@@ -44,7 +43,6 @@ public class AuthController {
     private final LoginRateLimiter rateLimiter;
     private final TokenBlacklistService blacklistService;
     private final JwtUtil jwtUtil;
-    private final CompanyRepository companyRepository;
     private final EmailAlertService emailAlertService;
 
     @PostMapping("/login")
@@ -243,17 +241,7 @@ public class AuthController {
                     .body(Map.of("error", "Not authenticated"));
         }
 
-        Long companyId = companyRepository.findFirstByOwnerId(user.getId())
-                .map(company -> company.getId())
-                .orElse(0L);
-
-        return ResponseEntity.ok(Map.of(
-                "email", user.getEmail(),
-                "companyId", companyId,
-                "subscriptionStatus", user.getEffectiveTier(),
-                "trialDaysRemaining", user.trialDaysRemaining(),
-                "aiChatsRemaining", user.getAiChatsRemainingToday(),
-                "hasPremiumAccess", user.hasPremiumAccess()));
+        return ResponseEntity.ok(authService.buildSessionResponse(user));
     }
 
     private String getClientIp(HttpServletRequest request) {

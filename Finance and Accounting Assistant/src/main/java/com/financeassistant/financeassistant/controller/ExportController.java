@@ -35,7 +35,7 @@ public class ExportController {
      * Requires TRIAL or PRO subscription.
      */
     @GetMapping("/pdf")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<byte[]> exportPdf(
             @PathVariable Long companyId,
             @RequestParam(defaultValue = "all") String period,
@@ -62,7 +62,7 @@ public class ExportController {
      * Downloads a CSV of all transactions. Available to all tiers.
      */
     @GetMapping("/csv")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<byte[]> exportCsv(
             @PathVariable Long companyId,
             @AuthenticationPrincipal User user,

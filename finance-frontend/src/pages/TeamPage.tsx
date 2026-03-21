@@ -34,7 +34,7 @@ const ROLE_LABELS: Record<Role, { label: string; color: string; desc: string }> 
 }
 
 export default function TeamPage({ companyId }: { companyId: number }) {
-  const { user, isFree } = useAuth()
+  const { user, isFree, capabilities } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,6 +45,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
   const [invErr, setInvErr] = useState<string | null>(null)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [removing, setRemoving] = useState<number | null>(null)
+  const [memberToRemove, setMemberToRemove] = useState<Member | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -97,18 +98,28 @@ export default function TeamPage({ companyId }: { companyId: number }) {
     }
   }
 
-  const handleRemove = async (memberId: number, email: string) => {
-    if (!confirm(`Remove ${email} from the team?`)) return
+  const handleRemove = async (memberId: number) => {
     setRemoving(memberId)
+    setInvErr(null)
     try {
       await api.delete(`/api/v1/${companyId}/team/${memberId}`)
       setMembers(prev => prev.filter(m => m.id !== memberId))
+      setMemberToRemove(null)
     } catch {
-      alert('Failed to remove member. Please try again.')
+      setInvErr('Failed to remove member. Please try again.')
     } finally {
       setRemoving(null)
     }
   }
+
+  if (!capabilities.canManageTeam) return (
+    <div className="upgrade-gate">
+      <div style={{ fontSize: 56 }}>👥</div>
+      <h2>Team management is owner-only</h2>
+      <p>You can collaborate inside the workspace, but only the workspace owner can invite, remove, or manage team members.</p>
+      <a href="/subscription" className="btn-primary">View Workspace Plan →</a>
+    </div>
+  )
 
   if (isFree) return (
     <div className="upgrade-gate">
@@ -207,7 +218,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
                     <button
                       className="btn-danger"
                       style={{ padding: '6px 12px', fontSize: 12 }}
-                      onClick={() => handleRemove(m.id, m.email || m.inviteEmail || 'member')}
+                      onClick={() => setMemberToRemove(m)}
                       disabled={removing === m.id}
                       title="Remove from team"
                     >
@@ -276,6 +287,32 @@ export default function TeamPage({ companyId }: { companyId: number }) {
           </div>
         </div>
       </div>
+
+      {memberToRemove && (
+        <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) setMemberToRemove(null) }}>
+          <div className="modal-box" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Remove Team Member</h2>
+              <button className="modal-close" onClick={() => setMemberToRemove(null)}>×</button>
+            </div>
+            <p style={{ margin: '16px 0', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Remove <strong>{memberToRemove.email || memberToRemove.inviteEmail || 'this member'}</strong> from the workspace? Pending invites will also be revoked.
+            </p>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setMemberToRemove(null)}>
+                Cancel
+              </button>
+              <button
+                className="btn-danger"
+                onClick={() => { void handleRemove(memberToRemove.id) }}
+                disabled={removing === memberToRemove.id}
+              >
+                {removing === memberToRemove.id ? 'Removing…' : 'Remove member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

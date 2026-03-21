@@ -3,7 +3,6 @@ package com.financeassistant.financeassistant.controller;
 import com.financeassistant.financeassistant.dto.AuthResponse;
 import com.financeassistant.financeassistant.dto.ForgotPasswordRequest;
 import com.financeassistant.financeassistant.dto.RegisterRequest;
-import com.financeassistant.financeassistant.repository.CompanyRepository;
 import com.financeassistant.financeassistant.security.JwtUtil;
 import com.financeassistant.financeassistant.security.LoginRateLimiter;
 import com.financeassistant.financeassistant.security.TokenBlacklistService;
@@ -45,9 +44,6 @@ class AuthControllerTest {
     private JwtUtil jwtUtil;
 
     @Mock
-    private CompanyRepository companyRepository;
-
-    @Mock
     private EmailAlertService emailAlertService;
 
     private AuthController authController;
@@ -59,7 +55,6 @@ class AuthControllerTest {
                 rateLimiter,
                 blacklistService,
                 jwtUtil,
-                companyRepository,
                 emailAlertService);
     }
 
@@ -73,7 +68,7 @@ class AuthControllerTest {
         when(rateLimiter.tryConsumeRegister(anyString())).thenReturn(true);
         when(authService.register(any(RegisterRequest.class))).thenReturn(
                 new AuthService.RegistrationResult(
-                        new AuthResponse("", 1L, "owner@example.com", "FREE", 0, 0),
+                        new AuthResponse("", 1L, "owner@example.com", "OWNER", "FREE", 0, 0, 0, false, true),
                         "verify-token"));
         when(emailAlertService.isMailEnabled()).thenReturn(false);
         when(emailAlertService.shouldExposeActionLinksWhenDisabled()).thenReturn(true);

@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext'
 interface Message { role: 'user' | 'assistant'; content: string }
 
 export default function ChatAssistant() {
-  const { user, updateAiChats } = useAuth()
+  const { user, updateAiChats, capabilities } = useAuth()
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: '👋 Hi! I\'m your AI finance assistant. Ask me anything about your finances, cash flow, or accounting.' }
   ])
@@ -22,7 +22,7 @@ export default function ChatAssistant() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const chatsRemaining = user?.aiChatsRemaining ?? 0
-  const dailyLimit = user?.subscriptionTier === 'MAX' ? 50 : user?.subscriptionTier === 'ACTIVE' ? 20 : 0
+  const dailyLimit = user?.aiChatDailyLimit ?? 0
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -81,6 +81,16 @@ export default function ChatAssistant() {
   }
 
   const limitClass = chatsRemaining === 0 ? 'exhausted' : chatsRemaining <= 1 ? 'warning' : ''
+
+  if (!capabilities.canUseAiTools) {
+    return (
+      <div className="upgrade-gate">
+        <div style={{ fontSize: 56 }}>🤖</div>
+        <h2>AI Assistant is not available for viewer access</h2>
+        <p>Editors and owners can use AI workflows when the workspace is on Pro or Max.</p>
+      </div>
+    )
+  }
 
   return (
     <div>

@@ -2,6 +2,7 @@ package com.financeassistant.financeassistant.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.financeassistant.financeassistant.entity.User;
+import com.financeassistant.financeassistant.service.SubscriptionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,6 +57,7 @@ public class SubscriptionFilter extends OncePerRequestFilter {
     );
 
     private final ObjectMapper objectMapper;
+    private final SubscriptionService subscriptionService;
 
     @Override
     protected void doFilterInternal(
@@ -81,7 +83,7 @@ public class SubscriptionFilter extends OncePerRequestFilter {
             return;
         }
 
-        String effectiveTier = user.getEffectiveTier();
+        String effectiveTier = subscriptionService.getWorkspaceTier(user);
 
         // Always inject tier header so controllers can use it
         response.setHeader("X-Subscription-Tier", effectiveTier);

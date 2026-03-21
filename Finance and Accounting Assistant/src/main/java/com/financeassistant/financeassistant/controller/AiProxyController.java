@@ -72,7 +72,7 @@ public class AiProxyController {
          * Python returns a list of redacted transactions for the user to review.
          */
         @PostMapping("/parse-statement")
-        @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+        @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
         public ResponseEntity<String> parseStatement(
                         @PathVariable Long companyId,
                         @RequestParam("file") MultipartFile file) throws IOException {
@@ -154,7 +154,7 @@ public class AiProxyController {
          * Authenticated proxy: forwards invoice image to Python /ocr endpoint.
          */
         @PostMapping("/ocr")
-        @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+        @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
         public ResponseEntity<String> ocrInvoice(
                         @PathVariable Long companyId,
                         @RequestParam("file") MultipartFile file) throws IOException {

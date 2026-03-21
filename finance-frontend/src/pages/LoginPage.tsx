@@ -7,9 +7,12 @@ import { useAuth } from '../context/AuthContext'
 interface AuthResponse {
   companyId: number
   email: string
+  role: string
   subscriptionStatus: string
   trialDaysRemaining: number
   aiChatsRemaining: number
+  aiChatDailyLimit: number
+  canManageBilling?: boolean
 }
 
 export default function LoginPage() {
@@ -38,13 +41,7 @@ export default function LoginPage() {
         { headers: { 'X-Skip-401-Redirect': 'true' } }
       )
 
-      login(
-        res.data.companyId,
-        res.data.email,
-        res.data.subscriptionStatus,
-        res.data.trialDaysRemaining,
-        res.data.aiChatsRemaining
-      )
+      login(res.data)
       navigate(next, { replace: true })
     } catch (err) {
       if (axios.isAxiosError(err)) {

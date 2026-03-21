@@ -1,10 +1,10 @@
 package com.financeassistant.financeassistant.controller;
 
 import com.financeassistant.financeassistant.entity.User;
-import com.financeassistant.financeassistant.security.TokenBlacklistService;
 import com.financeassistant.financeassistant.service.BillingConfigurationService;
 import com.financeassistant.financeassistant.service.SubscriptionService;
 import com.financeassistant.financeassistant.service.SubscriptionStatusPayloadService;
+import com.financeassistant.financeassistant.service.WorkspaceAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +34,12 @@ class PaymentControllerTest {
     @Mock
     private BillingConfigurationService billingConfigurationService;
 
+    @Mock
+    private SubscriptionStatusPayloadService subscriptionStatusPayloadService;
+
+    @Mock
+    private WorkspaceAccessService workspaceAccessService;
+
     private PaymentController paymentController;
 
     @BeforeEach
@@ -42,15 +48,17 @@ class PaymentControllerTest {
                 subscriptionService,
                 redisTemplate,
                 billingConfigurationService,
-                new SubscriptionStatusPayloadService(billingConfigurationService));
+                subscriptionStatusPayloadService,
+                workspaceAccessService);
     }
 
     @Test
     void statusIncludesPaymentConfigurationFlags() {
         User user = new User("owner@example.com", "encoded", "USER");
-        when(billingConfigurationService.isPaymentConfigured()).thenReturn(false);
-        when(billingConfigurationService.getUnavailableMessage())
-                .thenReturn("Online payments are unavailable in this environment because Razorpay credentials are not configured.");
+        when(subscriptionStatusPayloadService.build(user, null)).thenReturn(Map.of(
+                "trialEligible", true,
+                "paymentConfigured", false,
+                "paymentMessage", "Online payments are unavailable in this environment because Razorpay credentials are not configured."));
 
         ResponseEntity<?> response = paymentController.getStatus(user);
 
@@ -66,6 +74,7 @@ class PaymentControllerTest {
     @Test
     void createOrderReturnsServiceUnavailableWhenPaymentIsDisabled() {
         User user = new User("owner@example.com", "encoded", "USER");
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(true);
         when(billingConfigurationService.isPaymentConfigured()).thenReturn(false);
         when(billingConfigurationService.getUnavailableMessage())
                 .thenReturn("Online payments are unavailable in this environment because Razorpay credentials are not configured.");
@@ -78,5 +87,19 @@ class PaymentControllerTest {
         assertNotNull(body);
         assertEquals("PAYMENT_NOT_CONFIGURED", body.get("error"));
         assertFalse((Boolean) body.get("paymentConfigured"));
+    }
+
+    @Test
+    void createOrderRejectsNonOwners() {
+        User user = new User("member@example.com", "encoded", "USER");
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(false);
+
+        ResponseEntity<?> response = paymentController.createOrder(user, Map.of("amount", 39900));
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        assertNotNull(body);
+        assertEquals("OWNER_ONLY", body.get("error"));
     }
 }

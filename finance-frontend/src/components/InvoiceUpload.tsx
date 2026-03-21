@@ -108,7 +108,7 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 }
 
 function InvoiceUpload({ companyId }: InvoiceUploadProps) {
-  const { isFree } = useAuth()
+  const { isFree, capabilities } = useAuth()
   const [stage, setStage] = useState<Stage>('idle')
   const [dragOver, setDragOver] = useState(false)
   const [ocr, setOcr] = useState<OcrResult | null>(null)
@@ -206,6 +206,14 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
 
   const setField = <K extends keyof EditForm>(key: K, val: EditForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }))
+
+  if (!capabilities.canEditFinance) return (
+    <div className="upgrade-gate">
+      <div style={{ fontSize: 56 }}>🧾</div>
+      <h2>Invoice Scanner is not available for viewer access</h2>
+      <p>Editors and owners can scan invoices and save them as transactions.</p>
+    </div>
+  )
 
   if (isFree) return (
     <div className="upgrade-gate">

@@ -11,6 +11,8 @@ declare global {
 }
 
 interface SubscriptionStatusResponse {
+  companyId: number
+  role: 'OWNER' | 'EDITOR' | 'VIEWER'
   tier: 'FREE' | 'TRIAL' | 'ACTIVE' | 'MAX'
   status: string
   trialDaysRemaining: number
@@ -19,6 +21,7 @@ interface SubscriptionStatusResponse {
   hasPremiumAccess: boolean
   trialAlreadyUsed: boolean
   trialEligible: boolean
+  canManageBilling: boolean
   expiresAt: string
   paymentConfigured: boolean
   paymentMessage?: string
@@ -85,7 +88,7 @@ async function ensureRazorpayLoaded() {
 }
 
 export default function SubscriptionPage() {
-  const { user, updateSubscription } = useAuth()
+  const { user, updateSubscription, capabilities } = useAuth()
   const navigate = useNavigate()
   const [subStatus, setSubStatus] = useState<SubscriptionStatusResponse | null>(null)
   const [loading, setLoading] = useState(false)
@@ -115,7 +118,7 @@ export default function SubscriptionPage() {
     try {
       const res = await api.post<SubscriptionStatusResponse>('/api/v1/subscription/start-trial')
       setSubStatus(res.data)
-      updateSubscription(res.data.tier, res.data.trialDaysRemaining, res.data.aiChatsRemaining)
+      updateSubscription(res.data.tier, res.data.trialDaysRemaining, res.data.aiChatsRemaining, res.data.aiChatDailyLimit)
       setMsg(res.data.message ?? 'Your 3-day premium trial has started.')
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -167,7 +170,7 @@ export default function SubscriptionPage() {
           await api.post('/api/v1/payment/verify', { ...paymentResponse, plan: tier })
           const statusRes = await api.get<SubscriptionStatusResponse>('/api/v1/payment/status')
           setSubStatus(statusRes.data)
-          updateSubscription(statusRes.data.tier, statusRes.data.trialDaysRemaining, statusRes.data.aiChatsRemaining)
+          updateSubscription(statusRes.data.tier, statusRes.data.trialDaysRemaining, statusRes.data.aiChatsRemaining, statusRes.data.aiChatDailyLimit)
           setMsg(`Welcome to FinanceAI ${label}.`)
           navigate('/', { replace: true })
         },
@@ -194,17 +197,33 @@ export default function SubscriptionPage() {
   const isTrial = currentTier === 'TRIAL'
   const isMax = currentTier === 'MAX'
   const isFree = currentTier === 'FREE'
+  const canManageBilling = capabilities.canManageBilling && (subStatus?.canManageBilling ?? true)
   const paymentConfigured = subStatus?.paymentConfigured ?? true
-  const trialEligible = subStatus?.trialEligible ?? false
+  const trialEligible = canManageBilling && (subStatus?.trialEligible ?? false)
   const trialStatusKnown = subStatus !== null
-  const showTrialPlan = isFree || isTrial
+  const showTrialPlan = canManageBilling && (isFree || isTrial)
   const freeSummary = isFree
-    ? trialEligible
-      ? 'Start with Free, then activate the 3-day premium trial or subscribe when you need AI chat.'
-      : trialStatusKnown
-        ? 'Your free plan is active. The one-time trial is unavailable, so upgrade when you need AI chat.'
-        : 'Your free plan is active. Checking trial eligibility and upgrade options.'
+    ? canManageBilling
+      ? trialEligible
+        ? 'Start with Free, then activate the 3-day premium trial or subscribe when you need AI chat.'
+        : trialStatusKnown
+          ? 'Your free plan is active. The one-time trial is unavailable, so upgrade when you need AI chat.'
+          : 'Your free plan is active. Checking trial eligibility and upgrade options.'
+      : 'This workspace is on the Free plan. Only the workspace owner can start the trial or upgrade.'
     : ''
+  const heroSummary = isMax
+    ? canManageBilling
+      ? 'You are on Max with the highest AI allowance.'
+      : 'This workspace is on Max with the highest AI allowance.'
+    : isActive
+      ? canManageBilling
+        ? `You are on Pro with ${subStatus?.aiChatsRemaining ?? user?.aiChatsRemaining ?? 0} AI chats left today.`
+        : `This workspace is on Pro with ${subStatus?.aiChatsRemaining ?? user?.aiChatsRemaining ?? 0} AI chats left today.`
+      : isTrial
+      ? canManageBilling
+        ? `Premium trial active: ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining.`
+        : `This workspace is on a premium trial with ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining.`
+      : freeSummary
 
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 20px', position: 'relative' }}>
@@ -230,14 +249,16 @@ export default function SubscriptionPage() {
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <h1 className="page-title" style={{ fontSize: 28, marginBottom: 8 }}>Choose your plan</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>
-          {isMax
-            ? 'You are on Max with the highest AI allowance.'
-            : isActive
-              ? `You are on Pro with ${subStatus?.aiChatsRemaining ?? user?.aiChatsRemaining ?? 0} AI chats left today.`
-              : isTrial
-                ? `Premium trial active: ${subStatus?.trialDaysRemaining ?? 0} day(s) remaining.`
-                : freeSummary}
+          {heroSummary}
         </p>
+        {!canManageBilling && (
+          <div className="card" style={{ maxWidth: 640, margin: '16px auto 0', textAlign: 'left', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)' }}>
+            <strong style={{ display: 'block', marginBottom: 6, color: '#93c5fd' }}>Read-only workspace billing</strong>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              You can view the current workspace plan here, but only the workspace owner can start the trial, purchase Pro, or upgrade to Max.
+            </span>
+          </div>
+        )}
         {msg && <div className="success-box" style={{ maxWidth: 520, margin: '16px auto 0', textAlign: 'left' }}>✅ {msg}</div>}
         {error && <div className="error-box" style={{ maxWidth: 520, margin: '16px auto 0', textAlign: 'left' }}>⚠️ {error}</div>}
         {!paymentConfigured && subStatus?.paymentMessage && (
@@ -309,7 +330,7 @@ export default function SubscriptionPage() {
             className="btn-gradient"
             style={{ width: '100%', opacity: paymentConfigured ? 1 : 0.6 }}
             onClick={() => { void handleSubscribe(39900, 'ACTIVE', 'Pro') }}
-            disabled={loading || isActive || isMax || !paymentConfigured}
+            disabled={loading || isActive || isMax || !paymentConfigured || !canManageBilling}
           >
             {loading
               ? '⏳ Opening payment…'
@@ -317,6 +338,8 @@ export default function SubscriptionPage() {
                 ? '✅ Current Plan'
                 : isMax
                   ? 'Included in Max'
+                  : !canManageBilling
+                    ? 'Owner manages billing'
                   : paymentConfigured
                     ? '💳 Subscribe — ₹399/mo'
                     : 'Payments unavailable'}
@@ -338,12 +361,14 @@ export default function SubscriptionPage() {
             className="btn-gradient"
             style={{ width: '100%', background: 'linear-gradient(to right, #6d28d9, #4c1d95)', opacity: paymentConfigured ? 1 : 0.6 }}
             onClick={() => { void handleSubscribe(89900, 'MAX', 'Max') }}
-            disabled={loading || isMax || !paymentConfigured}
+            disabled={loading || isMax || !paymentConfigured || !canManageBilling}
           >
             {loading
               ? '⏳ Opening payment…'
               : isMax
                 ? '✅ Current Plan'
+                : !canManageBilling
+                  ? 'Owner manages billing'
                 : paymentConfigured
                   ? (isActive ? '⬆️ Upgrade to Max — ₹899/mo' : '💳 Subscribe — ₹899/mo')
                   : 'Payments unavailable'}

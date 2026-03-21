@@ -29,6 +29,9 @@ public class SubscriptionController {
         return switch (result) {
             case STARTED -> ResponseEntity.ok(
                     subscriptionStatusPayloadService.build(user, "Your 3-day free trial has started!"));
+            case OWNER_ONLY -> ResponseEntity.status(403).body(Map.of(
+                    "error", "OWNER_ONLY",
+                    "message", "Only the workspace owner can start a free trial."));
             case ALREADY_USED -> ResponseEntity.badRequest().body(Map.of(
                     "error", "TRIAL_ALREADY_USED",
                     "message", "Your free trial has already been used. Please choose Pro or Max."));

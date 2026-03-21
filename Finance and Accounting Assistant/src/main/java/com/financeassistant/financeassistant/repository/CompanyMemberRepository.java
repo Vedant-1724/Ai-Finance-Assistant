@@ -10,5 +10,8 @@ public interface CompanyMemberRepository extends JpaRepository<CompanyMember, Lo
     List<CompanyMember> findByCompanyIdOrderByCreatedAtAsc(Long companyId);
     Optional<CompanyMember> findByInviteToken(String token);
     Optional<CompanyMember> findByCompanyIdAndUserId(Long companyId, Long userId);
+    Optional<CompanyMember> findByCompanyIdAndUserIdAndAcceptedAtIsNotNull(Long companyId, Long userId);
+    Optional<CompanyMember> findFirstByUserIdAndAcceptedAtIsNotNullOrderByCreatedAtAsc(Long userId);
     boolean existsByCompanyIdAndUserId(Long companyId, Long userId);
+    boolean existsByCompanyIdAndUserIdAndAcceptedAtIsNotNull(Long companyId, Long userId);
 }

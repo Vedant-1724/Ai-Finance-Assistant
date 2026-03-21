@@ -36,14 +36,14 @@ public class TransactionController {
     private final CategoryService categoryService;
 
     @GetMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<List<TransactionDTO>> list(@PathVariable Long companyId) {
         log.info("GET /transactions companyId={}", companyId);
         return ResponseEntity.ok(service.getTransactions(companyId));
     }
 
     @PostMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<TransactionDTO> add(
             @PathVariable Long companyId,
             @Valid @RequestBody CreateTransactionRequest req,
@@ -56,7 +56,7 @@ public class TransactionController {
     }
 
     @PutMapping("/{transactionId}")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<TransactionDTO> update(
             @PathVariable Long companyId,
             @PathVariable Long transactionId,
@@ -70,7 +70,7 @@ public class TransactionController {
     }
 
     @DeleteMapping("/{transactionId}")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<Void> delete(
             @PathVariable Long companyId,
             @PathVariable Long transactionId,
@@ -83,7 +83,7 @@ public class TransactionController {
     }
 
     @PostMapping("/categorize")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<CategorySuggestionDto> categorize(
             @PathVariable Long companyId,
             @RequestBody Map<String, String> request) {

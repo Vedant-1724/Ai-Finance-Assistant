@@ -12,13 +12,13 @@ interface SubscriptionStatusResponse {
 }
 
 export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
-  const { user, isFree, isTrial, isMax } = useAuth()
+  const { user, isFree, isTrial, isMax, capabilities } = useAuth()
   const [trialEligible, setTrialEligible] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    if (!user || !isFree) {
+    if (!user || !isFree || !capabilities.canManageBilling) {
       setTrialEligible(false)
       return () => {
         cancelled = true
@@ -43,7 +43,7 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
     return () => {
       cancelled = true
     }
-  }, [user, isFree])
+  }, [user, isFree, capabilities.canManageBilling])
 
   if (!user) {
     return null
@@ -60,7 +60,7 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
         }}
       >
         <span className="banner-text">
-          👑 <strong>Max Plan</strong> — full access unlocked.{' '}
+          👑 <strong>{capabilities.canManageBilling ? 'Max Plan' : 'Workspace on Max'}</strong> — full access unlocked.{' '}
           {user.aiChatsRemaining > 0
             ? `${user.aiChatsRemaining} AI chats remaining today.`
             : 'Daily AI chat limit reached. It resets at midnight.'}
@@ -73,7 +73,7 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
     return (
       <div className="status-banner banner-active">
         <span className="banner-text">
-          ✅ <strong>Pro Plan</strong> — premium features are active.{' '}
+          ✅ <strong>{capabilities.canManageBilling ? 'Pro Plan' : 'Workspace on Pro'}</strong> — premium features are active.{' '}
           {user.aiChatsRemaining > 0
             ? `${user.aiChatsRemaining} AI chats remaining today.`
             : 'Daily AI chat limit reached. It resets at midnight.'}
@@ -93,9 +93,11 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
           {days <= 0 ? 'Your trial has ended.' : days === 1 ? 'Last day remaining.' : `${days} days remaining.`}{' '}
           AI chat starts on Pro and Max.
         </span>
-        <button className="banner-cta" onClick={onUpgrade}>
-          Upgrade for AI chat →
-        </button>
+        {capabilities.canManageBilling ? (
+          <button className="banner-cta" onClick={onUpgrade}>
+            Upgrade for AI chat →
+          </button>
+        ) : null}
       </div>
     )
   }
@@ -104,16 +106,20 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
     <div className="status-banner banner-free">
       <span className="banner-text">
         🔓 <strong>Free Plan</strong> — core tracking is active.{' '}
-        {trialEligible
+        {capabilities.canManageBilling && trialEligible
           ? 'Start your one-time 3-day trial or upgrade for premium reports, health score, team tools, and AI chat.'
-          : 'Upgrade for premium reports, health score, team tools, and AI chat.'}
+          : capabilities.canManageBilling
+            ? 'Upgrade for premium reports, health score, team tools, and AI chat.'
+            : 'Your workspace owner can start a trial or upgrade for premium reports, health score, team tools, and AI chat.'}
       </span>
       <button
         className="btn-gradient"
         style={{ padding: '6px 16px', fontSize: '13px', marginLeft: '12px' }}
         onClick={onUpgrade}
       >
-        {trialEligible ? '🚀 Start 3-Day Trial →' : '⭐ View Plans →'}
+        {capabilities.canManageBilling
+          ? trialEligible ? '🚀 Start 3-Day Trial →' : '⭐ View Plans →'
+          : '💳 View Workspace Plan →'}
       </button>
     </div>
   )

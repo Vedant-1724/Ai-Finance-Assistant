@@ -19,7 +19,7 @@ public class TaxController {
         private final TaxService taxService;
 
         @GetMapping
-        @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+        @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
         public ResponseEntity<TaxSummaryResponse> summary(@PathVariable Long companyId,
                         @RequestParam(defaultValue = "") String year,
                         @RequestParam(defaultValue = "") String quarter) {
@@ -68,7 +68,7 @@ public class TaxController {
         }
 
         @GetMapping("/gst")
-        @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+        @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
         public ResponseEntity<GstSummary> gst(@PathVariable Long companyId,
                         @RequestParam(defaultValue = "0") int year,
                         @RequestParam(defaultValue = "0") int quarter) {
@@ -78,7 +78,7 @@ public class TaxController {
         }
 
         @GetMapping("/income")
-        @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+        @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
         public ResponseEntity<IncomeTaxEstimate> income(@PathVariable Long companyId,
                         @RequestParam(defaultValue = "0") int year) {
                 // Indian FY: April-March. If month < April, FY year = current year - 1

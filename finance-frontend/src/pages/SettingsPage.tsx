@@ -20,7 +20,7 @@ interface UserSettings {
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
 
 export default function SettingsPage() {
-  const { user, logout, updateProfile } = useAuth()
+  const { user, logout, updateProfile, capabilities } = useAuth()
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -36,6 +36,9 @@ export default function SettingsPage() {
   const [showPw, setShowPw] = useState(false)
 
   const [exporting, setExporting] = useState(false)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
+  const [dangerErr, setDangerErr] = useState<string | null>(null)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const loadSettings = useCallback(async () => {
     setLoading(true)
@@ -140,11 +143,13 @@ export default function SettingsPage() {
 
   const handleExport = async () => {
     if (!user?.companyId) {
-      alert('Company information is missing. Please log in again.')
+      setDangerErr('Company information is missing. Please log in again.')
       return
     }
 
     setExporting(true)
+    setExportMsg(null)
+    setDangerErr(null)
     try {
       const res = await api.get(`/api/v1/${user.companyId}/export/csv`, {
         responseType: 'blob',
@@ -155,25 +160,23 @@ export default function SettingsPage() {
       link.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`
       link.click()
       URL.revokeObjectURL(url)
+      setExportMsg('Transaction export started successfully.')
     } catch {
-      alert('Export failed. Please try again.')
+      setDangerErr('Export failed. Please try again.')
     } finally {
       setExporting(false)
     }
   }
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      'Are you absolutely sure you want to delete your account?\n\nThis permanently deletes all company data and cannot be undone.'
-    )
-
-    if (!confirmed) return
-
+    setDangerErr(null)
     try {
       await api.delete('/api/v1/account')
       await logout()
     } catch {
-      alert('Account deletion failed. Please contact support.')
+      setDangerErr('Account deletion failed. Please contact support.')
+    } finally {
+      setConfirmDeleteOpen(false)
     }
   }
 
@@ -220,13 +223,15 @@ export default function SettingsPage() {
 
       {saveMsg && <div className="success-toast">✅ {saveMsg}</div>}
       {saveErr && <div className="error" style={{ marginBottom: 12 }}>❌ {saveErr}</div>}
+      {exportMsg && <div className="success-toast">✅ {exportMsg}</div>}
+      {dangerErr && <div className="error" style={{ marginBottom: 12 }}>❌ {dangerErr}</div>}
 
       <div className="settings-section">
         <div className="settings-section-title">👤 Profile</div>
-        <div className="settings-section-desc">Your account and company information.</div>
+        <div className="settings-section-desc">Your personal account information.</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
+          <div className="form-group" style={{ marginBottom: 0, gridColumn: '1 / -1' }}>
             <label>Email address</label>
             <input
               type="email"
@@ -235,6 +240,24 @@ export default function SettingsPage() {
               onChange={event => setSettings(current => current ? { ...current, email: event.target.value } : current)}
             />
           </div>
+        </div>
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? '⏳ Saving…' : '💾 Save Profile'}
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-title">🏢 Workspace Profile</div>
+        <div className="settings-section-desc">
+          {capabilities.canManageCompanyProfile
+            ? 'Update your company name and default currency.'
+            : 'Only the workspace owner can edit company name and currency.'}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Company name</label>
             <input
@@ -242,6 +265,7 @@ export default function SettingsPage() {
               className="form-input"
               value={settings.companyName}
               onChange={event => setSettings(current => current ? { ...current, companyName: event.target.value } : current)}
+              disabled={!capabilities.canManageCompanyProfile}
             />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -250,6 +274,7 @@ export default function SettingsPage() {
               className="form-select"
               value={settings.currency}
               onChange={event => setSettings(current => current ? { ...current, currency: event.target.value } : current)}
+              disabled={!capabilities.canManageCompanyProfile}
             >
               {CURRENCIES.map(currency => (
                 <option key={currency} value={currency}>{currency}</option>
@@ -259,8 +284,8 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? '⏳ Saving…' : '💾 Save Changes'}
+          <button className="btn-primary" onClick={handleSave} disabled={saving || !capabilities.canManageCompanyProfile}>
+            {saving ? '⏳ Saving…' : capabilities.canManageCompanyProfile ? '💾 Save Workspace' : 'Read-only Workspace'}
           </button>
         </div>
       </div>
@@ -383,7 +408,11 @@ export default function SettingsPage() {
 
       <div className="settings-section danger-zone">
         <div className="settings-section-title">⚠️ Danger Zone</div>
-        <div className="settings-section-desc">Irreversible actions. Proceed with caution.</div>
+        <div className="settings-section-desc">
+          {capabilities.canManageCompanyProfile
+            ? 'Irreversible actions. Proceed with caution.'
+            : 'Workspace-destructive actions are only available to the workspace owner.'}
+        </div>
 
         <div className="settings-row">
           <div>
@@ -395,16 +424,50 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <div className="settings-row">
-          <div>
-            <div className="settings-row-label" style={{ color: '#f87171' }}>Delete Account</div>
-            <div className="settings-row-desc">Permanently delete all data. This cannot be undone.</div>
+        {capabilities.canManageCompanyProfile ? (
+          <div className="settings-row">
+            <div>
+              <div className="settings-row-label" style={{ color: '#f87171' }}>Delete Account</div>
+              <div className="settings-row-desc">Permanently delete all company data. This cannot be undone.</div>
+            </div>
+            <button className="btn-danger" onClick={() => setConfirmDeleteOpen(true)}>
+              🗑️ Delete Account
+            </button>
           </div>
-          <button className="btn-danger" onClick={() => { void handleDeleteAccount() }}>
-            🗑️ Delete Account
-          </button>
-        </div>
+        ) : (
+          <div className="settings-row">
+            <div>
+              <div className="settings-row-label">Workspace deletion</div>
+              <div className="settings-row-desc">Only the workspace owner can delete the account and company data.</div>
+            </div>
+            <button className="btn-secondary" disabled>
+              Owner only
+            </button>
+          </div>
+        )}
       </div>
+
+      {confirmDeleteOpen && (
+        <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) setConfirmDeleteOpen(false) }}>
+          <div className="modal-box" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Delete Workspace Account</h2>
+              <button className="modal-close" onClick={() => setConfirmDeleteOpen(false)}>×</button>
+            </div>
+            <p style={{ margin: '16px 0', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              This permanently deletes the workspace, team data, transactions, and settings. This action cannot be undone.
+            </p>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setConfirmDeleteOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn-danger" onClick={() => { void handleDeleteAccount() }}>
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

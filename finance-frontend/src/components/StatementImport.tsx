@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import api from '../api'
+import { useAuth } from '../context/AuthContext'
 
 interface ParsedTransaction {
   date: string
@@ -64,6 +65,7 @@ const MAX_FILE_SIZE_MB = 10
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
 export default function StatementImport({ companyId, onImportSuccess }: StatementImportProps) {
+  const { capabilities } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [parsing, setParsing] = useState(false)
@@ -283,6 +285,16 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
 
   const outcomeTitle = importResult?.mode === 'bankSync' ? 'Bank Sync Complete' : 'Import Complete'
 
+  if (!capabilities.canEditFinance) {
+    return (
+      <div className="upgrade-gate">
+        <div style={{ fontSize: 56 }}>📥</div>
+        <h2>Statement import is not available for viewer access</h2>
+        <p>Editors and owners can upload statements, review extracted rows, and import transactions into the workspace.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="statement-import">
       <div className="import-header">
@@ -360,32 +372,41 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
             </div>
           </div>
 
-          <div className="setu-sync-section" style={{ marginTop: 24, padding: 24, borderRadius: 12, border: '1px solid #1e293b', background: '#0f172a' }}>
-            <h3 style={{ marginBottom: 8, fontSize: 18, color: '#f8fafc' }}>
-              🇮🇳 Auto-Sync with Bank (Account Aggregator)
-            </h3>
-            <p style={{ color: '#94a3b8', marginBottom: 12, fontSize: 14 }}>
-              Securely connect your bank account via the RBI-regulated Account Aggregator framework (powered by Setu). No login credentials are shared.
-            </p>
-            <p style={{ color: '#64748b', marginBottom: 16, fontSize: 13 }}>
-              If live Setu credentials are not configured in this environment, FinanceAI falls back to safe demo bank data so you can still test the full workflow locally.
-            </p>
-            <button
-              className="btn-primary"
-              onClick={() => { void handleSetuSync() }}
-              disabled={setuSyncing || parsing}
-              style={{ padding: '12px 24px', fontSize: 16, width: '100%', display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}
-            >
-              {setuSyncing ? <div className="spinner" style={{ width: 16, height: 16 }} /> : '🔗'}
-              {setuSyncing ? 'Connecting to Bank...' : 'Connect Bank via Setu AA'}
-            </button>
-            {setuNotice && (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe', fontSize: 13 }}>
-                ℹ️ {setuNotice}
-              </div>
-            )}
-            {setuError && <div className="parse-error" style={{ marginTop: 12 }}>❌ {setuError}</div>}
-          </div>
+          {capabilities.canUseBankSync ? (
+            <div className="setu-sync-section" style={{ marginTop: 24, padding: 24, borderRadius: 12, border: '1px solid #1e293b', background: '#0f172a' }}>
+              <h3 style={{ marginBottom: 8, fontSize: 18, color: '#f8fafc' }}>
+                🇮🇳 Auto-Sync with Bank (Account Aggregator)
+              </h3>
+              <p style={{ color: '#94a3b8', marginBottom: 12, fontSize: 14 }}>
+                Securely connect your bank account via the RBI-regulated Account Aggregator framework (powered by Setu). No login credentials are shared.
+              </p>
+              <p style={{ color: '#64748b', marginBottom: 16, fontSize: 13 }}>
+                If live Setu credentials are not configured in this environment, FinanceAI falls back to safe demo bank data so you can still test the full workflow locally.
+              </p>
+              <button
+                className="btn-primary"
+                onClick={() => { void handleSetuSync() }}
+                disabled={setuSyncing || parsing}
+                style={{ padding: '12px 24px', fontSize: 16, width: '100%', display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}
+              >
+                {setuSyncing ? <div className="spinner" style={{ width: 16, height: 16 }} /> : '🔗'}
+                {setuSyncing ? 'Connecting to Bank...' : 'Connect Bank via Setu AA'}
+              </button>
+              {setuNotice && (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe', fontSize: 13 }}>
+                  ℹ️ {setuNotice}
+                </div>
+              )}
+              {setuError && <div className="parse-error" style={{ marginTop: 12 }}>❌ {setuError}</div>}
+            </div>
+          ) : (
+            <div className="card" style={{ marginTop: 24, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.22)' }}>
+              <div className="card-title" style={{ marginBottom: 8 }}>Bank sync is owner-only</div>
+              <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                You can still upload CSV, PDF, and screenshot statements here. Only the workspace owner can connect live bank sync through Setu.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

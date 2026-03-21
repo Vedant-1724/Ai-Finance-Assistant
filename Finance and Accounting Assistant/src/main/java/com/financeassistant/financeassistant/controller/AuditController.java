@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuditController {
     private final AuditService auditService;
     @GetMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyOwner(#companyId, authentication)")
     public ResponseEntity<Page<AuditLog>> getLog(
             @PathVariable Long companyId,
             @RequestParam(defaultValue="0") int page,

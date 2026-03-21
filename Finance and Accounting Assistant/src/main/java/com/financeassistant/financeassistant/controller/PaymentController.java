@@ -4,6 +4,7 @@ import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.service.BillingConfigurationService;
 import com.financeassistant.financeassistant.service.SubscriptionService;
 import com.financeassistant.financeassistant.service.SubscriptionStatusPayloadService;
+import com.financeassistant.financeassistant.service.WorkspaceAccessService;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.Utils;
@@ -37,11 +38,17 @@ public class PaymentController {
     private final StringRedisTemplate redisTemplate;
     private final BillingConfigurationService billingConfigurationService;
     private final SubscriptionStatusPayloadService subscriptionStatusPayloadService;
+    private final WorkspaceAccessService workspaceAccessService;
 
     @PostMapping("/create-order")
     public ResponseEntity<?> createOrder(
             @AuthenticationPrincipal User user,
             @RequestBody Map<String, Object> payload) {
+        if (!workspaceAccessService.isWorkspaceOwner(user)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "error", "OWNER_ONLY",
+                    "message", "Only the workspace owner can change billing or purchase plans."));
+        }
         if (!billingConfigurationService.isPaymentConfigured()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of(
@@ -157,6 +164,11 @@ public class PaymentController {
     public ResponseEntity<?> verifyPayment(
             @AuthenticationPrincipal User user,
             @RequestBody Map<String, String> payload) {
+        if (!workspaceAccessService.isWorkspaceOwner(user)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "error", "OWNER_ONLY",
+                    "message", "Only the workspace owner can change billing or purchase plans."));
+        }
         if (!billingConfigurationService.isPaymentConfigured()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(Map.of(

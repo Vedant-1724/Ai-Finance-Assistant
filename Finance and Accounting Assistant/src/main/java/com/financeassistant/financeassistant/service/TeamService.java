@@ -1,6 +1,7 @@
 package com.financeassistant.financeassistant.service;
 
 import com.financeassistant.financeassistant.entity.CompanyMember;
+import com.financeassistant.financeassistant.repository.CompanyRepository;
 import com.financeassistant.financeassistant.repository.CompanyMemberRepository;
 import com.financeassistant.financeassistant.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.UUID;
 public class TeamService {
 
     private final CompanyMemberRepository memberRepo;
+    private final CompanyRepository companyRepository;
     private final UserRepository userRepo;
     private final EmailAlertService emailAlertService;
 
@@ -71,6 +73,7 @@ public class TeamService {
     }
 
     public List<CompanyMember> getMembers(Long companyId) {
+        ensureOwnerMembership(companyId);
         return memberRepo.findByCompanyIdOrderByCreatedAtAsc(companyId);
     }
 
@@ -102,5 +105,18 @@ public class TeamService {
     }
 
     public record InviteResult(CompanyMember member, String inviteUrl, boolean emailDeliveryEnabled, String message) {
+    }
+
+    private void ensureOwnerMembership(Long companyId) {
+        companyRepository.findById(companyId).ifPresent(company -> {
+            if (!memberRepo.existsByCompanyIdAndUserId(companyId, company.getOwnerId())) {
+                CompanyMember ownerMembership = new CompanyMember();
+                ownerMembership.setCompanyId(companyId);
+                ownerMembership.setUserId(company.getOwnerId());
+                ownerMembership.setRole(CompanyMember.Role.OWNER);
+                ownerMembership.setAcceptedAt(LocalDateTime.now());
+                memberRepo.save(ownerMembership);
+            }
+        });
     }
 }

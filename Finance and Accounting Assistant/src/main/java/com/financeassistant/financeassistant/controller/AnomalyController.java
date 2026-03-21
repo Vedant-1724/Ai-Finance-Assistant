@@ -36,7 +36,7 @@ public class AnomalyController {
      * Returns all anomalies for this company, newest first.
      */
     @GetMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<List<Anomaly>> getAnomalies(@PathVariable Long companyId) {
         log.info("GET /anomalies companyId={}", companyId);
         return ResponseEntity.ok(
@@ -48,7 +48,7 @@ public class AnomalyController {
      * Dismisses (hard-deletes) a single anomaly alert.
      */
     @DeleteMapping("/{anomalyId}")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<Void> dismissAnomaly(
             @PathVariable Long companyId,
             @PathVariable Long anomalyId) {

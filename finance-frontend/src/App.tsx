@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import Dashboard from './components/Dashboard'
 import ChatAssistant from './components/ChatAssistant'
@@ -38,7 +38,7 @@ type Tab =
   | 'settings'
 
 function ProtectedApp() {
-  const { user, logout, isFree, isTrial } = useAuth()
+  const { user, logout, isFree, capabilities } = useAuth()
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
@@ -47,8 +47,66 @@ function ProtectedApp() {
   const [dashboardKey, setDashboardKey] = useState(0)
 
   const companyId = user!.companyId
+  const isPaidWorkspace = user!.subscriptionTier !== 'FREE'
+  const canUseChat = capabilities.canUseAiTools && (user!.subscriptionTier === 'ACTIVE' || user!.subscriptionTier === 'MAX')
+
+  const tabMeta = useMemo(() => ({
+    dashboard: { label: 'Dashboard', icon: '📊', section: 'Main', visible: true, locked: false, lockLabel: '' },
+    charts: { label: 'Charts', icon: '📈', section: 'Main', visible: true, locked: false, lockLabel: '' },
+    budget: { label: 'Budget', icon: '🎯', section: 'Main', visible: capabilities.canEditFinance, locked: false, lockLabel: '' },
+    chat: {
+      label: 'AI Assistant',
+      icon: '🤖',
+      section: 'Main',
+      visible: capabilities.canUseAiTools,
+      locked: !canUseChat,
+      lockLabel: user!.subscriptionTier === 'TRIAL' ? 'Upgrade to Pro or Max for AI chat' : 'Upgrade to access',
+    },
+    invoices: {
+      label: 'Invoices',
+      icon: '📄',
+      section: 'Finance',
+      visible: capabilities.canEditFinance,
+      locked: !isPaidWorkspace,
+      lockLabel: 'Upgrade to access',
+    },
+    import: { label: 'Import', icon: '⬆️', section: 'Finance', visible: capabilities.canEditFinance, locked: false, lockLabel: '' },
+    tax: { label: 'Tax & GST', icon: '🧾', section: 'Finance', visible: true, locked: !isPaidWorkspace, lockLabel: 'Upgrade to access' },
+    health: { label: 'Health Score', icon: '💚', section: 'Finance', visible: true, locked: !isPaidWorkspace, lockLabel: 'Upgrade to access' },
+    audit: {
+      label: 'Audit Log',
+      icon: '📋',
+      section: 'Workspace',
+      visible: capabilities.canViewAudit,
+      locked: !isPaidWorkspace,
+      lockLabel: 'Upgrade to access',
+    },
+    team: {
+      label: 'Team',
+      icon: '👥',
+      section: 'Workspace',
+      visible: capabilities.canManageTeam,
+      locked: !isPaidWorkspace,
+      lockLabel: 'Upgrade to access',
+    },
+    settings: { label: 'Settings', icon: '⚙️', section: 'Workspace', visible: true, locked: false, lockLabel: '' },
+  }), [capabilities.canEditFinance, capabilities.canManageTeam, capabilities.canUseAiTools, capabilities.canViewAudit, canUseChat, isPaidWorkspace, user])
+
+  const visibleTabs = (Object.entries(tabMeta) as Array<[Tab, typeof tabMeta[Tab]]>).filter(([, meta]) => meta.visible)
+  const sections = ['Main', 'Finance', 'Workspace'] as const
+
+  useEffect(() => {
+    if (!visibleTabs.some(([tab]) => tab === activeTab)) {
+      setActiveTab(visibleTabs[0]?.[0] ?? 'dashboard')
+    }
+  }, [activeTab, visibleTabs])
 
   const navTo = (tab: Tab) => {
+    if (tabMeta[tab].locked) {
+      navigate('/subscription')
+      setSidebarOpen(false)
+      return
+    }
     setActiveTab(tab)
     setSidebarOpen(false)
   }
@@ -60,23 +118,17 @@ function ProtectedApp() {
 
   const NavBtn = ({
     tab,
-    label,
-    icon,
-    locked = false,
   }: {
     tab: Tab
-    label: string
-    icon: string
-    locked?: boolean
   }) => (
     <button
-      className={`nav-btn ${activeTab === tab ? 'active' : ''} ${locked ? 'nav-locked' : ''}`}
+      className={`nav-btn ${activeTab === tab ? 'active' : ''} ${tabMeta[tab].locked ? 'nav-locked' : ''}`}
       onClick={() => navTo(tab)}
-      title={locked ? 'Upgrade to access' : label}
+      title={tabMeta[tab].locked ? tabMeta[tab].lockLabel : tabMeta[tab].label}
     >
-      <span className="nav-icon">{icon}</span>
-      {!sidebarCollapsed && <span className="nav-label">{label}</span>}
-      {locked && !sidebarCollapsed && <span className="lock-icon">🔒</span>}
+      <span className="nav-icon">{tabMeta[tab].icon}</span>
+      {!sidebarCollapsed && <span className="nav-label">{tabMeta[tab].label}</span>}
+      {tabMeta[tab].locked && !sidebarCollapsed && <span className="lock-icon">🔒</span>}
     </button>
   )
 
@@ -122,22 +174,21 @@ function ProtectedApp() {
         </div>
 
         <nav className="app-nav">
-          <div className="nav-section-label">Main</div>
-          <NavBtn tab="dashboard" label="Dashboard" icon="📊" />
-          <NavBtn tab="charts" label="Charts" icon="📈" />
-          <NavBtn tab="budget" label="Budget" icon="🎯" />
-          <NavBtn tab="chat" label="AI Assistant" icon="🤖" locked={isFree || isTrial} />
+          {sections.map(section => {
+            const tabs = visibleTabs.filter(([, meta]) => meta.section === section)
+            if (tabs.length === 0) {
+              return null
+            }
 
-          <div className="nav-section-label">Finance</div>
-          <NavBtn tab="invoices" label="Invoices" icon="📄" locked={isFree} />
-          <NavBtn tab="import" label="Import" icon="⬆️" />
-          <NavBtn tab="tax" label="Tax & GST" icon="🧾" locked={isFree} />
-          <NavBtn tab="health" label="Health Score" icon="💚" locked={isFree} />
-
-          <div className="nav-section-label">Pro</div>
-          <NavBtn tab="audit" label="Audit Log" icon="📋" locked={isFree} />
-          <NavBtn tab="team" label="Team" icon="👥" locked={isFree} />
-          <NavBtn tab="settings" label="Settings" icon="⚙️" />
+            return (
+              <div key={section}>
+                <div className="nav-section-label">{section}</div>
+                {tabs.map(([tab]) => (
+                  <NavBtn key={tab} tab={tab} />
+                ))}
+              </div>
+            )
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -156,6 +207,11 @@ function ProtectedApp() {
               >
                 {user?.subscriptionTier ?? 'FREE'}
               </span>
+              {!sidebarCollapsed && (
+                <span className="tier-badge" style={{ marginLeft: 6, background: 'rgba(148,163,184,0.18)', color: '#cbd5e1' }}>
+                  {user?.role}
+                </span>
+              )}
               <span className="user-email" title={user?.email}>{user?.email}</span>
             </div>
             <button className="btn-logout" onClick={() => { void logout() }} title="Logout">
@@ -168,7 +224,9 @@ function ProtectedApp() {
           </div>
           {!sidebarCollapsed && (
             <button className="btn-upgrade" onClick={() => navigate('/subscription')}>
-              {isFree ? '⬆️ Upgrade to Pro' : '💳 View Plan'}
+              {capabilities.canManageBilling
+                ? isFree ? '⬆️ Upgrade Workspace' : '💳 Manage Plan'
+                : '💳 View Workspace Plan'}
             </button>
           )}
         </div>

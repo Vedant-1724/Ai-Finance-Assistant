@@ -11,7 +11,7 @@ import java.util.List;
 public class RecurringController {
     private final RecurringTransactionService recurringService;
     @GetMapping("/upcoming")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<List<UpcomingRecurring>> upcoming(
             @PathVariable Long companyId,
             @RequestParam(defaultValue="5") int limit) {

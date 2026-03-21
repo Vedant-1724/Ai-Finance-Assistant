@@ -20,7 +20,7 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<List<CategoryOptionDto>> getCategories(@PathVariable Long companyId) {
         return ResponseEntity.ok(categoryService.getCategories(companyId));
     }

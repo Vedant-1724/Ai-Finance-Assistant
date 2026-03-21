@@ -4,9 +4,11 @@ import com.financeassistant.financeassistant.dto.AuthResponse;
 import com.financeassistant.financeassistant.dto.LoginRequest;
 import com.financeassistant.financeassistant.dto.RegisterRequest;
 import com.financeassistant.financeassistant.entity.Company;
+import com.financeassistant.financeassistant.entity.CompanyMember;
 import com.financeassistant.financeassistant.entity.EmailVerificationToken;
 import com.financeassistant.financeassistant.entity.PasswordResetToken;
 import com.financeassistant.financeassistant.entity.User;
+import com.financeassistant.financeassistant.repository.CompanyMemberRepository;
 import com.financeassistant.financeassistant.repository.CompanyRepository;
 import com.financeassistant.financeassistant.repository.EmailVerificationTokenRepository;
 import com.financeassistant.financeassistant.repository.PasswordResetTokenRepository;
@@ -32,11 +34,14 @@ public class AuthService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
+    private final CompanyMemberRepository companyMemberRepository;
     private final EmailVerificationTokenRepository tokenRepository;
     private final PasswordResetTokenRepository resetTokenRepository;
     private final EmailAlertService emailService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final WorkspaceAccessService workspaceAccessService;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
@@ -62,6 +67,18 @@ public class AuthService implements UserDetailsService {
         company.setCurrency("INR");
         Company savedCompany = companyRepository.save(company);
 
+        CompanyMember ownerMembership = companyMemberRepository
+                .findByCompanyIdAndUserId(savedCompany.getId(), savedUser.getId())
+                .orElseGet(CompanyMember::new);
+        ownerMembership.setCompanyId(savedCompany.getId());
+        ownerMembership.setUserId(savedUser.getId());
+        ownerMembership.setRole(CompanyMember.Role.OWNER);
+        ownerMembership.setInviteEmail(null);
+        ownerMembership.setInviteToken(null);
+        ownerMembership.setInviteExpiresAt(null);
+        ownerMembership.setAcceptedAt(LocalDateTime.now());
+        companyMemberRepository.save(ownerMembership);
+
         String rawToken = UUID.randomUUID().toString();
         EmailVerificationToken tokenEntity = new EmailVerificationToken(rawToken, savedUser,
                 LocalDateTime.now().plusHours(24));
@@ -74,7 +91,7 @@ public class AuthService implements UserDetailsService {
         }
 
         log.info("Registered new FREE user (Unverified): {}", savedUser.getEmail());
-        return new RegistrationResult(buildAuthResponse("", savedCompany.getId(), savedUser), rawToken);
+        return new RegistrationResult(buildAuthResponse("", savedUser), rawToken);
     }
 
     @Transactional(readOnly = true)
@@ -90,12 +107,12 @@ public class AuthService implements UserDetailsService {
             throw new IllegalStateException("EMAIL_UNVERIFIED");
         }
 
-        Company company = companyRepository.findFirstByOwnerId(user.getId())
+        WorkspaceAccessService.WorkspaceContext workspace = workspaceAccessService.resolveForUser(user)
                 .orElseThrow(() -> new IllegalStateException("No company found for user"));
 
-        String token = jwtUtil.generateToken(user.getEmail(), company.getId());
+        String token = jwtUtil.generateToken(user.getEmail(), workspace.companyId());
         log.info("Login: {}", user.getEmail());
-        return buildAuthResponse(token, company.getId(), user);
+        return buildAuthResponse(token, user);
     }
 
     @Transactional
@@ -174,14 +191,25 @@ public class AuthService implements UserDetailsService {
         log.info("Password changed successfully for: {}", user.getEmail());
     }
 
-    private AuthResponse buildAuthResponse(String token, Long companyId, User user) {
+    public AuthResponse buildSessionResponse(User user) {
+        return buildAuthResponse("", user);
+    }
+
+    private AuthResponse buildAuthResponse(String token, User user) {
+        WorkspaceAccessService.WorkspaceContext workspace = workspaceAccessService.resolveForUser(user)
+                .orElseThrow(() -> new IllegalStateException("No company found for user"));
+        String workspaceTier = subscriptionService.getWorkspaceTier(user);
         return new AuthResponse(
                 token,
-                companyId,
+                workspace.companyId(),
                 user.getEmail(),
-                user.getEffectiveTier(),
-                user.trialDaysRemaining(),
-                user.getAiChatsRemainingToday());
+                workspace.role().name(),
+                workspaceTier,
+                subscriptionService.trialDaysRemaining(user),
+                subscriptionService.getAiChatsRemaining(user),
+                subscriptionService.getAiChatDailyLimit(user),
+                subscriptionService.hasPremiumAccess(user),
+                workspace.isOwner());
     }
 
     public record RegistrationResult(AuthResponse authResponse, String verificationToken) {

@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState, useCallback } from 'react'
 import api from '../api'
 import AddTransactionModal from './AddTransactionModal'
 import AnomalyPanel from './AnomalyPanel'
+import { useAuth } from '../context/AuthContext'
 
 interface Transaction {
   id: number
@@ -45,6 +46,7 @@ const ChartsSection = lazy(() => import('./ChartsSection'))
 type Period = 'month' | 'quarter' | 'year'
 
 function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
+  const { capabilities } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [txnLoading, setTxnLoading] = useState(true)
   const [txnError, setTxnError] = useState<string | null>(null)
@@ -136,6 +138,19 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
     setShowModal(true)
   }
 
+  const handleDismissAnomaly = async (anomalyId: number) => {
+    if (!capabilities.canEditFinance) {
+      return
+    }
+
+    try {
+      await api.delete(`/api/v1/${companyId}/anomalies/${anomalyId}`)
+      setAnomalies(prev => prev.filter(anomaly => anomaly.id !== anomalyId))
+    } catch {
+      setSuccessMsg(null)
+    }
+  }
+
   const safeTransactions = Array.isArray(transactions) ? transactions : []
   const liveIncome = safeTransactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const liveExpense = safeTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
@@ -156,7 +171,8 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
       <AnomalyPanel
         companyId={companyId}
         anomalies={anomalies}
-        onDismiss={id => setAnomalies(prev => prev.filter(a => a.id !== id))}
+        canDismiss={capabilities.canEditFinance}
+        onDismiss={id => { void handleDismissAnomaly(id) }}
       />
 
       {txnError ? (
@@ -304,9 +320,11 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
             <button className="btn-refresh" onClick={() => { void fetchTransactions() }}>
               ↻ Refresh
             </button>
-            <button className="btn-add-txn" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
-              ＋ Add Transaction
-            </button>
+            {capabilities.canEditFinance ? (
+              <button className="btn-add-txn" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
+                ＋ Add Transaction
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -316,10 +334,16 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
           <div className="empty-state">
             <div className="empty-icon">📂</div>
             <p className="empty-title">No transactions yet</p>
-            <p className="empty-sub">Click "Add Transaction" to record your first entry</p>
-            <button className="btn-add-txn-empty" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
-              ＋ Add Your First Transaction
-            </button>
+            <p className="empty-sub">
+              {capabilities.canEditFinance
+                ? 'Click "Add Transaction" to record your first entry'
+                : 'No transactions have been recorded in this workspace yet.'}
+            </p>
+            {capabilities.canEditFinance ? (
+              <button className="btn-add-txn-empty" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
+                ＋ Add Your First Transaction
+              </button>
+            ) : null}
           </div>
         ) : (
           <table>
@@ -329,7 +353,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                 <th>Description</th>
                 <th>Category</th>
                 <th>Amount</th>
-                <th style={{ width: 100, textAlign: 'center' }}>Actions</th>
+                {capabilities.canEditFinance ? <th style={{ width: 100, textAlign: 'center' }}>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -343,44 +367,46 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                   <td className={tx.amount >= 0 ? 'positive' : 'negative'}>
                     {tx.amount >= 0 ? '+' : '−'}₹{Math.abs(tx.amount).toLocaleString('en-IN')}
                   </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                      <button
-                        className="btn-icon"
-                        title="Edit"
-                        onClick={() => handleEdit(tx)}
-                        style={{
-                          background: 'rgba(59,130,246,0.12)',
-                          border: '1px solid rgba(59,130,246,0.25)',
-                          color: '#60a5fa',
-                          borderRadius: 6,
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="btn-icon"
-                        title="Delete"
-                        onClick={() => setDeleteConfirm(tx)}
-                        style={{
-                          background: 'rgba(239,68,68,0.12)',
-                          border: '1px solid rgba(239,68,68,0.25)',
-                          color: '#f87171',
-                          borderRadius: 6,
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          fontSize: 13,
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
+                  {capabilities.canEditFinance ? (
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button
+                          className="btn-icon"
+                          title="Edit"
+                          onClick={() => handleEdit(tx)}
+                          style={{
+                            background: 'rgba(59,130,246,0.12)',
+                            border: '1px solid rgba(59,130,246,0.25)',
+                            color: '#60a5fa',
+                            borderRadius: 6,
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className="btn-icon"
+                          title="Delete"
+                          onClick={() => setDeleteConfirm(tx)}
+                          style={{
+                            background: 'rgba(239,68,68,0.12)',
+                            border: '1px solid rgba(239,68,68,0.25)',
+                            color: '#f87171',
+                            borderRadius: 6,
+                            padding: '4px 8px',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -388,7 +414,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
         )}
       </div>
 
-      {showModal && (
+      {showModal && capabilities.canEditFinance && (
         <AddTransactionModal
           companyId={companyId}
           onClose={() => { setShowModal(false); setEditingTxn(null) }}

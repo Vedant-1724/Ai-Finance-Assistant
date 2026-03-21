@@ -3,6 +3,7 @@ package com.financeassistant.financeassistant.controller;
 import com.financeassistant.financeassistant.entity.User;
 import com.financeassistant.financeassistant.repository.CompanyRepository;
 import com.financeassistant.financeassistant.service.DataDeletionService;
+import com.financeassistant.financeassistant.service.WorkspaceAccessService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class AccountController {
 
   private final DataDeletionService dataDeletionService;
   private final CompanyRepository companyRepository;
+  private final WorkspaceAccessService workspaceAccessService;
 
   @DeleteMapping
   public ResponseEntity<?> deleteAccount(
@@ -33,6 +35,12 @@ public class AccountController {
       @AuthenticationPrincipal User user) {
     if (user == null) {
       return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+    }
+
+    if (!workspaceAccessService.isWorkspaceOwner(user)) {
+      return ResponseEntity.status(403).body(Map.of(
+          "error", "OWNER_ONLY",
+          "message", "Only the workspace owner can delete the account and company data."));
     }
 
     Long companyId = companyRepository.findFirstByOwnerId(user.getId())

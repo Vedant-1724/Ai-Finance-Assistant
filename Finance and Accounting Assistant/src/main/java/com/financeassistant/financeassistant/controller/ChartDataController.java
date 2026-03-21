@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 public class ChartDataController {
     private final ChartDataService chartService;
     @GetMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<ChartDataResponse> getCharts(
             @PathVariable Long companyId,
             @RequestParam(defaultValue="6") int months) {

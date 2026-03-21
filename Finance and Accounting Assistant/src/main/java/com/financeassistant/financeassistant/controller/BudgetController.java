@@ -23,7 +23,7 @@ public class BudgetController {
 
     /** GET /api/v1/{companyId}/budgets/variance?year=2026&month=3 */
     @GetMapping("/variance")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<List<BudgetVarianceDTO>> getVariance(
             @PathVariable Long companyId,
             @RequestParam(defaultValue = "0") int year,
@@ -35,7 +35,7 @@ public class BudgetController {
 
     /** POST /api/v1/{companyId}/budgets — create or update a budget entry */
     @PostMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<BudgetDTO> upsert(
             @PathVariable Long companyId,
             @RequestBody UpsertBudgetRequest req) {

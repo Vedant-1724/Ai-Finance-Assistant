@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext'
 type JoinState = 'ready' | 'accepting' | 'success' | 'error'
 
 export default function JoinTeamPage() {
-  const { user } = useAuth()
+  const { user, refreshSession } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
@@ -30,6 +30,7 @@ export default function JoinTeamPage() {
 
       try {
         const res = await api.post<{ message?: string }>('/api/v1/team/accept', { token })
+        await refreshSession()
         setStatus('success')
         setMessage(res.data.message || 'Team invitation accepted successfully.')
       } catch (error) {

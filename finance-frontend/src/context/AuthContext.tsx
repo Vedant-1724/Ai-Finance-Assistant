@@ -2,32 +2,47 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import api from '../api'
 
 type SubscriptionTier = 'FREE' | 'TRIAL' | 'ACTIVE' | 'MAX'
+type WorkspaceRole = 'OWNER' | 'EDITOR' | 'VIEWER'
+
+interface UserCapabilities {
+  canEditFinance: boolean
+  canUseAiTools: boolean
+  canManageBilling: boolean
+  canManageTeam: boolean
+  canManageCompanyProfile: boolean
+  canUseBankSync: boolean
+  canViewAudit: boolean
+}
 
 interface UserInfo {
   companyId: number
   email: string
+  role: WorkspaceRole
   subscriptionTier: SubscriptionTier
   trialDaysRemaining: number
   aiChatsRemaining: number
+  aiChatDailyLimit: number
+  canManageBilling: boolean
 }
 
 interface AuthContextType {
   user: UserInfo | null
+  capabilities: UserCapabilities
   isAuthenticated: boolean
   authReady: boolean
   isPremium: boolean
   isFree: boolean
   isTrial: boolean
   isMax: boolean
-  login: (
-    companyId: number,
-    email: string,
-    subscriptionStatus: string,
-    trialDaysRemaining: number,
-    aiChatsRemaining: number
-  ) => void
+  login: (payload: AuthMeResponse) => void
   logout: () => Promise<void>
-  updateSubscription: (tier: string, daysRemaining: number, aiChatsRemaining: number) => void
+  refreshSession: () => Promise<void>
+  updateSubscription: (
+    tier: string,
+    daysRemaining: number,
+    aiChatsRemaining: number,
+    aiChatDailyLimit?: number
+  ) => void
   updateAiChats: (remaining: number) => void
   updateProfile: (email: string) => void
 }
@@ -35,9 +50,12 @@ interface AuthContextType {
 interface AuthMeResponse {
   companyId: number
   email: string
+  role: string
   subscriptionStatus: string
   trialDaysRemaining: number
   aiChatsRemaining: number
+  aiChatDailyLimit: number
+  canManageBilling?: boolean
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -49,13 +67,50 @@ function normalizeTier(subscriptionStatus: string): SubscriptionTier {
   return 'FREE'
 }
 
+function normalizeRole(role: string | undefined): WorkspaceRole {
+  if (role === 'OWNER' || role === 'EDITOR') {
+    return role
+  }
+  return 'VIEWER'
+}
+
+function getCapabilities(user: UserInfo | null): UserCapabilities {
+  if (!user) {
+    return {
+      canEditFinance: false,
+      canUseAiTools: false,
+      canManageBilling: false,
+      canManageTeam: false,
+      canManageCompanyProfile: false,
+      canUseBankSync: false,
+      canViewAudit: false,
+    }
+  }
+
+  const owner = user.role === 'OWNER'
+  const editor = user.role === 'EDITOR'
+
+  return {
+    canEditFinance: owner || editor,
+    canUseAiTools: owner || editor,
+    canManageBilling: owner || user.canManageBilling,
+    canManageTeam: owner,
+    canManageCompanyProfile: owner,
+    canUseBankSync: owner,
+    canViewAudit: owner,
+  }
+}
+
 function buildUserInfo(data: AuthMeResponse): UserInfo {
   return {
     companyId: data.companyId,
     email: data.email,
+    role: normalizeRole(data.role),
     subscriptionTier: normalizeTier(data.subscriptionStatus),
     trialDaysRemaining: data.trialDaysRemaining,
     aiChatsRemaining: data.aiChatsRemaining,
+    aiChatDailyLimit: data.aiChatDailyLimit ?? 0,
+    canManageBilling: Boolean(data.canManageBilling ?? data.role === 'OWNER'),
   }
 }
 
@@ -103,21 +158,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = (
-    companyId: number,
-    email: string,
-    subscriptionStatus: string,
-    trialDaysRemaining: number,
-    aiChatsRemaining: number
-  ) => {
-    const nextUser: UserInfo = {
-      companyId,
-      email,
-      subscriptionTier: normalizeTier(subscriptionStatus),
-      trialDaysRemaining,
-      aiChatsRemaining,
-    }
+  const login = (payload: AuthMeResponse) => {
+    const nextUser = buildUserInfo(payload)
+    setUser(nextUser)
+    localStorage.setItem('auth_user', JSON.stringify(nextUser))
+    setAuthReady(true)
+  }
 
+  const refreshSession = async () => {
+    const res = await api.get<AuthMeResponse>('/api/v1/auth/me', {
+      headers: { 'X-Skip-401-Redirect': 'true' },
+    })
+    const nextUser = buildUserInfo(res.data)
     setUser(nextUser)
     localStorage.setItem('auth_user', JSON.stringify(nextUser))
     setAuthReady(true)
@@ -138,7 +190,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const updateSubscription = (tier: string, daysRemaining: number, aiChatsRemaining: number) => {
+  const updateSubscription = (
+    tier: string,
+    daysRemaining: number,
+    aiChatsRemaining: number,
+    aiChatDailyLimit?: number
+  ) => {
     if (!user) return
 
     const updated: UserInfo = {
@@ -146,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscriptionTier: normalizeTier(tier),
       trialDaysRemaining: daysRemaining,
       aiChatsRemaining,
+      aiChatDailyLimit: typeof aiChatDailyLimit === 'number' ? aiChatDailyLimit : user.aiChatDailyLimit,
     }
 
     setUser(updated)
@@ -172,11 +230,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isFree = !isPremium
   const isTrial = user?.subscriptionTier === 'TRIAL'
   const isMax = user?.subscriptionTier === 'MAX'
+  const capabilities = getCapabilities(user)
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        capabilities,
         isAuthenticated: !!user,
         authReady,
         isPremium,
@@ -185,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isMax,
         login,
         logout,
+        refreshSession,
         updateSubscription,
         updateAiChats,
         updateProfile,

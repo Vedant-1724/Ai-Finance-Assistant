@@ -24,16 +24,22 @@ class SubscriptionServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private WorkspaceAccessService workspaceAccessService;
+
     private SubscriptionService subscriptionService;
 
     @BeforeEach
     void setUp() {
-        subscriptionService = new SubscriptionService(userRepository);
+        subscriptionService = new SubscriptionService(userRepository, workspaceAccessService);
     }
 
     @Test
     void startTrialStartsForFreeUserWithUnusedTrial() {
         User user = new User("free@example.com", "encoded", "USER");
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(true);
+        when(workspaceAccessService.getRequiredWorkspace(user)).thenReturn(
+                new WorkspaceAccessService.WorkspaceContext(1L, "Acme", user.getId(), WorkspaceAccessService.WorkspaceRole.OWNER, user));
         when(userRepository.save(user)).thenReturn(user);
 
         SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
@@ -48,6 +54,9 @@ class SubscriptionServiceTest {
     void startTrialFailsWhenTrialAlreadyUsed() {
         User user = new User("free@example.com", "encoded", "USER");
         user.setTrialStartedAt(Instant.now().minus(5, ChronoUnit.DAYS));
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(true);
+        when(workspaceAccessService.getRequiredWorkspace(user)).thenReturn(
+                new WorkspaceAccessService.WorkspaceContext(1L, "Acme", user.getId(), WorkspaceAccessService.WorkspaceRole.OWNER, user));
 
         SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
 
@@ -60,6 +69,9 @@ class SubscriptionServiceTest {
         User user = new User("trial@example.com", "encoded", "USER");
         user.setSubscriptionStatus(User.SubscriptionStatus.TRIAL);
         user.setTrialStartedAt(Instant.now().minus(1, ChronoUnit.DAYS));
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(true);
+        when(workspaceAccessService.getRequiredWorkspace(user)).thenReturn(
+                new WorkspaceAccessService.WorkspaceContext(1L, "Acme", user.getId(), WorkspaceAccessService.WorkspaceRole.OWNER, user));
 
         SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
 
@@ -72,6 +84,9 @@ class SubscriptionServiceTest {
         User user = new User("pro@example.com", "encoded", "USER");
         user.setSubscriptionStatus(User.SubscriptionStatus.ACTIVE);
         user.setSubscriptionExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(true);
+        when(workspaceAccessService.getRequiredWorkspace(user)).thenReturn(
+                new WorkspaceAccessService.WorkspaceContext(1L, "Acme", user.getId(), WorkspaceAccessService.WorkspaceRole.OWNER, user));
 
         SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
 
@@ -84,10 +99,24 @@ class SubscriptionServiceTest {
         User user = new User("max@example.com", "encoded", "USER");
         user.setSubscriptionStatus(User.SubscriptionStatus.MAX);
         user.setSubscriptionExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(true);
+        when(workspaceAccessService.getRequiredWorkspace(user)).thenReturn(
+                new WorkspaceAccessService.WorkspaceContext(1L, "Acme", user.getId(), WorkspaceAccessService.WorkspaceRole.OWNER, user));
 
         SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
 
         assertEquals(SubscriptionService.TrialStartResult.FREE_TIER_ONLY, result);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void startTrialFailsForNonOwners() {
+        User user = new User("member@example.com", "encoded", "USER");
+        when(workspaceAccessService.isWorkspaceOwner(user)).thenReturn(false);
+
+        SubscriptionService.TrialStartResult result = subscriptionService.startTrial(user);
+
+        assertEquals(SubscriptionService.TrialStartResult.OWNER_ONLY, result);
         verify(userRepository, never()).save(any());
     }
 }

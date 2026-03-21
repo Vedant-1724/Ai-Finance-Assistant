@@ -219,6 +219,192 @@
   background: rgba(20, 36, 64, 0.8);
 }
 
+/* ── Phase 2 Premium System Refresh ─────────────────── */
+body {
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.09), transparent 28%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 34%),
+    linear-gradient(180deg, #050b16 0%, #091425 52%, #050b16 100%);
+}
+
+.app-sidebar {
+  background:
+    linear-gradient(180deg, rgba(8, 15, 29, 0.98) 0%, rgba(10, 22, 40, 0.94) 48%, rgba(7, 14, 27, 0.98) 100%);
+  border-right: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 20px 0 70px rgba(2, 6, 23, 0.55);
+}
+
+.app-main {
+  padding: 28px;
+}
+
+.app-content-wrapper::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.08), transparent 22%),
+    radial-gradient(circle at 80% 12%, rgba(20, 184, 166, 0.08), transparent 20%),
+    radial-gradient(circle at 60% 82%, rgba(139, 92, 246, 0.08), transparent 24%);
+  z-index: 0;
+}
+
+.app-main,
+.mobile-header,
+.status-banner {
+  position: relative;
+  z-index: 1;
+}
+
+.nav-btn {
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+}
+
+.nav-btn.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.28), rgba(20, 184, 166, 0.14));
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.32);
+}
+
+.card,
+.settings-section,
+.invite-form,
+.health-gauge-card,
+.health-breakdown-card,
+.health-recs-card,
+.tax-summary-card,
+.plan-card,
+.inv-card,
+.inv-state-card,
+.statement-import .upload-section,
+.statement-import .preview-section,
+.statement-import .done-section {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(10, 19, 35, 0.96));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.34);
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: clamp(1.75rem, 2vw, 2.35rem);
+  letter-spacing: -0.04em;
+}
+
+.page-subtitle,
+.settings-section-desc,
+.auth-subheading {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.auth-page {
+  background:
+    radial-gradient(circle at 12% 16%, rgba(20, 184, 166, 0.14), transparent 24%),
+    radial-gradient(circle at 84% 14%, rgba(59, 130, 246, 0.16), transparent 24%),
+    linear-gradient(180deg, #050b16 0%, #091425 100%);
+}
+
+.auth-card {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 30px 80px rgba(2, 6, 23, 0.42);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(10, 18, 33, 0.98));
+}
+
+.auth-brand-icon,
+.brand-logo {
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+}
+
+.settings-section,
+.invite-form,
+.card,
+.plan-card {
+  border-radius: 24px;
+}
+
+.settings-row,
+.team-member-card {
+  border-color: rgba(148, 163, 225, 0.08);
+}
+
+.team-member-card {
+  background: rgba(8, 15, 29, 0.44);
+}
+
+.plan-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.plan-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.44), transparent);
+}
+
+.plan-card.featured {
+  transform: translateY(-4px);
+  border-color: rgba(96, 165, 250, 0.36);
+  box-shadow: 0 30px 80px rgba(30, 41, 59, 0.35);
+}
+
+.upgrade-gate {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(9, 18, 33, 0.97));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 28px;
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.35);
+}
+
+.success-toast,
+.success-box {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.28);
+}
+
+.error,
+.error-box,
+.auth-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.26);
+}
+
+.modal-box {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(10, 18, 33, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 36px 90px rgba(2, 6, 23, 0.55);
+}
+
+.form-input:disabled,
+.form-select:disabled,
+.input-field:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+@media (max-width: 860px) {
+  .app-main {
+    padding: 18px;
+  }
+
+  .settings-section,
+  .invite-form,
+  .card,
+  .plan-card {
+    border-radius: 20px;
+  }
+}
+
 .premium-chat-textarea {
   flex: 1;
   background: transparent;

@@ -26,7 +26,7 @@ public class HealthScoreController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping("/score")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<HealthScoreResponse> score(@PathVariable Long companyId,
             @RequestParam(defaultValue = "") String month) {
         LocalDate m = month.isBlank() ? LocalDate.now() : LocalDate.parse(month + "-01");
@@ -37,7 +37,7 @@ public class HealthScoreController {
     }
 
     @GetMapping("/history")
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.isCompanyMember(#companyId, authentication)")
     public ResponseEntity<List<HealthScoreResponse>> history(@PathVariable Long companyId) {
         List<FinancialHealthScore> history = healthService.getHistory(companyId);
         return ResponseEntity.ok(history.stream().map(entity -> {

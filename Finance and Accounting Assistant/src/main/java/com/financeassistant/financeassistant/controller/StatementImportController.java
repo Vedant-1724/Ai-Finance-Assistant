@@ -24,7 +24,7 @@ public class StatementImportController {
     private final StatementImportService importService;
 
     @PostMapping
-    @PreAuthorize("@companySecurityService.isOwner(#companyId, authentication)")
+    @PreAuthorize("@companySecurityService.canEditFinance(#companyId, authentication)")
     public ResponseEntity<ImportTransactionsResultDto> importStatementTransactions(
             @PathVariable Long companyId,
             @Valid @RequestBody BulkImportRequest request) {
