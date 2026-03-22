@@ -50,10 +50,10 @@ export default function JoinTeamPage() {
   if (!token) {
     return (
       <div className="auth-page">
-        <div className="auth-card">
+        <div className="auth-card glass-container" style={{ maxWidth: 460, margin: '0 auto', boxShadow: 'var(--glass-shadow-lg)' }}>
           <h1 className="auth-heading">Team Invite</h1>
           <p className="auth-subheading">This invite link is missing its token.</p>
-          <button type="button" className="btn-liquid-glass" onClick={() => navigate('/login')} style={{ width: '100%', padding: '12px' }}>
+          <button type="button" className="glass-btn glass-btn-primary" onClick={() => navigate('/login')} style={{ width: '100%', padding: '12px', justifyContent: 'center' }}>
             <span>Go to Login</span>
           </button>
         </div>
@@ -64,17 +64,17 @@ export default function JoinTeamPage() {
   if (!user) {
     return (
       <div className="auth-page">
-        <div className="auth-card">
+        <div className="auth-card glass-container" style={{ maxWidth: 460, margin: '0 auto', boxShadow: 'var(--glass-shadow-lg)' }}>
           <h1 className="auth-heading">Join Team Workspace</h1>
           <p className="auth-subheading">Sign in or create an account to accept this invitation.</p>
           <div className="success-box" style={{ marginBottom: '1rem' }}>
             You will return to this invite automatically after signing in.
           </div>
           <div style={{ display: 'grid', gap: 12 }}>
-            <Link to={`/login?next=${nextHref}`} className="btn-gradient" style={{ justifyContent: 'center', display: 'flex' }}>
+            <Link to={`/login?next=${nextHref}`} className="glass-btn glass-btn-primary" style={{ justifyContent: 'center', display: 'flex' }}>
               Sign In to Accept Invite
             </Link>
-            <Link to={`/register?next=${nextHref}`} className="btn-secondary" style={{ justifyContent: 'center', display: 'flex' }}>
+            <Link to={`/register?next=${nextHref}`} className="glass-btn" style={{ justifyContent: 'center', display: 'flex' }}>
               Create Account First
             </Link>
           </div>
@@ -85,7 +85,7 @@ export default function JoinTeamPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
+      <div className="auth-card glass-container" style={{ maxWidth: 460, margin: '0 auto', boxShadow: 'var(--glass-shadow-lg)' }}>
         <h1 className="auth-heading">Join Team Workspace</h1>
         <p className="auth-subheading">{message}</p>
 
@@ -95,16 +95,16 @@ export default function JoinTeamPage() {
 
         <div style={{ display: 'grid', gap: 12, marginTop: '1rem' }}>
           {status === 'error' && (
-            <button type="button" className="btn-liquid-glass" onClick={() => setStatus('ready')} style={{ padding: '10px' }}>
+            <button type="button" className="glass-btn glass-btn-primary" onClick={() => setStatus('ready')} style={{ padding: '10px', justifyContent: 'center' }}>
               <span>Try Again</span>
             </button>
           )}
           {status === 'success' && (
-            <button type="button" className="btn-liquid-glass" onClick={() => navigate('/', { replace: true })} style={{ padding: '10px' }}>
+            <button type="button" className="glass-btn glass-btn-primary" onClick={() => navigate('/', { replace: true })} style={{ padding: '10px', justifyContent: 'center' }}>
               <span>Go to Dashboard</span>
             </button>
           )}
-          <button type="button" className="btn-secondary" onClick={() => navigate('/', { replace: true })}>
+          <button type="button" className="glass-btn" style={{ justifyContent: 'center' }} onClick={() => navigate('/', { replace: true })}>
             Back to App
           </button>
         </div>

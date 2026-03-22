@@ -226,7 +226,7 @@ export default function SettingsPage() {
       {exportMsg && <div className="success-toast">✅ {exportMsg}</div>}
       {dangerErr && <div className="error" style={{ marginBottom: 12 }}>❌ {dangerErr}</div>}
 
-      <div className="settings-section">
+      <div className="settings-section glass-container">
         <div className="settings-section-title">👤 Profile</div>
         <div className="settings-section-desc">Your personal account information.</div>
 
@@ -235,7 +235,7 @@ export default function SettingsPage() {
             <label>Email address</label>
             <input
               type="email"
-              className="form-input"
+              className="glass-input"
               value={settings.email}
               onChange={event => setSettings(current => current ? { ...current, email: event.target.value } : current)}
             />
@@ -243,13 +243,13 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-liquid-glass" onClick={handleSave} disabled={saving}>
+          <button className="glass-btn glass-btn-primary" onClick={handleSave} disabled={saving}>
             <span>{saving ? '⏳ Saving…' : '💾 Save Profile'}</span>
           </button>
         </div>
       </div>
 
-      <div className="settings-section">
+      <div className="settings-section glass-container">
         <div className="settings-section-title">🏢 Workspace Profile</div>
         <div className="settings-section-desc">
           {capabilities.canManageCompanyProfile
@@ -262,7 +262,7 @@ export default function SettingsPage() {
             <label>Company name</label>
             <input
               type="text"
-              className="form-input"
+              className="glass-input"
               value={settings.companyName}
               onChange={event => setSettings(current => current ? { ...current, companyName: event.target.value } : current)}
               disabled={!capabilities.canManageCompanyProfile}
@@ -271,7 +271,8 @@ export default function SettingsPage() {
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Default currency</label>
             <select
-              className="form-select"
+              className="glass-input"
+              style={{ appearance: 'none' }}
               value={settings.currency}
               onChange={event => setSettings(current => current ? { ...current, currency: event.target.value } : current)}
               disabled={!capabilities.canManageCompanyProfile}
@@ -284,13 +285,13 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-liquid-glass" onClick={handleSave} disabled={saving || !capabilities.canManageCompanyProfile}>
+          <button className="glass-btn glass-btn-primary" onClick={handleSave} disabled={saving || !capabilities.canManageCompanyProfile}>
             <span>{saving ? '⏳ Saving…' : capabilities.canManageCompanyProfile ? '💾 Save Workspace' : 'Read-only Workspace'}</span>
           </button>
         </div>
       </div>
 
-      <div className="settings-section">
+      <div className="settings-section glass-container">
         <div className="settings-section-title">🔔 Email Notifications</div>
         <div className="settings-section-desc">
           Control which emails FinanceAI sends to {settings.email}.
@@ -314,13 +315,13 @@ export default function SettingsPage() {
         ))}
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-liquid-glass" onClick={handleSave} disabled={saving}>
+          <button className="glass-btn glass-btn-primary" onClick={handleSave} disabled={saving}>
             <span>{saving ? '⏳ Saving…' : '💾 Save Preferences'}</span>
           </button>
         </div>
       </div>
 
-      <div className="settings-section">
+      <div className="settings-section glass-container">
         <div className="settings-section-title">🔐 Security</div>
         <div className="settings-section-desc">Change your password. You will be logged out after a successful change.</div>
 
@@ -330,15 +331,16 @@ export default function SettingsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Current password</label>
-            <div className="input-wrapper">
+            <div className="input-wrapper" style={{ position: 'relative' }}>
               <input
                 type={showPw ? 'text' : 'password'}
-                className="form-input"
+                className="glass-input"
+                style={{ paddingRight: 40 }}
                 placeholder="Enter current password"
                 value={pwCurrent}
                 onChange={event => setPwCurrent(event.target.value)}
               />
-              <button className="input-icon" type="button" onClick={() => setShowPw(current => !current)}>
+              <button className="input-icon" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer' }} type="button" onClick={() => setShowPw(current => !current)}>
                 {showPw ? '🙈' : '👁️'}
               </button>
             </div>
@@ -347,7 +349,7 @@ export default function SettingsPage() {
             <label>New password</label>
             <input
               type={showPw ? 'text' : 'password'}
-              className="form-input"
+              className="glass-input"
               placeholder="Min. 8 characters"
               value={pwNew}
               onChange={event => setPwNew(event.target.value)}
@@ -357,7 +359,7 @@ export default function SettingsPage() {
             <label>Confirm new password</label>
             <input
               type={showPw ? 'text' : 'password'}
-              className="form-input"
+              className="glass-input"
               placeholder="Repeat new password"
               value={pwConfirm}
               onChange={event => setPwConfirm(event.target.value)}
@@ -385,13 +387,13 @@ export default function SettingsPage() {
         )}
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-liquid-glass" onClick={handleChangePassword} disabled={pwSaving}>
+          <button className="glass-btn glass-btn-primary" onClick={handleChangePassword} disabled={pwSaving}>
             <span>{pwSaving ? '⏳ Changing…' : '🔐 Change Password'}</span>
           </button>
         </div>
       </div>
 
-      <div className="settings-section">
+      <div className="settings-section glass-container">
         <div className="settings-section-title">📦 Data Export</div>
         <div className="settings-section-desc">Download your transactions as a CSV file at any time.</div>
 
@@ -400,13 +402,13 @@ export default function SettingsPage() {
             <div className="settings-row-label">Export Transactions</div>
             <div className="settings-row-desc">Download all transactions as CSV</div>
           </div>
-          <button className="btn-dismiss" onClick={handleExport} disabled={exporting}>
+          <button className="glass-btn" onClick={handleExport} disabled={exporting}>
             {exporting ? '⏳ Exporting…' : '⬇️ Download CSV'}
           </button>
         </div>
       </div>
 
-      <div className="settings-section danger-zone">
+      <div className="settings-section danger-zone glass-container">
         <div className="settings-section-title">⚠️ Danger Zone</div>
         <div className="settings-section-desc">
           {capabilities.canManageCompanyProfile
@@ -419,7 +421,7 @@ export default function SettingsPage() {
             <div className="settings-row-label">Log Out</div>
             <div className="settings-row-desc">Sign out of your account on this device</div>
           </div>
-          <button className="btn-dismiss" onClick={() => { void logout() }}>
+          <button className="glass-btn" onClick={() => { void logout() }}>
             🚪 Log Out
           </button>
         </div>
@@ -430,7 +432,7 @@ export default function SettingsPage() {
               <div className="settings-row-label" style={{ color: '#f87171' }}>Delete Account</div>
               <div className="settings-row-desc">Permanently delete all company data. This cannot be undone.</div>
             </div>
-            <button className="btn-danger" onClick={() => setConfirmDeleteOpen(true)}>
+            <button className="glass-btn glass-btn-danger" onClick={() => setConfirmDeleteOpen(true)}>
               🗑️ Delete Account
             </button>
           </div>
@@ -457,11 +459,11 @@ export default function SettingsPage() {
             <p style={{ margin: '16px 0', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               This permanently deletes the workspace, team data, transactions, and settings. This action cannot be undone.
             </p>
-            <div className="modal-footer">
-              <button className="btn-dismiss" onClick={() => setConfirmDeleteOpen(false)}>
+            <div className="modal-footer" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="glass-btn" onClick={() => setConfirmDeleteOpen(false)}>
                 Cancel
               </button>
-              <button className="btn-danger" onClick={() => { void handleDeleteAccount() }}>
+              <button className="glass-btn glass-btn-danger" onClick={() => { void handleDeleteAccount() }}>
                 Delete permanently
               </button>
             </div>

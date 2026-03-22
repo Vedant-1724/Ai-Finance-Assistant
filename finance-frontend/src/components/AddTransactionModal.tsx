@@ -141,7 +141,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
 
   return (
     <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
-      <div className="premium-modal-box" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Transaction' : 'Add Transaction'}>
+      <div className="modal-box glass-container" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Transaction' : 'Add Transaction'}>
         <div className="modal-header">
           <h2 className="modal-title">{isEdit ? '✏️ Edit Transaction' : '➕ Add Transaction'}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
@@ -193,7 +193,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
             <input
               id="txn-date"
               type="date"
-              className="form-input"
+              className="glass-input"
               value={date}
               onChange={event => setDate(event.target.value)}
               max={new Date().toISOString().split('T')[0]}
@@ -218,7 +218,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
             <input
               id="txn-desc"
               type="text"
-              className="form-input"
+              className="glass-input"
               placeholder="e.g. Office supplies from Staples"
               value={description}
               onChange={event => setDescription(event.target.value)}
@@ -246,7 +246,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
               <input
                 id="txn-amount"
                 type="number"
-                className="form-input"
+                className="glass-input"
                 style={{ paddingLeft: 28 }}
                 placeholder="0.00"
                 value={amount}
@@ -262,7 +262,8 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
             <label htmlFor="txn-cat">Category (optional)</label>
             <select
               id="txn-cat"
-              className="form-select"
+              className="glass-input"
+              style={{ appearance: 'none' }}
               value={categoryId}
               onChange={event => setCategoryId(event.target.value)}
             >
@@ -273,11 +274,11 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
             </select>
           </div>
 
-          <div className="modal-footer">
-            <button type="button" className="btn-dismiss" onClick={onClose} style={{ padding: '8px 16px' }}>
+          <div className="modal-footer" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <button type="button" className="glass-btn" onClick={onClose} style={{ padding: '8px 16px' }}>
               Cancel
             </button>
-            <button type="submit" className="btn-liquid-glass" disabled={loading}>
+            <button type="submit" className="glass-btn glass-btn-primary" disabled={loading}>
               <span>{loading ? '⏳ Saving…' : isEdit ? '✏️ Update Transaction' : '💾 Save Transaction'}</span>
             </button>
           </div>

@@ -62,7 +62,7 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
+      <div className="auth-card glass-container" style={{ maxWidth: 460, margin: '0 auto', boxShadow: 'var(--glass-shadow-lg)' }}>
         <div className="auth-brand">
           <div className="auth-brand-icon">
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
@@ -82,7 +82,7 @@ export default function LoginPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-field">
-            <label className="input-label">Email address</label>
+            <label className="glass-label">Email address</label>
             <input
               type="email"
               value={email}
@@ -90,12 +90,12 @@ export default function LoginPage() {
               placeholder="you@example.com"
               required
               autoFocus
-              className="input-field"
+              className="glass-input"
             />
           </div>
 
           <div className="form-field">
-            <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <label className="glass-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
               Password
               <span
                 style={{
@@ -117,14 +117,14 @@ export default function LoginPage() {
               onChange={event => setPassword(event.target.value)}
               placeholder="Your password"
               required
-              className="input-field"
+              className="glass-input"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="btn-liquid-glass"
+            className="glass-btn glass-btn-primary"
             style={{ marginTop: '16px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</> : <span>Sign In &rarr;</span>}
@@ -140,14 +140,7 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={() => navigate(registerHref)}
-          onMouseOver={event => {
-            event.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
-            event.currentTarget.style.borderColor = 'var(--text-secondary)'
-          }}
-          onMouseOut={event => {
-            event.currentTarget.style.background = 'transparent'
-            event.currentTarget.style.borderColor = 'var(--border)'
-          }}
+          className="glass-btn"
           style={{
             width: '100%',
             justifyContent: 'center',
@@ -155,9 +148,7 @@ export default function LoginPage() {
             alignItems: 'center',
             padding: '12px',
             borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border)',
-            background: 'transparent',
-            color: 'var(--text-primary)',
+            border: '1px solid var(--glass-border)',
             fontWeight: 600,
             cursor: 'pointer',
             transition: 'all 0.2s ease',

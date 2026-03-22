@@ -252,7 +252,7 @@ export default function SubscriptionPage() {
           {heroSummary}
         </p>
         {!canManageBilling && (
-          <div className="card" style={{ maxWidth: 640, margin: '16px auto 0', textAlign: 'left', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)' }}>
+          <div className="glass-container" style={{ maxWidth: 640, margin: '16px auto 0', textAlign: 'left', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)' }}>
             <strong style={{ display: 'block', marginBottom: 6, color: '#93c5fd' }}>Read-only workspace billing</strong>
             <span style={{ color: 'var(--text-secondary)' }}>
               You can view the current workspace plan here, but only the workspace owner can start the trial, purchase Pro, or upgrade to Max.
@@ -262,7 +262,7 @@ export default function SubscriptionPage() {
         {msg && <div className="success-box" style={{ maxWidth: 520, margin: '16px auto 0', textAlign: 'left' }}>✅ {msg}</div>}
         {error && <div className="error-box" style={{ maxWidth: 520, margin: '16px auto 0', textAlign: 'left' }}>⚠️ {error}</div>}
         {!paymentConfigured && subStatus?.paymentMessage && (
-          <div className="card" style={{ maxWidth: 640, margin: '16px auto 0', textAlign: 'left', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+          <div className="glass-container" style={{ maxWidth: 640, margin: '16px auto 0', textAlign: 'left', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
             <strong style={{ display: 'block', marginBottom: 6, color: 'var(--amber)' }}>Payments unavailable</strong>
             <span style={{ color: 'var(--text-secondary)' }}>{subStatus.paymentMessage}</span>
           </div>
@@ -270,7 +270,7 @@ export default function SubscriptionPage() {
       </div>
 
       <div className="plans-grid" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', gap: 24, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 16 }}>
-        <div className={`plan-card ${isFree ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260 }}>
+        <div className={`plan-card glass-container ${isFree ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260 }}>
           {isFree && <div className="plan-badge">Current Plan</div>}
           <div className="plan-name">Free</div>
           <div className="plan-price">₹0</div>
@@ -280,13 +280,13 @@ export default function SubscriptionPage() {
               <li key={feature} className="plan-feature"><span className="feat-icon">✓</span> {feature}</li>
             ))}
           </ul>
-          <button className="btn-secondary" style={{ width: '100%' }} disabled>
+          <button className="glass-btn" style={{ width: '100%', justifyContent: 'center' }} disabled>
             {isFree ? 'Current Plan' : 'Reference Only'}
           </button>
         </div>
 
         {showTrialPlan && (
-          <div className={`plan-card ${isTrial ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260 }}>
+          <div className={`plan-card glass-container ${isTrial ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260 }}>
             {isTrial && <div className="plan-badge">Active Trial</div>}
             {!isTrial && trialEligible && (
               <div className="plan-badge" style={{ background: 'rgba(245,158,11,0.9)' }}>Try Free</div>
@@ -300,22 +300,22 @@ export default function SubscriptionPage() {
               ))}
             </ul>
             {isTrial ? (
-              <button className="btn-secondary" style={{ width: '100%' }} disabled>
+              <button className="glass-btn" style={{ width: '100%', justifyContent: 'center' }} disabled>
                 Trial Active · {subStatus?.trialDaysRemaining ?? 0}d left
               </button>
             ) : trialEligible ? (
-              <button className="btn-gradient" style={{ width: '100%' }} onClick={handleStartTrial} disabled={trialLoading || loading}>
+              <button className="glass-btn glass-btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handleStartTrial} disabled={trialLoading || loading}>
                 {trialLoading ? '⏳ Starting…' : '🚀 Start 3-Day Trial'}
               </button>
             ) : (
-              <button className="btn-secondary" style={{ width: '100%' }} disabled>
+              <button className="glass-btn" style={{ width: '100%', justifyContent: 'center' }} disabled>
                 {trialStatusKnown ? (subStatus?.trialAlreadyUsed ? 'Trial Already Used' : 'Free Tier Only') : 'Checking Eligibility…'}
               </button>
             )}
           </div>
         )}
 
-        <div className={`plan-card ${isActive ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260, borderColor: isActive ? 'rgba(59,130,246,0.5)' : undefined }}>
+        <div className={`plan-card glass-container ${isActive ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260, borderColor: isActive ? 'rgba(59,130,246,0.5)' : undefined }}>
           {isActive && <div className="plan-badge">Current Plan</div>}
           {!isActive && !isMax && <div className="plan-badge">Recommended</div>}
           <div className="plan-name" style={{ color: 'var(--blue)' }}>Pro</div>
@@ -327,8 +327,8 @@ export default function SubscriptionPage() {
             ))}
           </ul>
           <button
-            className="btn-gradient"
-            style={{ width: '100%', opacity: paymentConfigured ? 1 : 0.6 }}
+            className="glass-btn glass-btn-primary"
+            style={{ width: '100%', justifyContent: 'center', opacity: paymentConfigured ? 1 : 0.6 }}
             onClick={() => { void handleSubscribe(39900, 'ACTIVE', 'Pro') }}
             disabled={loading || isActive || isMax || !paymentConfigured || !canManageBilling}
           >
@@ -346,7 +346,7 @@ export default function SubscriptionPage() {
           </button>
         </div>
 
-        <div className={`plan-card ${isMax ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260, borderColor: isMax ? 'rgba(139,92,246,0.5)' : undefined }}>
+        <div className={`plan-card glass-container ${isMax ? 'featured' : ''}`} style={{ flex: 1, minWidth: 260, borderColor: isMax ? 'rgba(139,92,246,0.5)' : undefined }}>
           {isMax && <div className="plan-badge" style={{ background: '#4c1d95', color: '#c4b5fd' }}>Current Plan</div>}
           {!isMax && <div className="plan-badge" style={{ background: '#4c1d95', color: '#c4b5fd' }}>Ultimate</div>}
           <div className="plan-name" style={{ color: '#a78bfa' }}>Max</div>
@@ -358,8 +358,8 @@ export default function SubscriptionPage() {
             ))}
           </ul>
           <button
-            className="btn-gradient"
-            style={{ width: '100%', background: 'linear-gradient(to right, #6d28d9, #4c1d95)', opacity: paymentConfigured ? 1 : 0.6 }}
+            className="glass-btn glass-btn-primary"
+            style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(to right, #6d28d9, #4c1d95)', opacity: paymentConfigured ? 1 : 0.6 }}
             onClick={() => { void handleSubscribe(89900, 'MAX', 'Max') }}
             disabled={loading || isMax || !paymentConfigured || !canManageBilling}
           >

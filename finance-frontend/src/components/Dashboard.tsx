@@ -232,7 +232,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
             <div className="pnl-header">
               <h3>📈 Interactive Charts</h3>
               {onOpenCharts && (
-                <button className="btn-liquid-glass" onClick={onOpenCharts}>
+                <button className="glass-btn glass-btn-primary" onClick={onOpenCharts}>
                   <span>Open Charts Tab &rarr;</span>
                 </button>
               )}
@@ -252,9 +252,10 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
           <h3>📊 Profit & Loss Report</h3>
           <div className="period-tabs premium-period-tabs">
             {(['month', 'quarter', 'year'] as Period[]).map(p => (
-              <button
+                <button
                 key={p}
-                className={`period-tab premium-period-tab ${activePeriod === p ? 'active' : ''}`}
+                className={`period-tab premium-period-tab glass-btn ${activePeriod === p ? 'glass-btn-primary' : ''}`}
+                style={{ borderRadius: 'var(--glass-radius-pill)', padding: '6px 16px', border: activePeriod === p ? undefined : '1px solid transparent', background: activePeriod === p ? undefined : 'transparent' }}
                 onClick={() => setActivePeriod(p)}
               >
                 {periodLabel[p]}
@@ -335,11 +336,11 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
             <span className="txn-count">{transactions.length}</span>
           </h3>
           <div className="header-actions">
-            <button className="btn-liquid-glass" onClick={() => { void fetchTransactions() }} style={{ padding: '8px 16px' }}>
+            <button className="glass-btn" onClick={() => { void fetchTransactions() }} style={{ padding: '8px 16px' }}>
               <span>↻ Refresh</span>
             </button>
             {capabilities.canEditFinance ? (
-              <button className="btn-liquid-glass" onClick={() => { setEditingTxn(null); setShowModal(true) }} style={{ padding: '8px 16px' }}>
+              <button className="glass-btn glass-btn-primary" onClick={() => { setEditingTxn(null); setShowModal(true) }} style={{ padding: '8px 16px' }}>
                 <span>＋ Add Transaction</span>
               </button>
             ) : null}
@@ -358,7 +359,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                 : 'No transactions have been recorded in this workspace yet.'}
             </p>
             {capabilities.canEditFinance ? (
-              <button className="btn-add-txn-empty" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
+              <button className="glass-btn glass-btn-primary" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
                 ＋ Add Your First Transaction
               </button>
             ) : null}
@@ -389,35 +390,25 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                         <button
-                          className="btn-icon"
+                          className="glass-btn"
                           title="Edit"
                           onClick={() => handleEdit(tx)}
                           style={{
-                            background: 'rgba(59,130,246,0.12)',
-                            border: '1px solid rgba(59,130,246,0.25)',
-                            color: '#60a5fa',
-                            borderRadius: 6,
-                            padding: '4px 8px',
+                            padding: '6px 10px',
                             cursor: 'pointer',
                             fontSize: 13,
-                            transition: 'all 0.15s',
                           }}
                         >
                           ✏️
                         </button>
                         <button
-                          className="btn-icon"
+                          className="glass-btn"
                           title="Delete"
                           onClick={() => setDeleteConfirm(tx)}
                           style={{
-                            background: 'rgba(239,68,68,0.12)',
-                            border: '1px solid rgba(239,68,68,0.25)',
-                            color: '#f87171',
-                            borderRadius: 6,
-                            padding: '4px 8px',
+                            padding: '6px 10px',
                             cursor: 'pointer',
                             fontSize: 13,
-                            transition: 'all 0.15s',
                           }}
                         >
                           🗑️
@@ -443,7 +434,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
 
       {deleteConfirm && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setDeleteConfirm(null) }}>
-          <div className="modal-box" style={{ maxWidth: 400 }}>
+          <div className="modal-box glass-container" style={{ maxWidth: 400 }}>
             <div className="modal-header">
               <h2 className="modal-title">🗑️ Delete Transaction</h2>
               <button className="modal-close" onClick={() => setDeleteConfirm(null)}>×</button>
@@ -454,13 +445,12 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
               <br /><br />
               <span style={{ color: '#f87171', fontSize: 12 }}>⚠️ This action cannot be undone.</span>
             </p>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setDeleteConfirm(null)}>
+            <div className="modal-footer" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="glass-btn" onClick={() => setDeleteConfirm(null)}>
                 Cancel
               </button>
               <button
-                className="btn-primary"
-                style={{ background: '#ef4444' }}
+                className="glass-btn glass-btn-danger"
                 onClick={() => void handleDelete(deleteConfirm)}
               >
                 🗑️ Delete

@@ -45,7 +45,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
   if (error || !data) return <div className="error">❌ {error}</div>
 
   const PeriodBtn = ({ v, label }: { v: number; label: string }) => (
-    <button className={`period-btn ${months === v ? 'active' : ''}`} onClick={() => setMonths(v)}>
+    <button className={`period-btn glass-btn ${months === v ? 'glass-btn-primary' : ''}`} style={{ padding: '6px 12px', borderRadius: 'var(--glass-radius-pill)' }} onClick={() => setMonths(v)}>
       {label}
     </button>
   )
@@ -85,14 +85,14 @@ export default function ChartsSection({ companyId, embedded = false }: { company
           ['Total Expense', '₹' + totalExpense.toLocaleString('en-IN', { maximumFractionDigits: 0 }), '#ef4444'],
           ['Net Profit', '₹' + netProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 }), netProfit >= 0 ? '#10b981' : '#ef4444'],
         ].map(([label, value, color]) => (
-          <div key={label} className="metric-card" style={{ flex: 1 }}>
+          <div key={label} className="metric-card glass-container" style={{ flex: 1 }}>
             <div className="metric-label">{label}</div>
             <div className="metric-value" style={{ color: color as string, fontSize: 22 }}>{value}</div>
           </div>
         ))}
       </div>
 
-      <div className="chart-card">
+      <div className="chart-card glass-container">
         <h3 className="chart-title">📊 Monthly Income vs Expense</h3>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -108,7 +108,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
       </div>
 
       <div className="charts-row">
-        <div className="chart-card" style={{ flex: 1, minWidth: 280 }}>
+        <div className="chart-card glass-container" style={{ flex: 1, minWidth: 280 }}>
           <h3 className="chart-title">🥧 Expense by Category</h3>
           {categoryBreakdown.length === 0 ? (
             <div className="empty-state" style={{ padding: 40 }}>No expense categories yet</div>
@@ -135,7 +135,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
           )}
         </div>
 
-        <div className="chart-card" style={{ flex: 2, minWidth: 300 }}>
+        <div className="chart-card glass-container" style={{ flex: 2, minWidth: 300 }}>
           <h3 className="chart-title">📉 Daily Balance (Last 60 Days)</h3>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={dailyBalance} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -155,7 +155,7 @@ export default function ChartsSection({ companyId, embedded = false }: { company
         </div>
       </div>
 
-      <div className="chart-card">
+      <div className="chart-card glass-container">
         <h3 className="chart-title">📈 Monthly Net Profit Trend</h3>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={monthly} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>

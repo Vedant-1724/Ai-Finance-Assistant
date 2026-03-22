@@ -74,7 +74,7 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
+      <div className="auth-card glass-container" style={{ maxWidth: 460, margin: '0 auto', boxShadow: 'var(--glass-shadow-lg)' }}>
         <div className="auth-brand">
           <div className="auth-brand-icon">
             <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
@@ -96,7 +96,7 @@ export default function RegisterPage() {
             <div>✅ {success.message}{success.emailDeliveryEnabled ? ' Redirecting to login…' : ''}</div>
             {!success.emailDeliveryEnabled && success.verificationUrl && (
               <div style={{ display: 'grid', gap: 10 }}>
-                <a href={success.verificationUrl} className="btn-secondary" style={{ textAlign: 'center' }}>
+                <a href={success.verificationUrl} className="glass-btn glass-btn-primary" style={{ textAlign: 'center' }}>
                   Verify Email Now
                 </a>
                 <div style={{ fontSize: 12, lineHeight: 1.5, wordBreak: 'break-word', color: 'var(--text-secondary)' }}>
@@ -112,7 +112,7 @@ export default function RegisterPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-field">
-            <label className="input-label">Company / Business Name</label>
+            <label className="glass-label">Company / Business Name</label>
             <input
               type="text"
               value={companyName}
@@ -120,43 +120,43 @@ export default function RegisterPage() {
               placeholder="Acme Pvt Ltd"
               required
               autoFocus
-              className="input-field"
+              className="glass-input"
             />
           </div>
 
           <div className="form-field">
-            <label className="input-label">Email address</label>
+            <label className="glass-label">Email address</label>
             <input
               type="email"
               value={email}
               onChange={event => setEmail(event.target.value)}
               placeholder="you@example.com"
               required
-              className="input-field"
+              className="glass-input"
             />
           </div>
 
           <div className="form-field">
-            <label className="input-label">Password</label>
+            <label className="glass-label">Password</label>
             <input
               type="password"
               value={password}
               onChange={event => setPassword(event.target.value)}
               placeholder="At least 8 characters with Aa1"
               required
-              className="input-field"
+              className="glass-input"
             />
           </div>
 
           <div className="form-field">
-            <label className="input-label">Confirm Password</label>
+            <label className="glass-label">Confirm Password</label>
             <input
               type="password"
               value={confirm}
               onChange={event => setConfirm(event.target.value)}
               placeholder="Repeat your password"
               required
-              className="input-field"
+              className="glass-input"
             />
           </div>
 
@@ -179,7 +179,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn-liquid-glass"
+            className="glass-btn glass-btn-primary"
             style={{ marginTop: '16px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Creating account…</> : <span>Create Free Account &rarr;</span>}

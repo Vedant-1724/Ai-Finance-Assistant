@@ -117,7 +117,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       <div style={{ fontSize: 56 }}>👥</div>
       <h2>Team management is owner-only</h2>
       <p>You can collaborate inside the workspace, but only the workspace owner can invite, remove, or manage team members.</p>
-      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>View Workspace Plan &rarr;</span></a>
+      <a href="/subscription" className="glass-btn glass-btn-primary" style={{ display: 'inline-block' }}><span>View Workspace Plan &rarr;</span></a>
     </div>
   )
 
@@ -126,7 +126,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       <div style={{ fontSize: 56 }}>👥</div>
       <h2>Team Management requires Trial or Pro</h2>
       <p>Invite team members with EDITOR or VIEWER roles to collaborate on your company finances.</p>
-      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
+      <a href="/subscription" className="glass-btn glass-btn-primary" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
 
@@ -135,7 +135,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
     <div className="upgrade-gate">
       <div style={{ fontSize: 56 }}>👥</div>
       <h2>Team Management requires Trial or Pro</h2>
-      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
+      <a href="/subscription" className="glass-btn glass-btn-primary" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
   if (error) return <div className="error">❌ {error}</div>
@@ -159,8 +159,8 @@ export default function TeamPage({ companyId }: { companyId: number }) {
         ))}
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+      <div className="glass-container" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)' }}>
           <span className="card-title">Current Members</span>
         </div>
         {members.length === 0 ? (
@@ -216,7 +216,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
 
                   {!isCurrentUser && m.role !== 'OWNER' && (
                     <button
-                      className="btn-danger"
+                      className="glass-btn glass-btn-danger"
                       style={{ padding: '6px 12px', fontSize: 12 }}
                       onClick={() => setMemberToRemove(m)}
                       disabled={removing === m.id}
@@ -257,7 +257,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
             <label>Email address</label>
             <input
               type="email"
-              className="form-input"
+              className="glass-input"
               placeholder="colleague@company.com"
               value={invEmail}
               onChange={e => setInvEmail(e.target.value)}
@@ -267,7 +267,8 @@ export default function TeamPage({ companyId }: { companyId: number }) {
           <div className="form-group" style={{ minWidth: 140 }}>
             <label>Role</label>
             <select
-              className="form-select"
+              className="glass-input"
+              style={{ appearance: 'none' }}
               value={invRole}
               onChange={e => setInvRole(e.target.value as Role)}
             >
@@ -278,7 +279,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
           <div className="form-group" style={{ justifyContent: 'flex-end', minWidth: 120 }}>
             <label style={{ visibility: 'hidden' }}>Send</label>
             <button
-              className="btn-liquid-glass"
+              className="glass-btn glass-btn-primary"
               onClick={handleInvite}
               disabled={inviting}
             >
@@ -290,7 +291,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
 
       {memberToRemove && (
         <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) setMemberToRemove(null) }}>
-          <div className="modal-box" style={{ maxWidth: 420 }}>
+          <div className="modal-box glass-container" style={{ maxWidth: 420 }}>
             <div className="modal-header">
               <h2 className="modal-title">Remove Team Member</h2>
               <button className="modal-close" onClick={() => setMemberToRemove(null)}>×</button>
@@ -298,12 +299,12 @@ export default function TeamPage({ companyId }: { companyId: number }) {
             <p style={{ margin: '16px 0', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               Remove <strong>{memberToRemove.email || memberToRemove.inviteEmail || 'this member'}</strong> from the workspace? Pending invites will also be revoked.
             </p>
-            <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setMemberToRemove(null)}>
+            <div className="modal-footer" style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="glass-btn" onClick={() => setMemberToRemove(null)}>
                 Cancel
               </button>
               <button
-                className="btn-danger"
+                className="glass-btn glass-btn-danger"
                 onClick={() => { void handleRemove(memberToRemove.id) }}
                 disabled={removing === memberToRemove.id}
               >

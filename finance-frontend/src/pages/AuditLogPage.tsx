@@ -49,7 +49,7 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
     <div className="upgrade-gate">
       <div style={{ fontSize: 48 }}>📋</div>
       <h2>Audit Log requires Trial or Pro</h2>
-      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now</span></a>
+      <a href="/subscription" className="glass-btn glass-btn-primary" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
   if (error) return <div className="error">❌ {error}</div>
@@ -63,7 +63,7 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
         <h1 className="page-title">📋 Audit Log</h1>
         <p className="page-subtitle">Complete immutable record of all actions in your account</p>
       </div>
-      <div className="card">
+      <div className="glass-container" style={{ padding: '0 0 16px 0' }}>
         <table className="data-table">
           <thead>
             <tr><th>Time</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th></tr>
@@ -86,9 +86,9 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
         </table>
         {data && data.totalPages > 1 && (
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16 }}>
-            <button className="btn-secondary" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>← Prev</button>
-            <span style={{ color: '#94a3b8', padding: '8px 12px' }}>Page {page + 1} of {data.totalPages}</span>
-            <button className="btn-secondary" onClick={() => setPage(p => p + 1)} disabled={page >= data.totalPages - 1}>Next →</button>
+            <button className="glass-btn" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>← Prev</button>
+            <span style={{ color: 'var(--glass-text-muted)', padding: '8px 12px' }}>Page {page + 1} of {data.totalPages}</span>
+            <button className="glass-btn" onClick={() => setPage(p => p + 1)} disabled={page >= data.totalPages - 1}>Next →</button>
           </div>
         )}
       </div>
