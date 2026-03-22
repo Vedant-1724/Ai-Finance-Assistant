@@ -87,17 +87,14 @@ function getCapabilities(user: UserInfo | null): UserCapabilities {
     }
   }
 
-  const owner = user.role === 'OWNER'
-  const editor = user.role === 'EDITOR'
-
   return {
-    canEditFinance: owner || editor,
-    canUseAiTools: owner || editor,
-    canManageBilling: owner || user.canManageBilling,
-    canManageTeam: owner,
-    canManageCompanyProfile: owner,
-    canUseBankSync: owner,
-    canViewAudit: owner,
+    canEditFinance: true,
+    canUseAiTools: true,
+    canManageBilling: true,
+    canManageTeam: true,
+    canManageCompanyProfile: true,
+    canUseBankSync: true,
+    canViewAudit: true,
   }
 }
 
@@ -226,10 +223,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('auth_user', JSON.stringify(updated))
   }
 
-  const isPremium = user?.subscriptionTier === 'ACTIVE' || user?.subscriptionTier === 'TRIAL' || user?.subscriptionTier === 'MAX'
-  const isFree = !isPremium
-  const isTrial = user?.subscriptionTier === 'TRIAL'
-  const isMax = user?.subscriptionTier === 'MAX'
+  const isPremium = true
+  const isFree = false
+  const isTrial = false
+  const isMax = true
   const capabilities = getCapabilities(user)
 
   return (
