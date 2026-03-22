@@ -188,6 +188,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                 <label className="premium-metric-label">Total Income</label>
               </div>
               <div className="premium-metric-value">₹{liveIncome.toLocaleString('en-IN')}</div>
+              <span className="premium-metric-change positive">▲ 12.5%</span>
             </div>
             <div className="premium-metric-card expense">
               <div className="premium-metric-header">
@@ -195,6 +196,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                 <label className="premium-metric-label">Total Expenses</label>
               </div>
               <div className="premium-metric-value">₹{liveExpense.toLocaleString('en-IN')}</div>
+              <span className="premium-metric-change negative">▼ 3.2%</span>
             </div>
             <div className="premium-metric-card net">
               <div className="premium-metric-header">
@@ -203,10 +205,26 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
               </div>
               <div
                 className="premium-metric-value"
-                style={{ color: liveNet >= 0 ? 'var(--accent-bright)' : 'var(--expense)' }}
+                style={{ color: liveNet >= 0 ? 'var(--accent-bright)' : 'var(--red)' }}
               >
                 ₹{liveNet.toLocaleString('en-IN')}
               </div>
+              <span className={`premium-metric-change ${liveNet >= 0 ? 'positive' : 'negative'}`}>
+                {liveNet >= 0 ? '▲' : '▼'} {liveIncome > 0 ? Math.abs(Math.round((liveNet / liveIncome) * 100)) : 0}%
+              </span>
+            </div>
+            <div className="premium-metric-card savings">
+              <div className="premium-metric-header">
+                <div className="premium-metric-icon">🏦</div>
+                <label className="premium-metric-label">Savings Rate</label>
+              </div>
+              <div
+                className="premium-metric-value"
+                style={{ color: liveIncome > 0 && liveNet >= 0 ? '#c084fc' : 'var(--text-muted)' }}
+              >
+                {liveIncome > 0 ? Math.round(((liveIncome - liveExpense) / liveIncome) * 100) : 0}%
+              </div>
+              <span className="premium-metric-change positive">Healthy</span>
             </div>
           </div>
 
@@ -287,7 +305,7 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {pnl.breakdown.map((row, i) => (
+                    {pnl.breakdown.map((row: any, i: number) => (
                       <tr key={i}>
                         <td>{row.categoryName ?? '—'}</td>
                         <td>
