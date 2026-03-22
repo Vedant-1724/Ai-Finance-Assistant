@@ -56,7 +56,7 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
           <span className="banner-icon">✨</span>
         </div>
         <div className="banner-text-content">
-          <h4 className="banner-title">Unlock Lumina Premium</h4>
+          <h4 className="banner-title">Unlock Premium</h4>
           <p className="banner-subtitle">
             {capabilities.canManageBilling && trialEligible
               ? 'Start your 3-day premium trial today. Access advanced AI insights, team syncing, and full reporting.'
