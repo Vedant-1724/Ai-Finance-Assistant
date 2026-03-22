@@ -82,7 +82,7 @@ export default function TaxPage({ companyId }: { companyId: number }) {
       <div style={{ fontSize: 56 }}>🧾</div>
       <h2>Tax & GST requires Trial or Pro</h2>
       <p>Access GST summaries, TDS estimates, advance tax calculations, and ITR checklists.</p>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
 
@@ -91,7 +91,7 @@ export default function TaxPage({ companyId }: { companyId: number }) {
     <div className="upgrade-gate">
       <div style={{ fontSize: 56 }}>🧾</div>
       <h2>Tax & GST requires Trial or Pro</h2>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
   if (error) return <div className="error">❌ {error}</div>

@@ -141,7 +141,7 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
 
   return (
     <div className="modal-overlay" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
-      <div className="modal-box" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Transaction' : 'Add Transaction'}>
+      <div className="premium-modal-box" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Transaction' : 'Add Transaction'}>
         <div className="modal-header">
           <h2 className="modal-title">{isEdit ? '✏️ Edit Transaction' : '➕ Add Transaction'}</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
@@ -274,11 +274,11 @@ export default function AddTransactionModal({ companyId, onClose, onSuccess, edi
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button type="button" className="btn-dismiss" onClick={onClose} style={{ padding: '8px 16px' }}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? '⏳ Saving…' : isEdit ? '✏️ Update Transaction' : '💾 Save Transaction'}
+            <button type="submit" className="btn-liquid-glass" disabled={loading}>
+              <span>{loading ? '⏳ Saving…' : isEdit ? '✏️ Update Transaction' : '💾 Save Transaction'}</span>
             </button>
           </div>
         </form>

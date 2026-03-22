@@ -12,7 +12,7 @@ interface SubscriptionStatusResponse {
 }
 
 export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
-  const { user, isFree, isTrial, isMax, capabilities } = useAuth()
+  const { user, isFree, isTrial, capabilities } = useAuth()
   const [trialEligible, setTrialEligible] = useState(false)
 
   useEffect(() => {
@@ -45,81 +45,36 @@ export default function StatusBanner({ onUpgrade }: StatusBannerProps) {
     }
   }, [user, isFree, capabilities.canManageBilling])
 
-  if (!user) {
+  if (!user || user.subscriptionTier === 'ACTIVE' || user.subscriptionTier === 'MAX' || isTrial) {
     return null
   }
 
-  if (isMax) {
-    return (
-      <div
-        className="status-banner banner-max"
-        style={{
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-          borderBottom: '1px solid rgba(139, 92, 246, 0.2)',
-          color: '#c4b5fd',
-        }}
-      >
-        <span className="banner-text">
-          👑 <strong>{capabilities.canManageBilling ? 'Max Plan' : 'Workspace on Max'}</strong> — full access unlocked.{' '}
-          {user.aiChatsRemaining > 0
-            ? `${user.aiChatsRemaining} AI chats remaining today.`
-            : 'Daily AI chat limit reached. It resets at midnight.'}
-        </span>
-      </div>
-    )
-  }
-
-  if (!isFree && !isTrial) {
-    return (
-      <div className="status-banner banner-active">
-        <span className="banner-text">
-          ✅ <strong>{capabilities.canManageBilling ? 'Pro Plan' : 'Workspace on Pro'}</strong> — premium features are active.{' '}
-          {user.aiChatsRemaining > 0
-            ? `${user.aiChatsRemaining} AI chats remaining today.`
-            : 'Daily AI chat limit reached. It resets at midnight.'}
-        </span>
-      </div>
-    )
-  }
-
-  if (isTrial) {
-    const days = user.trialDaysRemaining ?? 0
-    const urgent = days <= 1
-
-    return (
-      <div className="status-banner banner-trial">
-        <span className="banner-text">
-          {urgent ? '⚠️' : '🎉'} <strong>Premium Trial</strong> —{' '}
-          {days <= 0 ? 'Your trial has ended.' : days === 1 ? 'Last day remaining.' : `${days} days remaining.`}{' '}
-          AI chat starts on Pro and Max.
-        </span>
-        {capabilities.canManageBilling ? (
-          <button className="banner-cta" onClick={onUpgrade}>
-            Upgrade for AI chat →
-          </button>
-        ) : null}
-      </div>
-    )
-  }
-
   return (
-    <div className="status-banner banner-free">
-      <span className="banner-text">
-        🔓 <strong>Free Plan</strong> — core tracking is active.{' '}
-        {capabilities.canManageBilling && trialEligible
-          ? 'Start your one-time 3-day trial or upgrade for premium reports, health score, team tools, and AI chat.'
-          : capabilities.canManageBilling
-            ? 'Upgrade for premium reports, health score, team tools, and AI chat.'
-            : 'Your workspace owner can start a trial or upgrade for premium reports, health score, team tools, and AI chat.'}
-      </span>
+    <div className="premium-status-banner">
+      <div className="banner-content">
+        <div className="banner-icon-wrapper">
+          <span className="banner-icon">✨</span>
+        </div>
+        <div className="banner-text-content">
+          <h4 className="banner-title">Unlock Lumina Premium</h4>
+          <p className="banner-subtitle">
+            {capabilities.canManageBilling && trialEligible
+              ? 'Start your 3-day premium trial today. Access advanced AI insights, team syncing, and full reporting.'
+              : capabilities.canManageBilling
+                ? 'Upgrade for premium reports, health score, team tools, and AI chat.'
+                : 'Your workspace owner can upgrade for premium reports, health tools, and AI chat.'}
+          </p>
+        </div>
+      </div>
       <button
-        className="btn-gradient"
-        style={{ padding: '6px 16px', fontSize: '13px', marginLeft: '12px' }}
+        className="btn-liquid-glass banner-action-btn"
         onClick={onUpgrade}
       >
-        {capabilities.canManageBilling
-          ? trialEligible ? '🚀 Start 3-Day Trial →' : '⭐ View Plans →'
-          : '💳 View Workspace Plan →'}
+        <span>
+          {capabilities.canManageBilling
+            ? trialEligible ? 'Start 3-Day Trial' : 'View Plans'
+            : 'View Workspace Plan'}
+        </span>
       </button>
     </div>
   )

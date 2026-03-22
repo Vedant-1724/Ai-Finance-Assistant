@@ -220,7 +220,7 @@ function InvoiceUpload({ companyId }: InvoiceUploadProps) {
       <div style={{ fontSize: 56 }}>🧾</div>
       <h2>Invoice Scanner requires Trial or Pro</h2>
       <p>Access AI-powered invoice extraction and automated data entry.</p>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
 

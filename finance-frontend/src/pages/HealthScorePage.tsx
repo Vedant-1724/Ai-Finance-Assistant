@@ -76,7 +76,7 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
       <div style={{ fontSize: 56 }}>💚</div>
       <h2>Health Score requires Trial or Pro</h2>
       <p>Get an AI-powered monthly financial health score with actionable recommendations.</p>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
 
@@ -85,7 +85,7 @@ export default function HealthScorePage({ companyId }: { companyId: number }) {
     <div className="upgrade-gate">
       <div style={{ fontSize: 56 }}>💚</div>
       <h2>Health Score requires Trial or Pro</h2>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
   if (error) return <div className="error">❌ {error}</div>

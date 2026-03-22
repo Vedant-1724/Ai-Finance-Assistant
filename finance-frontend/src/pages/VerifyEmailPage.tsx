@@ -55,7 +55,7 @@ export default function VerifyEmailPage() {
         {status !== 'verifying' && (
           <button
             type="button"
-            className="btn-primary"
+            className="btn-liquid-glass"
             onClick={() => navigate('/login')}
             style={{ width: '100%', marginTop: '2rem' }}
           >

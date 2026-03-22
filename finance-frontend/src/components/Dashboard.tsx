@@ -232,8 +232,8 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
             <div className="pnl-header">
               <h3>📈 Interactive Charts</h3>
               {onOpenCharts && (
-                <button className="btn-refresh" onClick={onOpenCharts}>
-                  Open Charts Tab
+                <button className="btn-liquid-glass" onClick={onOpenCharts}>
+                  <span>Open Charts Tab &rarr;</span>
                 </button>
               )}
             </div>
@@ -335,12 +335,12 @@ function Dashboard({ companyId, onOpenCharts }: DashboardProps) {
             <span className="txn-count">{transactions.length}</span>
           </h3>
           <div className="header-actions">
-            <button className="btn-refresh" onClick={() => { void fetchTransactions() }}>
-              ↻ Refresh
+            <button className="btn-liquid-glass" onClick={() => { void fetchTransactions() }} style={{ padding: '8px 16px' }}>
+              <span>↻ Refresh</span>
             </button>
             {capabilities.canEditFinance ? (
-              <button className="btn-add-txn" onClick={() => { setEditingTxn(null); setShowModal(true) }}>
-                ＋ Add Transaction
+              <button className="btn-liquid-glass" onClick={() => { setEditingTxn(null); setShowModal(true) }} style={{ padding: '8px 16px' }}>
+                <span>＋ Add Transaction</span>
               </button>
             ) : null}
           </div>

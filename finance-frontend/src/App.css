@@ -16,63 +16,7 @@
   padding: 0;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   DESIGN TOKENS — single source of truth
-   ══════════════════════════════════════════════════════════════ */
-:root {
-  /* Backgrounds — enhanced depth layers */
-  --bg: #050c1a;
-  --bg-surface: #0a1628;
-  --bg-elevated: #0f1e36;
-  --bg-card: #111d33;
-  --bg-card-hover: #142040;
-  --surface: #0a1628;
-  --bg-recessed: #070e1c;
-
-  /* Borders — ghost border system */
-  --border: rgba(59, 130, 246, 0.12);
-  --border-strong: rgba(59, 130, 246, 0.28);
-  --border-ghost: rgba(255, 255, 255, 0.06);
-  --border-glow: rgba(96, 165, 250, 0.35);
-
-  /* Brand */
-  --blue: #3b82f6;
-  --blue-dark: #2563eb;
-  --blue-glow: rgba(59, 130, 246, 0.25);
-  --purple: #8b5cf6;
-  --purple-glow: rgba(139, 92, 246, 0.2);
-  --teal: #14b8a6;
-  --teal-glow: rgba(20, 184, 166, 0.2);
-  --green: #22c55e;
-  --red: #ef4444;
-  --amber: #f59e0b;
-  --accent-bright: #60a5fa;
-
-  /* Text — both naming conventions */
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
-  --text-accent: #60a5fa;
-  --text: #e2e8f0;
-  --text-sub: #94a3b8;
-
-  /* Radius — upgraded for premium feel */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 24px;
-  --radius-2xl: 28px;
-
-  /* Shadows — navy-tinted depth system */
-  --shadow-card: 0 8px 32px rgba(2, 6, 23, 0.5), 0 2px 8px rgba(2, 6, 23, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.1);
-  --shadow-popup: 0 30px 90px rgba(2, 6, 23, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --shadow-depth: 0 20px 60px -15px rgba(2, 6, 23, 0.6);
-  --shadow-hover: 0 24px 50px -12px rgba(2, 6, 23, 0.7), 0 0 20px rgba(59, 130, 246, 0.08);
-
-  /* Transition */
-  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
-}
+/* Tokens are exclusively in index.css */
 
 /* ── Animations ────────────────────────────────────────────────────────────── */
 @keyframes fadeUp {

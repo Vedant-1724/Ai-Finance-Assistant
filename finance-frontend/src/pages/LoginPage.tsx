@@ -124,10 +124,10 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn-gradient"
-            style={{ marginTop: '4px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
+            className="btn-liquid-glass"
+            style={{ marginTop: '16px', width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</> : 'Sign In →'}
+            {loading ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Signing in…</> : <span>Sign In &rarr;</span>}
           </button>
         </form>
 

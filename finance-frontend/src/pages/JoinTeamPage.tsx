@@ -53,8 +53,8 @@ export default function JoinTeamPage() {
         <div className="auth-card">
           <h1 className="auth-heading">Team Invite</h1>
           <p className="auth-subheading">This invite link is missing its token.</p>
-          <button type="button" className="btn-primary" onClick={() => navigate('/login')} style={{ width: '100%' }}>
-            Go to Login
+          <button type="button" className="btn-liquid-glass" onClick={() => navigate('/login')} style={{ width: '100%', padding: '12px' }}>
+            <span>Go to Login</span>
           </button>
         </div>
       </div>
@@ -95,13 +95,13 @@ export default function JoinTeamPage() {
 
         <div style={{ display: 'grid', gap: 12, marginTop: '1rem' }}>
           {status === 'error' && (
-            <button type="button" className="btn-primary" onClick={() => setStatus('ready')}>
-              Try Again
+            <button type="button" className="btn-liquid-glass" onClick={() => setStatus('ready')} style={{ padding: '10px' }}>
+              <span>Try Again</span>
             </button>
           )}
           {status === 'success' && (
-            <button type="button" className="btn-primary" onClick={() => navigate('/', { replace: true })}>
-              Go to Dashboard
+            <button type="button" className="btn-liquid-glass" onClick={() => navigate('/', { replace: true })} style={{ padding: '10px' }}>
+              <span>Go to Dashboard</span>
             </button>
           )}
           <button type="button" className="btn-secondary" onClick={() => navigate('/', { replace: true })}>

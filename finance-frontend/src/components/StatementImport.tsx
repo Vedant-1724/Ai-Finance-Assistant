@@ -384,13 +384,15 @@ export default function StatementImport({ companyId, onImportSuccess }: Statemen
                 If live Setu credentials are not configured in this environment, FinanceAI falls back to safe demo bank data so you can still test the full workflow locally.
               </p>
               <button
-                className="btn-primary"
+                className="btn-liquid-glass"
                 onClick={() => { void handleSetuSync() }}
                 disabled={setuSyncing || parsing}
                 style={{ padding: '12px 24px', fontSize: 16, width: '100%', display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}
               >
-                {setuSyncing ? <div className="spinner" style={{ width: 16, height: 16 }} /> : '🔗'}
-                {setuSyncing ? 'Connecting to Bank...' : 'Connect Bank via Setu AA'}
+                <span>
+                  {setuSyncing ? <div className="spinner" style={{ width: 16, height: 16, display: 'inline-block' }} /> : '🔗 '}
+                  {setuSyncing ? 'Connecting to Bank...' : 'Connect Bank via Setu AA'}
+                </span>
               </button>
               {setuNotice && (
                 <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe', fontSize: 13 }}>

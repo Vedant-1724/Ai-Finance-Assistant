@@ -49,7 +49,7 @@ export default function AuditLogPage({ companyId }: { companyId: number }) {
     <div className="upgrade-gate">
       <div style={{ fontSize: 48 }}>📋</div>
       <h2>Audit Log requires Trial or Pro</h2>
-      <a href="/subscription" className="btn-primary">Upgrade Now</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now</span></a>
     </div>
   )
   if (error) return <div className="error">❌ {error}</div>

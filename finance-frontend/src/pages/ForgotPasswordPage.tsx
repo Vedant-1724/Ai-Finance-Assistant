@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
               <p>{message}</p>
               {!result?.emailDeliveryEnabled && result?.resetUrl && (
                 <div style={{ display: 'grid', gap: 10, textAlign: 'left' }}>
-                  <a href={result.resetUrl} className="btn-secondary" style={{ textAlign: 'center' }}>
+                  <a href={result.resetUrl} className="btn-liquid-glass" style={{ textAlign: 'center' }}>
                     Open Reset Link
                   </a>
                   <div style={{ fontSize: 12, lineHeight: 1.5, wordBreak: 'break-word' }}>
@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
                 </div>
               )}
             </div>
-            <Link to="/login" className="btn-primary" style={{ display: 'block', textAlign: 'center', marginTop: '1.5rem', width: '100%' }}>
+            <Link to="/login" className="btn-liquid-glass" style={{ display: 'block', textAlign: 'center', marginTop: '1.5rem', width: '100%' }}>
               Return to Login
             </Link>
           </div>
@@ -84,7 +84,7 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="btn-gradient"
+                className="btn-liquid-glass"
                 style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 {status === 'loading' ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Sending Link…</> : 'Send Reset Link'}

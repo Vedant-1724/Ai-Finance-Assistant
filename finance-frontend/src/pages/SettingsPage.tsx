@@ -243,8 +243,8 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? '⏳ Saving…' : '💾 Save Profile'}
+          <button className="btn-liquid-glass" onClick={handleSave} disabled={saving}>
+            <span>{saving ? '⏳ Saving…' : '💾 Save Profile'}</span>
           </button>
         </div>
       </div>
@@ -284,8 +284,8 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={handleSave} disabled={saving || !capabilities.canManageCompanyProfile}>
-            {saving ? '⏳ Saving…' : capabilities.canManageCompanyProfile ? '💾 Save Workspace' : 'Read-only Workspace'}
+          <button className="btn-liquid-glass" onClick={handleSave} disabled={saving || !capabilities.canManageCompanyProfile}>
+            <span>{saving ? '⏳ Saving…' : capabilities.canManageCompanyProfile ? '💾 Save Workspace' : 'Read-only Workspace'}</span>
           </button>
         </div>
       </div>
@@ -314,8 +314,8 @@ export default function SettingsPage() {
         ))}
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? '⏳ Saving…' : '💾 Save Preferences'}
+          <button className="btn-liquid-glass" onClick={handleSave} disabled={saving}>
+            <span>{saving ? '⏳ Saving…' : '💾 Save Preferences'}</span>
           </button>
         </div>
       </div>
@@ -385,8 +385,8 @@ export default function SettingsPage() {
         )}
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button className="btn-primary" onClick={handleChangePassword} disabled={pwSaving}>
-            {pwSaving ? '⏳ Changing…' : '🔐 Change Password'}
+          <button className="btn-liquid-glass" onClick={handleChangePassword} disabled={pwSaving}>
+            <span>{pwSaving ? '⏳ Changing…' : '🔐 Change Password'}</span>
           </button>
         </div>
       </div>
@@ -400,7 +400,7 @@ export default function SettingsPage() {
             <div className="settings-row-label">Export Transactions</div>
             <div className="settings-row-desc">Download all transactions as CSV</div>
           </div>
-          <button className="btn-secondary" onClick={handleExport} disabled={exporting}>
+          <button className="btn-dismiss" onClick={handleExport} disabled={exporting}>
             {exporting ? '⏳ Exporting…' : '⬇️ Download CSV'}
           </button>
         </div>
@@ -419,7 +419,7 @@ export default function SettingsPage() {
             <div className="settings-row-label">Log Out</div>
             <div className="settings-row-desc">Sign out of your account on this device</div>
           </div>
-          <button className="btn-secondary" onClick={() => { void logout() }}>
+          <button className="btn-dismiss" onClick={() => { void logout() }}>
             🚪 Log Out
           </button>
         </div>
@@ -440,7 +440,7 @@ export default function SettingsPage() {
               <div className="settings-row-label">Workspace deletion</div>
               <div className="settings-row-desc">Only the workspace owner can delete the account and company data.</div>
             </div>
-            <button className="btn-secondary" disabled>
+            <button className="btn-dismiss" disabled>
               Owner only
             </button>
           </div>
@@ -458,7 +458,7 @@ export default function SettingsPage() {
               This permanently deletes the workspace, team data, transactions, and settings. This action cannot be undone.
             </p>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setConfirmDeleteOpen(false)}>
+              <button className="btn-dismiss" onClick={() => setConfirmDeleteOpen(false)}>
                 Cancel
               </button>
               <button className="btn-danger" onClick={() => { void handleDeleteAccount() }}>

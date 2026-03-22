@@ -82,8 +82,8 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
             className="select-sm">
             {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            + Set Budget
+          <button className="btn-liquid-glass" onClick={() => setShowForm(!showForm)} style={{ padding: '8px 16px' }}>
+            <span>+ Set Budget</span>
           </button>
         </div>
       </div>
@@ -119,9 +119,9 @@ export default function BudgetPlanner({ companyId }: { companyId: number }) {
                 value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving...' : 'Save Budget'}
+              <button className="btn-dismiss" onClick={() => setShowForm(false)} style={{ padding: '8px 16px' }}>Cancel</button>
+              <button className="btn-liquid-glass" onClick={handleSave} disabled={saving}>
+                <span>{saving ? 'Saving...' : 'Save Budget'}</span>
               </button>
             </div>
           </div>

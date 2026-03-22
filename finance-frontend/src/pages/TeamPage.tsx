@@ -117,7 +117,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       <div style={{ fontSize: 56 }}>👥</div>
       <h2>Team management is owner-only</h2>
       <p>You can collaborate inside the workspace, but only the workspace owner can invite, remove, or manage team members.</p>
-      <a href="/subscription" className="btn-primary">View Workspace Plan →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>View Workspace Plan &rarr;</span></a>
     </div>
   )
 
@@ -126,7 +126,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
       <div style={{ fontSize: 56 }}>👥</div>
       <h2>Team Management requires Trial or Pro</h2>
       <p>Invite team members with EDITOR or VIEWER roles to collaborate on your company finances.</p>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
 
@@ -135,7 +135,7 @@ export default function TeamPage({ companyId }: { companyId: number }) {
     <div className="upgrade-gate">
       <div style={{ fontSize: 56 }}>👥</div>
       <h2>Team Management requires Trial or Pro</h2>
-      <a href="/subscription" className="btn-primary">Upgrade Now →</a>
+      <a href="/subscription" className="btn-liquid-glass" style={{ display: 'inline-block' }}><span>Upgrade Now &rarr;</span></a>
     </div>
   )
   if (error) return <div className="error">❌ {error}</div>
@@ -278,11 +278,11 @@ export default function TeamPage({ companyId }: { companyId: number }) {
           <div className="form-group" style={{ justifyContent: 'flex-end', minWidth: 120 }}>
             <label style={{ visibility: 'hidden' }}>Send</label>
             <button
-              className="btn-primary"
+              className="btn-liquid-glass"
               onClick={handleInvite}
               disabled={inviting}
             >
-              {inviting ? '⏳ Sending…' : '✉️ Send Invite'}
+              <span>{inviting ? '⏳ Sending…' : '✉️ Send Invite'}</span>
             </button>
           </div>
         </div>

@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
             <span className="icon-success">✅</span>
             <p style={{ marginTop: '1rem' }}>{message}</p>
             <button
-              className="btn-primary"
+              className="btn-liquid-glass"
               onClick={() => navigate('/login')}
               style={{ width: '100%', marginTop: '1.5rem' }}
             >
@@ -107,7 +107,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="btn-gradient"
+                className="btn-liquid-glass"
                 style={{ width: '100%', marginTop: '4px', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 {status === 'loading' ? <><span className="spinner" style={{ width: 16, height: 16 }} /> Saving…</> : 'Reset Password'}
